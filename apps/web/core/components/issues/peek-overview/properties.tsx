@@ -30,6 +30,8 @@ import { MemberDropdown } from "@/components/dropdowns/member/dropdown";
 import { PriorityDropdown } from "@/components/dropdowns/priority";
 import { StateDropdown } from "@/components/dropdowns/state/dropdown";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
+// agent teams extension (design §12.5-5 extension slot)
+import { WorkItemRuntimePanel } from "@/components/agent-teams/work-item-runtime-panel";
 // helpers
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useMember } from "@/hooks/store/use-member";
@@ -244,6 +246,8 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
           <IssueLabel workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} disabled={disabled} />
         </SidebarPropertyListItem>
       </div>
+      {/* Agent Teams extension slot (design §12.5-5) */}
+      <WorkItemRuntimePanel issueId={issueId} />
     </div>
   );
 });

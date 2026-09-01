@@ -2,5 +2,7 @@
   "agent_teams_page_subtitle": "人与数字员工成员在此工作区的项目中协同工作。运行时状态、执行与工件由 Agent Team Runtime API 提供。",
   "agent_teams_list_pending": "Runtime Console API 契约接通后，团队列表将在此展示。",
   "agent_teams_detail_subtitle": "团队概览、活跃任务、执行与工件摘要——由 Agent Team Runtime API 提供的只读视图。成员与策略管理在管理端完成。",
-  "agent_teams_detail_pending": "Runtime Console API 契约接通后，团队详情将在此展示。"
+  "agent_teams_detail_pending": "Runtime Console API 契约接通后，团队详情将在此展示。",
+  "agent_teams_panel_title": "Agent 团队",
+  "agent_teams_panel_pending": "Agent Team Runtime API 接通后，运行时摘要将在此展示。"
 }

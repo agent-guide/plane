@@ -38,6 +38,8 @@ import { useProjectState } from "@/hooks/store/use-project-state";
 // components
 import { IssueParentSelectRoot } from "@/components/issues/parent-select-root";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
+// agent teams extension (design §12.5-5 extension slot)
+import { WorkItemRuntimePanel } from "@/components/agent-teams/work-item-runtime-panel";
 import { IssueCycleSelect } from "./cycle-select";
 import { IssueLabel } from "./label";
 import { IssueModuleSelect } from "./module-select";
@@ -249,6 +251,8 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
               />
             </SidebarPropertyListItem>
           </div>
+          {/* Agent Teams extension slot (design §12.5-5) */}
+          <WorkItemRuntimePanel issueId={issueId} />
         </div>
       </div>
     </>
