@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { observer } from "mobx-react";
 import { usePopper } from "react-popper";
 import { Loader } from "lucide-react";
@@ -92,7 +92,7 @@ export const IssueLabelSelect = observer(function IssueLabelSelect(props: IIssue
 
   const issueLabels = values ?? [];
 
-  const label = <span className="text-body-xs-medium text-placeholder">{t("label.select")}</span>;
+  const labelTrigger = <span className="text-body-xs-medium text-placeholder">{t("label.select")}</span>;
 
   const searchInputKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (query !== "" && e.key === "Escape") {
@@ -126,17 +126,18 @@ export const IssueLabelSelect = observer(function IssueLabelSelect(props: IIssue
         onChange={(value) => onSelect(value)}
         multiple
       >
-        <Combobox.Button as={Fragment}>
-          <Button
-            ref={setReferenceElement}
-            type="button"
-            variant="tertiary"
-            size="sm"
-            prependIcon={<PlusIcon />}
-            onClick={() => !projectLabels && fetchLabels()}
-          >
-            {label}
-          </Button>
+        {/* headlessui v2 forbids `as={Fragment}` here (props passthrough on
+            Fragment throws under React 19); render the Button directly. */}
+        <Combobox.Button
+          ref={setReferenceElement}
+          as={Button}
+          type="button"
+          variant="tertiary"
+          size="sm"
+          prependIcon={<PlusIcon />}
+          onClick={() => !projectLabels && fetchLabels()}
+        >
+          {labelTrigger}
         </Combobox.Button>
 
         <Combobox.Options as="ul" className="fixed z-10">
@@ -197,6 +198,13 @@ export const IssueLabelSelect = observer(function IssueLabelSelect(props: IIssue
                     as="li"
                     value={query}
                     onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!query.length) return;
+                      handleAddLabel(query);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
                       e.preventDefault();
                       e.stopPropagation();
                       if (!query.length) return;
