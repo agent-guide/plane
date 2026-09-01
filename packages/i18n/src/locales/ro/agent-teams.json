@@ -4,5 +4,7 @@
   "agent_teams_detail_subtitle": "Team overview, active tasks, runs and artifact summaries — read-only view backed by the Agent Team Runtime API. Member and policy management lives in the admin console.",
   "agent_teams_detail_pending": "Team detail will appear here once the Runtime console API contract is connected.",
   "agent_teams_panel_title": "Agent Team",
-  "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected."
+  "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
+  "agent_teams_summary_badge": "Run Agent",
+  "agent_teams_summary_pending": "Rezumatul structurat al rulării va apărea aici după conectarea Agent Team Runtime API."
 }

@@ -11,6 +11,8 @@ import { BASE_ACTIVITY_FILTER_TYPES, filterActivityOnSelectedFilters } from "@pl
 import type { TCommentsOperations } from "@plane/types";
 // components
 import { CommentCard } from "@/components/comments/card/root";
+// agent teams extension (design §12.5-4 activity renderer)
+import { AgentRunSummaryCard } from "@/components/agent-teams/agent-run-summary-card";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 // local imports
@@ -59,20 +61,25 @@ export const IssueActivityCommentRoot = observer(function IssueActivityCommentRo
     <div>
       {filteredActivityAndComments.map((activityComment, index) => {
         const comment = getCommentById(activityComment.id);
+        const ends = index === 0 ? "top" : index === filteredActivityAndComments.length - 1 ? "bottom" : undefined;
         return activityComment.activity_type === "COMMENT" ? (
-          <CommentCard
-            key={activityComment.id}
-            workspaceSlug={workspaceSlug}
-            entityId={issueId}
-            comment={comment}
-            activityOperations={activityOperations}
-            ends={index === 0 ? "top" : index === filteredActivityAndComments.length - 1 ? "bottom" : undefined}
-            showAccessSpecifier={!!showAccessSpecifier}
-            showCopyLinkOption={!isIntakeIssue}
-            disabled={disabled}
-            projectId={projectId}
-            enableReplies
-          />
+          comment?.actor_detail?.is_bot ? (
+            <AgentRunSummaryCard key={activityComment.id} comment={comment} ends={ends} />
+          ) : (
+            <CommentCard
+              key={activityComment.id}
+              workspaceSlug={workspaceSlug}
+              entityId={issueId}
+              comment={comment}
+              activityOperations={activityOperations}
+              ends={ends}
+              showAccessSpecifier={!!showAccessSpecifier}
+              showCopyLinkOption={!isIntakeIssue}
+              disabled={disabled}
+              projectId={projectId}
+              enableReplies
+            />
+          )
         ) : BASE_ACTIVITY_FILTER_TYPES.includes(activityComment.activity_type as EActivityFilterType) ? (
           <IssueActivityItem
             key={activityComment.id}
