@@ -55,7 +55,7 @@ export const AgentRunSummaryCard = observer(function AgentRunSummaryCard({ comme
             <span className="text-caption-sm-regular text-tertiary">{calculateTimeAgo(comment.created_at)}</span>
           </div>
           {summaryText && <div className="mt-2 text-body-sm-regular whitespace-pre-wrap">{summaryText}</div>}
-          <div className="border-custom-border-200 text-custom-text-400 mt-3 rounded-sm border border-dashed px-3 py-3 text-center text-11">
+          <div className="mt-3 rounded-sm border border-dashed border-subtle px-3 py-3 text-center text-caption-sm-regular text-tertiary">
             {t("agent_teams_summary_pending")}
           </div>
         </div>

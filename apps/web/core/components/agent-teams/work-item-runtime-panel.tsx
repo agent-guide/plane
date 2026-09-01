@@ -28,7 +28,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({ iss
         <Users className="size-3.5 flex-shrink-0" />
         {t("agent_teams_panel_title")}
       </h5>
-      <div className="border-custom-border-200 text-custom-text-400 mt-3 rounded-sm border border-dashed px-3 py-4 text-center text-11">
+      <div className="mt-3 rounded-sm border border-dashed border-subtle px-3 py-4 text-center text-caption-sm-regular text-tertiary">
         {t("agent_teams_panel_pending")}
       </div>
     </div>
