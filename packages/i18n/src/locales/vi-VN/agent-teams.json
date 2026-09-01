@@ -1,0 +1,6 @@
+{
+  "agent_teams_page_subtitle": "Human and agent members working together on this workspace's projects. Runtime status, runs and artifacts are provided by the Agent Team Runtime API.",
+  "agent_teams_list_pending": "Team list will appear here once the Runtime console API contract is connected.",
+  "agent_teams_detail_subtitle": "Team overview, active tasks, runs and artifact summaries — read-only view backed by the Agent Team Runtime API. Member and policy management lives in the admin console.",
+  "agent_teams_detail_pending": "Team detail will appear here once the Runtime console API contract is connected."
+}
