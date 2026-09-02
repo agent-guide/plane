@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Отменено",
   "agent_teams_status_accepted": "Принято",
   "agent_teams_status_timed_out": "Истекло время",
-  "agent_teams_status_unknown": "Неизвестно"
+  "agent_teams_status_unknown": "Неизвестно",
+  "agent_teams_panel_team": "Ответственная команда",
+  "agent_teams_panel_member": "Текущий участник",
+  "agent_teams_panel_step": "Шаг workflow",
+  "agent_teams_panel_status": "Статус",
+  "agent_teams_panel_duration": "Длительность",
+  "agent_teams_panel_cost": "Стоимость",
+  "agent_teams_panel_artifacts": "Артефакты",
+  "agent_teams_panel_approve_now": "Ожидает согласования",
+  "agent_teams_panel_not_bound": "Не управляется командой агентов.",
+  "agent_teams_panel_view_run": "Показать запуск целиком",
+  "agent_teams_panel_minutes": "{count} мин",
+  "agent_teams_panel_approve": "Согласовать",
+  "agent_teams_panel_reject": "Отклонить"
 }

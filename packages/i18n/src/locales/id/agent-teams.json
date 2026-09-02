@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Dibatalkan",
   "agent_teams_status_accepted": "Diterima",
   "agent_teams_status_timed_out": "Kedaluwarsa",
-  "agent_teams_status_unknown": "Tidak diketahui"
+  "agent_teams_status_unknown": "Tidak diketahui",
+  "agent_teams_panel_team": "Tim bertanggung jawab",
+  "agent_teams_panel_member": "Anggota saat ini",
+  "agent_teams_panel_step": "Langkah alur kerja",
+  "agent_teams_panel_status": "Status",
+  "agent_teams_panel_duration": "Durasi",
+  "agent_teams_panel_cost": "Biaya",
+  "agent_teams_panel_artifacts": "Artefak",
+  "agent_teams_panel_approve_now": "Menunggu persetujuan",
+  "agent_teams_panel_not_bound": "Tidak dikelola tim agen.",
+  "agent_teams_panel_view_run": "Lihat run lengkap",
+  "agent_teams_panel_minutes": "{count} mnt",
+  "agent_teams_panel_approve": "Setujui",
+  "agent_teams_panel_reject": "Tolak"
 }

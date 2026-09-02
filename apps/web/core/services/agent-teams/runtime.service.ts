@@ -114,6 +114,24 @@ export type AgentTeamArtifactSummary = {
   createdAt?: string;
 };
 
+export type WorkItemRuntimeSummary = {
+  issueId: string;
+  taskBindingId: string;
+  taskName: string;
+  teamId: string;
+  teamName: string;
+  currentMemberName?: string | null;
+  workflowStep?: string | null;
+  controlStatus: "queued" | "running" | "waiting_human" | "blocked" | "failed" | "completed" | "cancelled";
+  // Accumulated execution metrics (design §12.3).
+  durationSeconds?: number | null;
+  costUsd?: number | null;
+  artifacts?: Array<{ id: string; name: string; version: number }>;
+  // Inline approval entry (design §12.6.4): the waiting human decision for
+  // this work item, if any. Null when nothing awaits.
+  pendingApproval?: HumanInboxItem | null;
+};
+
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -509,6 +527,49 @@ export class AgentTeamRuntimeService extends APIService {
       return mockTeamArtifacts[teamId] ?? [];
     }
     return (await this.get(`/api/v1/agent-teams/${teamId}/artifacts`)).data;
+  }
+
+  /**
+   * Runtime summary for one Plane work item (design §12.3 Task Runtime
+   * panel). Assumed endpoint — §9 freezes task-dimension reads only; the
+   * issueId → taskBinding resolution lives in the Runtime projection and
+   * needs a query contract before 联调.
+   */
+  async getWorkItemRuntimeSummary(issueId: string): Promise<WorkItemRuntimeSummary | null> {
+    if (MOCK) {
+      await delay(120);
+      // Only the demo issue is runtime-managed; unbound work items get null.
+      if (issueId !== "56e0c28c-a53a-494e-91e4-30da44f55d72") return null;
+      // Derived from the shared workflow-node state, so answering here or in
+      // the inbox updates both views.
+      const awaiting = mockWorkflowNode.status === "waiting_approval";
+      return {
+        issueId,
+        taskBindingId: "tb_1",
+        taskName: "批量导入功能需求",
+        teamId: "team_delivery",
+        teamName: "Delivery Team",
+        currentMemberName: "BA Agent",
+        workflowStep: "review",
+        controlStatus: awaiting ? "waiting_human" : "running",
+        durationSeconds: 720,
+        costUsd: 0.46,
+        artifacts: [{ id: "art_1", name: "需求文档", version: 3 }],
+        pendingApproval: awaiting
+          ? {
+              scope: "workflow",
+              requestId: mockWorkflowNode.id,
+              tenantId: "tenant_default",
+              taskBindingId: mockWorkflowNode.taskBindingId,
+              assignedIdentityId: mockWorkflowNode.assignedIdentityId,
+              title: mockWorkflowNode.title,
+              status: mockWorkflowNode.status,
+              createdAt: mockWorkflowNode.createdAt,
+            }
+          : null,
+      };
+    }
+    return (await this.get(`/api/v1/runtime/work-items/${issueId}/summary`)).data ?? null;
   }
 }
 

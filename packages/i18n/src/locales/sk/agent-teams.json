@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Zrušené",
   "agent_teams_status_accepted": "Prijaté",
   "agent_teams_status_timed_out": "Vypršalo",
-  "agent_teams_status_unknown": "Neznáme"
+  "agent_teams_status_unknown": "Neznáme",
+  "agent_teams_panel_team": "Zodpovedný tím",
+  "agent_teams_panel_member": "Aktuálny člen",
+  "agent_teams_panel_step": "Krok workflow",
+  "agent_teams_panel_status": "Stav",
+  "agent_teams_panel_duration": "Trvanie",
+  "agent_teams_panel_cost": "Náklady",
+  "agent_teams_panel_artifacts": "Artefakty",
+  "agent_teams_panel_approve_now": "Čaká na schválenie",
+  "agent_teams_panel_not_bound": "Nie je spravované agent tímom.",
+  "agent_teams_panel_view_run": "Zobraziť celý beh",
+  "agent_teams_panel_minutes": "{count} min",
+  "agent_teams_panel_approve": "Schváliť",
+  "agent_teams_panel_reject": "Zamietnuť"
 }

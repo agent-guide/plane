@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Скасовано",
   "agent_teams_status_accepted": "Прийнято",
   "agent_teams_status_timed_out": "Час вичерпано",
-  "agent_teams_status_unknown": "Невідомо"
+  "agent_teams_status_unknown": "Невідомо",
+  "agent_teams_panel_team": "Відповідальна команда",
+  "agent_teams_panel_member": "Поточний учасник",
+  "agent_teams_panel_step": "Крок workflow",
+  "agent_teams_panel_status": "Статус",
+  "agent_teams_panel_duration": "Тривалість",
+  "agent_teams_panel_cost": "Вартість",
+  "agent_teams_panel_artifacts": "Артефакти",
+  "agent_teams_panel_approve_now": "Очікує погодження",
+  "agent_teams_panel_not_bound": "Не керується командою агентів.",
+  "agent_teams_panel_view_run": "Переглянути запуск повністю",
+  "agent_teams_panel_minutes": "{count} хв",
+  "agent_teams_panel_approve": "Погодити",
+  "agent_teams_panel_reject": "Відхилити"
 }

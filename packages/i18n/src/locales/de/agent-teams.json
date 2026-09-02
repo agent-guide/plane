@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Abgebrochen",
   "agent_teams_status_accepted": "Angenommen",
   "agent_teams_status_timed_out": "Zeitüberschreitung",
-  "agent_teams_status_unknown": "Unbekannt"
+  "agent_teams_status_unknown": "Unbekannt",
+  "agent_teams_panel_team": "Verantwortliches Team",
+  "agent_teams_panel_member": "Aktuelles Mitglied",
+  "agent_teams_panel_step": "Workflow-Schritt",
+  "agent_teams_panel_status": "Status",
+  "agent_teams_panel_duration": "Dauer",
+  "agent_teams_panel_cost": "Kosten",
+  "agent_teams_panel_artifacts": "Artefakte",
+  "agent_teams_panel_approve_now": "Freigabe erforderlich",
+  "agent_teams_panel_not_bound": "Wird von keinem Agent-Team verwaltet.",
+  "agent_teams_panel_view_run": "Vollständige Ausführung",
+  "agent_teams_panel_minutes": "{count} Min.",
+  "agent_teams_panel_approve": "Genehmigen",
+  "agent_teams_panel_reject": "Ablehnen"
 }

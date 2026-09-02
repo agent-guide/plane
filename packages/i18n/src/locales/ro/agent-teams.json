@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Anulat",
   "agent_teams_status_accepted": "Acceptat",
   "agent_teams_status_timed_out": "Expirat",
-  "agent_teams_status_unknown": "Necunoscut"
+  "agent_teams_status_unknown": "Necunoscut",
+  "agent_teams_panel_team": "Echipă responsabilă",
+  "agent_teams_panel_member": "Membru curent",
+  "agent_teams_panel_step": "Pasul fluxului",
+  "agent_teams_panel_status": "Stare",
+  "agent_teams_panel_duration": "Durată",
+  "agent_teams_panel_cost": "Cost",
+  "agent_teams_panel_artifacts": "Artefacte",
+  "agent_teams_panel_approve_now": "Așteaptă aprobare",
+  "agent_teams_panel_not_bound": "Negestionat de o echipă de agenți.",
+  "agent_teams_panel_view_run": "Vezi rularea completă",
+  "agent_teams_panel_minutes": "{count} min",
+  "agent_teams_panel_approve": "Aprobă",
+  "agent_teams_panel_reject": "Respinge"
 }

@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "İptal edildi",
   "agent_teams_status_accepted": "Kabul edildi",
   "agent_teams_status_timed_out": "Zaman aşımı",
-  "agent_teams_status_unknown": "Bilinmiyor"
+  "agent_teams_status_unknown": "Bilinmiyor",
+  "agent_teams_panel_team": "Sorumlu ekip",
+  "agent_teams_panel_member": "Şu anki üye",
+  "agent_teams_panel_step": "İş akışı adımı",
+  "agent_teams_panel_status": "Durum",
+  "agent_teams_panel_duration": "Süre",
+  "agent_teams_panel_cost": "Maliyet",
+  "agent_teams_panel_artifacts": "Artefaktlar",
+  "agent_teams_panel_approve_now": "Onay bekliyor",
+  "agent_teams_panel_not_bound": "Bir aracı ekibi tarafından yönetilmiyor.",
+  "agent_teams_panel_view_run": "Tüm çalıştırmayı gör",
+  "agent_teams_panel_minutes": "{count} dk",
+  "agent_teams_panel_approve": "Onayla",
+  "agent_teams_panel_reject": "Reddet"
 }

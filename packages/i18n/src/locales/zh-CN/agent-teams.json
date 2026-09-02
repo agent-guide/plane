@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "已取消",
   "agent_teams_status_accepted": "已接受",
   "agent_teams_status_timed_out": "已超时",
-  "agent_teams_status_unknown": "未知"
+  "agent_teams_status_unknown": "未知",
+  "agent_teams_panel_team": "负责团队",
+  "agent_teams_panel_member": "当前成员",
+  "agent_teams_panel_step": "工作流步骤",
+  "agent_teams_panel_status": "状态",
+  "agent_teams_panel_duration": "耗时",
+  "agent_teams_panel_cost": "成本",
+  "agent_teams_panel_artifacts": "工件",
+  "agent_teams_panel_approve_now": "等待你的审批",
+  "agent_teams_panel_not_bound": "未接入 Agent 团队。",
+  "agent_teams_panel_view_run": "查看完整执行",
+  "agent_teams_panel_minutes": "{count} 分钟",
+  "agent_teams_panel_approve": "批准",
+  "agent_teams_panel_reject": "驳回"
 }

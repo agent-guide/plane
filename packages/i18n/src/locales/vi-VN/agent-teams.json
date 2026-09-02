@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Đã hủy",
   "agent_teams_status_accepted": "Đã chấp nhận",
   "agent_teams_status_timed_out": "Quá hạn",
-  "agent_teams_status_unknown": "Không rõ"
+  "agent_teams_status_unknown": "Không rõ",
+  "agent_teams_panel_team": "Nhóm phụ trách",
+  "agent_teams_panel_member": "Thành viên hiện tại",
+  "agent_teams_panel_step": "Bước quy trình",
+  "agent_teams_panel_status": "Trạng thái",
+  "agent_teams_panel_duration": "Thời lượng",
+  "agent_teams_panel_cost": "Chi phí",
+  "agent_teams_panel_artifacts": "Artefact",
+  "agent_teams_panel_approve_now": "Đang chờ phê duyệt",
+  "agent_teams_panel_not_bound": "Không do nhóm Agent quản lý.",
+  "agent_teams_panel_view_run": "Xem toàn bộ lượt chạy",
+  "agent_teams_panel_minutes": "{count} phút",
+  "agent_teams_panel_approve": "Phê duyệt",
+  "agent_teams_panel_reject": "Từ chối"
 }

@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Annulé",
   "agent_teams_status_accepted": "Accepté",
   "agent_teams_status_timed_out": "Expiré",
-  "agent_teams_status_unknown": "Inconnu"
+  "agent_teams_status_unknown": "Inconnu",
+  "agent_teams_panel_team": "Équipe responsable",
+  "agent_teams_panel_member": "Membre actuel",
+  "agent_teams_panel_step": "Étape de workflow",
+  "agent_teams_panel_status": "Statut",
+  "agent_teams_panel_duration": "Durée",
+  "agent_teams_panel_cost": "Coût",
+  "agent_teams_panel_artifacts": "Artefacts",
+  "agent_teams_panel_approve_now": "Approbation requise",
+  "agent_teams_panel_not_bound": "Non géré par une équipe d'agents.",
+  "agent_teams_panel_view_run": "Voir l'exécution complète",
+  "agent_teams_panel_minutes": "{count} min",
+  "agent_teams_panel_approve": "Approuver",
+  "agent_teams_panel_reject": "Rejeter"
 }

@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "キャンセル済み",
   "agent_teams_status_accepted": "受理済み",
   "agent_teams_status_timed_out": "タイムアウト",
-  "agent_teams_status_unknown": "不明"
+  "agent_teams_status_unknown": "不明",
+  "agent_teams_panel_team": "担当チーム",
+  "agent_teams_panel_member": "現在のメンバー",
+  "agent_teams_panel_step": "ワークフローステップ",
+  "agent_teams_panel_status": "ステータス",
+  "agent_teams_panel_duration": "所要時間",
+  "agent_teams_panel_cost": "コスト",
+  "agent_teams_panel_artifacts": "アーティファクト",
+  "agent_teams_panel_approve_now": "承認を待っています",
+  "agent_teams_panel_not_bound": "Agent チームの管理対象外です。",
+  "agent_teams_panel_view_run": "実行全体を表示",
+  "agent_teams_panel_minutes": "{count}分",
+  "agent_teams_panel_approve": "承認",
+  "agent_teams_panel_reject": "却下"
 }

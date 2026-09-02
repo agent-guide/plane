@@ -60,5 +60,18 @@
   "agent_teams_status_cancelled": "Cancelled",
   "agent_teams_status_accepted": "Accepted",
   "agent_teams_status_timed_out": "Timed out",
-  "agent_teams_status_unknown": "Unknown"
+  "agent_teams_status_unknown": "Unknown",
+  "agent_teams_panel_team": "Responsible Team",
+  "agent_teams_panel_member": "Current Member",
+  "agent_teams_panel_step": "Workflow Step",
+  "agent_teams_panel_status": "Status",
+  "agent_teams_panel_duration": "Duration",
+  "agent_teams_panel_cost": "Cost",
+  "agent_teams_panel_artifacts": "Artifacts",
+  "agent_teams_panel_approve_now": "Approval requested",
+  "agent_teams_panel_not_bound": "Not managed by an agent team.",
+  "agent_teams_panel_view_run": "View full run",
+  "agent_teams_panel_minutes": "{count}m",
+  "agent_teams_panel_approve": "Approve",
+  "agent_teams_panel_reject": "Reject"
 }
