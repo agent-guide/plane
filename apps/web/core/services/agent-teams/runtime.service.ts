@@ -56,6 +56,65 @@ export type HumanInboxDetail = {
 };
 
 // ---------------------------------------------------------------------------
+// Team queries (implementation plan §9; read-only in Plane per design §12.6.1
+// — member/policy management lives in the admin console).
+// ---------------------------------------------------------------------------
+
+export type AgentTeam = {
+  id: string;
+  name: string;
+  objective?: string | null;
+  status: "draft" | "active" | "archived";
+  // Derived counts for list cards / overview.
+  memberCount?: number;
+  activeTaskCount?: number;
+  runningRunCount?: number;
+  artifactCount?: number;
+};
+
+export type AgentTeamMember = {
+  id: string;
+  identityId: string;
+  kind: "human" | "agent";
+  displayName: string;
+  role: string;
+  capabilities?: string[];
+  enabled: boolean;
+};
+
+export type AgentTeamProject = {
+  projectId: string;
+  projectName: string;
+  workflowName?: string | null;
+  workflowVersion?: number | null;
+};
+
+export type AgentTeamActiveTask = {
+  taskBindingId: string;
+  taskName: string;
+  controlStatus: "queued" | "running" | "waiting_human" | "blocked" | "failed" | "completed" | "cancelled";
+  activeMemberName?: string | null;
+};
+
+export type AgentTeamRunSummary = {
+  id: string;
+  taskName: string;
+  agentName: string;
+  nodeKey?: string | null;
+  status: "accepted" | "running" | "completed" | "failed" | "cancelled" | "timed_out" | "unknown";
+  startedAt?: string;
+};
+
+export type AgentTeamArtifactSummary = {
+  id: string;
+  artifactKey: string;
+  name: string;
+  version: number;
+  producedBy?: string | null;
+  createdAt?: string;
+};
+
+// ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
 
@@ -126,6 +185,146 @@ let mockAgentTextRequest = {
 // 当前用户的 Runtime Identity（§12.6.7 真实场景由 BFF 用 Plane session 换取；
 // mock 里即 assignedIdentityId = id_human_pm 的那个人）。
 const MOCK_CURRENT_IDENTITY_ID = "id_human_pm";
+
+// Team snapshots mirrored from the admin-console mock (same §7 scenario:
+// Delivery Team active with a waiting-human task; Support Team still draft).
+const mockTeams: AgentTeam[] = [
+  {
+    id: "team_delivery",
+    name: "Delivery Team",
+    objective: "西藏物流培训平台交付",
+    status: "active",
+    memberCount: 4,
+    activeTaskCount: 1,
+    runningRunCount: 1,
+    artifactCount: 1,
+  },
+  {
+    id: "team_support",
+    name: "Support Team",
+    objective: "工单处理与客户支持",
+    status: "draft",
+    memberCount: 2,
+    activeTaskCount: 0,
+    runningRunCount: 0,
+    artifactCount: 0,
+  },
+];
+
+const mockTeamMembers: Record<string, AgentTeamMember[]> = {
+  team_delivery: [
+    {
+      id: "tm_1",
+      identityId: "id_human_pm",
+      kind: "human",
+      displayName: "张三",
+      role: "product_owner",
+      capabilities: ["approve"],
+      enabled: true,
+    },
+    {
+      id: "tm_2",
+      identityId: "id_agent_ba",
+      kind: "agent",
+      displayName: "BA Agent",
+      role: "ba",
+      capabilities: ["requirements"],
+      enabled: true,
+    },
+    {
+      id: "tm_3",
+      identityId: "id_agent_dev",
+      kind: "agent",
+      displayName: "Developer Agent",
+      role: "developer",
+      capabilities: ["coding"],
+      enabled: true,
+    },
+    {
+      id: "tm_4",
+      identityId: "id_agent_qa",
+      kind: "agent",
+      displayName: "QA Agent",
+      role: "qa",
+      capabilities: ["testing"],
+      enabled: true,
+    },
+  ],
+  team_support: [
+    {
+      id: "tm_5",
+      identityId: "id_human_support",
+      kind: "human",
+      displayName: "李四",
+      role: "support_lead",
+      enabled: true,
+    },
+    {
+      id: "tm_6",
+      identityId: "id_agent_triage",
+      kind: "agent",
+      displayName: "Triage Agent",
+      role: "triage",
+      capabilities: ["triage"],
+      enabled: true,
+    },
+  ],
+};
+
+const mockTeamProjects: Record<string, AgentTeamProject[]> = {
+  team_delivery: [
+    { projectId: "proj_1", projectName: "西藏物流培训平台", workflowName: "软件交付流程", workflowVersion: 3 },
+  ],
+  team_support: [],
+};
+
+const mockTeamActiveTasks: Record<string, AgentTeamActiveTask[]> = {
+  team_delivery: [
+    {
+      taskBindingId: "tb_1",
+      taskName: "批量导入功能需求",
+      controlStatus: "waiting_human",
+      activeMemberName: "BA Agent",
+    },
+  ],
+  team_support: [],
+};
+
+const mockTeamRuns: Record<string, AgentTeamRunSummary[]> = {
+  team_delivery: [
+    {
+      id: "ar_1",
+      taskName: "批量导入功能需求",
+      agentName: "BA Agent",
+      nodeKey: "requirements",
+      status: "completed",
+      startedAt: "2026-08-31T09:00:30Z",
+    },
+    {
+      id: "ar_2",
+      taskName: "批量导入功能需求",
+      agentName: "Developer Agent",
+      nodeKey: "review",
+      status: "running",
+      startedAt: "2026-08-31T10:00:00Z",
+    },
+  ],
+  team_support: [],
+};
+
+const mockTeamArtifacts: Record<string, AgentTeamArtifactSummary[]> = {
+  team_delivery: [
+    {
+      id: "art_1",
+      artifactKey: "requirements",
+      name: "需求文档",
+      version: 3,
+      producedBy: "BA Agent",
+      createdAt: "2026-08-31T09:05:00Z",
+    },
+  ],
+  team_support: [],
+};
 
 export class AgentTeamRuntimeService extends APIService {
   constructor() {
@@ -244,6 +443,72 @@ export class AgentTeamRuntimeService extends APIService {
         ? `/api/v1/runtime/workflow-human-nodes/${item.requestId}/answer`
         : `/api/v1/runtime/agent-human-requests/${item.requestId}/answer`;
     await this.post(url, answer);
+  }
+
+  /** GET /api/v1/agent-teams */
+  async listTeams(): Promise<AgentTeam[]> {
+    if (MOCK) {
+      await delay(120);
+      return mockTeams.filter((team) => team.status !== "archived");
+    }
+    return (await this.get("/api/v1/agent-teams")).data;
+  }
+
+  /** GET /api/v1/agent-teams/{team_id} */
+  async getTeam(teamId: string): Promise<AgentTeam> {
+    if (MOCK) {
+      await delay(120);
+      const team = mockTeams.find((t) => t.id === teamId);
+      if (!team) throw new Error("team not found");
+      return team;
+    }
+    return (await this.get(`/api/v1/agent-teams/${teamId}`)).data;
+  }
+
+  /** GET /api/v1/agent-teams/{team_id}/members — read-only in Plane (§12.6.1). */
+  async listTeamMembers(teamId: string): Promise<AgentTeamMember[]> {
+    if (MOCK) {
+      await delay(120);
+      return (mockTeamMembers[teamId] ?? []).filter((m) => m.enabled);
+    }
+    return (await this.get(`/api/v1/agent-teams/${teamId}/members`)).data;
+  }
+
+  /** GET /api/v1/agent-teams/{team_id}/projects */
+  async listTeamProjects(teamId: string): Promise<AgentTeamProject[]> {
+    if (MOCK) {
+      await delay(120);
+      return mockTeamProjects[teamId] ?? [];
+    }
+    return (await this.get(`/api/v1/agent-teams/${teamId}/projects`)).data;
+  }
+
+  // Assumed endpoints — §9 freezes task-dimension reads only; team-dimension
+  // task/run/artifact summaries are the Plane Team page's own aggregate
+  // (design §12.1) and need a query contract before 联调.
+
+  async listTeamActiveTasks(teamId: string): Promise<AgentTeamActiveTask[]> {
+    if (MOCK) {
+      await delay(120);
+      return mockTeamActiveTasks[teamId] ?? [];
+    }
+    return (await this.get(`/api/v1/agent-teams/${teamId}/active-tasks`)).data;
+  }
+
+  async listTeamRuns(teamId: string): Promise<AgentTeamRunSummary[]> {
+    if (MOCK) {
+      await delay(120);
+      return mockTeamRuns[teamId] ?? [];
+    }
+    return (await this.get(`/api/v1/agent-teams/${teamId}/runs`)).data;
+  }
+
+  async listTeamArtifacts(teamId: string): Promise<AgentTeamArtifactSummary[]> {
+    if (MOCK) {
+      await delay(120);
+      return mockTeamArtifacts[teamId] ?? [];
+    }
+    return (await this.get(`/api/v1/agent-teams/${teamId}/artifacts`)).data;
   }
 }
 

@@ -194,7 +194,7 @@ function AgentTeamsInboxPage() {
           }
         />
         <ContentWrapper>
-          <div className="flex h-full w-full flex-col gap-4 p-4">
+          <div className="flex w-full flex-col gap-4 px-4 pt-4 pb-10">
             <p className="max-w-2xl text-body-xs-regular text-tertiary">{t("agent_teams_inbox_subtitle")}</p>
             {error && <div className="text-body-sm-regular text-danger-primary">{error}</div>}
 
