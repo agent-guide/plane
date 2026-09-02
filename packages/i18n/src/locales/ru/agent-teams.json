@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Показать запуск целиком",
   "agent_teams_panel_minutes": "{count} мин",
   "agent_teams_panel_approve": "Согласовать",
-  "agent_teams_panel_reject": "Отклонить"
+  "agent_teams_panel_reject": "Отклонить",
+  "agent_teams_project_subtitle": "Ответственная команда агентов этого проекта, её workflow и ожидающие решения. Управление привязками — в консоли администрирования.",
+  "agent_teams_active_agents": "Активные агенты",
+  "agent_teams_waiting_decisions": "Ожидают человеческих решений",
+  "agent_teams_card_waiting": "Ожидает {count}",
+  "agent_teams_inbox_filter_this_project": "Только этот проект",
+  "agent_teams_panel_timeline": "Хронология выполнения",
+  "agent_teams_panel_cancel": "Отменить запуск",
+  "agent_teams_panel_view_full_run": "Показать запуск целиком"
 }

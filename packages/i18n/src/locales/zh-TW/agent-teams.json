@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "查看完整執行",
   "agent_teams_panel_minutes": "{count} 分鐘",
   "agent_teams_panel_approve": "批准",
-  "agent_teams_panel_reject": "駁回"
+  "agent_teams_panel_reject": "駁回",
+  "agent_teams_project_subtitle": "本專案負責的 Agent 團隊、工作流與待決策事項。綁定管理在管理端完成。",
+  "agent_teams_active_agents": "活躍 Agent",
+  "agent_teams_waiting_decisions": "等待人工決策",
+  "agent_teams_card_waiting": "待決策 {count}",
+  "agent_teams_inbox_filter_this_project": "僅看該專案",
+  "agent_teams_panel_timeline": "執行時間軸",
+  "agent_teams_panel_cancel": "取消執行",
+  "agent_teams_panel_view_full_run": "查看完整執行"
 }

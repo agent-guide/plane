@@ -15,13 +15,16 @@ import { observer } from "mobx-react";
 // i18n
 import { useTranslation } from "@plane/i18n";
 // icons
-import { Activity, Bot, Clock, Coins, FileBox, GitBranch, User, Users } from "lucide-react";
+import { Activity, Bot, ChevronDown, Clock, Coins, ExternalLink, FileBox, GitBranch, User, Users } from "lucide-react";
 // components
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import Link from "next/link";
 // services
-import runtimeService, { type WorkItemRuntimeSummary } from "@/services/agent-teams/runtime.service";
+import runtimeService, {
+  type WorkItemRuntimeSummary,
+  type WorkItemTimelineEntry,
+} from "@/services/agent-teams/runtime.service";
 
 type WorkItemRuntimePanelProps = {
   issueId: string;
@@ -33,11 +36,25 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({ iss
   const [summary, setSummary] = useState<WorkItemRuntimeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [answering, setAnswering] = useState("");
+  const [timeline, setTimeline] = useState<WorkItemTimelineEntry[] | null>(null);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
     try {
-      setSummary(await runtimeService.getWorkItemRuntimeSummary(issueId));
+      const next = await runtimeService.getWorkItemRuntimeSummary(issueId);
+      setSummary(next);
+      // Timeline loads alongside; failure keeps it hidden, not blocking.
+      if (next) {
+        try {
+          setTimeline(await runtimeService.getWorkItemTimeline(issueId));
+        } catch {
+          setTimeline(null);
+        }
+      } else {
+        setTimeline(null);
+      }
     } catch {
       setSummary(null);
     } finally {
@@ -65,6 +82,24 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({ iss
     },
     [summary, loadSummary]
   );
+
+  const handleCancel = useCallback(async () => {
+    if (!summary?.workflowRunId) return;
+    setCancelling(true);
+    try {
+      await runtimeService.cancelWorkItemRun(summary.workflowRunId);
+      await loadSummary();
+    } catch {
+      // Cancel failures surface via the admin console; panel keeps state.
+    } finally {
+      setCancelling(false);
+    }
+  }, [summary, loadSummary]);
+
+  // Deep-link target base for the admin console (A3 pages). Optional — the
+  // link is simply not offered until the deployment URL is configured.
+  const consoleBaseUrl = import.meta.env.VITE_RUNTIME_CONSOLE_BASE_URL as string | undefined;
+  const isTerminal = summary?.controlStatus === "completed" || summary?.controlStatus === "cancelled";
 
   return (
     <div className="w-full" data-issue-id={issueId}>
@@ -177,6 +212,78 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({ iss
                     {t("agent_teams_panel_reject")}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Execution timeline (design §12.3) — collapsible, entries hang
+                on a rail with markers ON the line. */}
+            {timeline && timeline.length > 0 && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setTimelineOpen((prev) => !prev)}
+                  className="hover:text-secondary-hover flex w-full items-center gap-1 py-0.5 text-body-xs-medium text-secondary"
+                >
+                  <ChevronDown
+                    className={`size-3.5 transition-transform ${timelineOpen ? "" : "-rotate-90"}`}
+                    aria-hidden
+                  />
+                  {t("agent_teams_panel_timeline")}
+                </button>
+                {timelineOpen && (
+                  <div className="flex flex-col">
+                    {timeline.map((entry, index) => {
+                      // Compact dot timeline for the narrow sidebar: 6px
+                      // markers centered on a 1px rail (dot left 2.5px for a
+                      // rail at left-[5px]); the latest entry is accented so
+                      // "where we are now" reads at a glance.
+                      const isLatest = index === timeline.length - 1;
+                      return (
+                        <div key={entry.id} className={`relative py-1.5 pl-5 ${index === 0 ? "mt-1" : ""}`}>
+                          <div className="absolute top-0 bottom-0 left-[5px] w-px bg-layer-3" aria-hidden />
+                          <span
+                            className={`absolute top-1/2 left-[2.5px] size-1.5 -translate-y-1/2 rounded-full ${
+                              isLatest ? "bg-accent-primary" : "bg-[var(--text-color-secondary)]"
+                            }`}
+                            aria-hidden
+                          />
+                          <span className={`text-caption-sm-regular ${isLatest ? "text-secondary" : "text-tertiary"}`}>
+                            {entry.summary}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Run commands + View full run deep link (design §12.6.4) —
+                divider-anchored footer. Pause has no contract — deliberately
+                not offered. */}
+            {(consoleBaseUrl || (summary.workflowRunId && !isTerminal)) && (
+              <div className="mt-4 flex items-center justify-end gap-3 border-t border-subtle pt-3">
+                {consoleBaseUrl && summary.workflowRunId && (
+                  <a
+                    href={`${consoleBaseUrl}/runtime/runs/${summary.workflowRunId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-secondary-hover flex items-center gap-1 text-caption-sm-medium text-secondary"
+                  >
+                    {t("agent_teams_panel_view_full_run")}
+                    <ExternalLink className="size-3" aria-hidden />
+                  </a>
+                )}
+                {summary.workflowRunId && !isTerminal && (
+                  <button
+                    type="button"
+                    disabled={cancelling}
+                    onClick={() => void handleCancel()}
+                    className="rounded-md border border-danger-strong bg-layer-2 px-2.5 py-1 text-caption-sm-medium text-danger-secondary hover:bg-danger-subtle disabled:opacity-60"
+                  >
+                    {t("agent_teams_panel_cancel")}
+                  </button>
+                )}
               </div>
             )}
           </>

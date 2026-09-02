@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Ver ejecución completa",
   "agent_teams_panel_minutes": "{count} min",
   "agent_teams_panel_approve": "Aprobar",
-  "agent_teams_panel_reject": "Rechazar"
+  "agent_teams_panel_reject": "Rechazar",
+  "agent_teams_project_subtitle": "Equipo de agentes responsable de este proyecto, su flujo y decisiones pendientes. La gestión de enlaces se realiza en la consola de administración.",
+  "agent_teams_active_agents": "Agentes activos",
+  "agent_teams_waiting_decisions": "Decisiones humanas pendientes",
+  "agent_teams_card_waiting": "Pendiente {count}",
+  "agent_teams_inbox_filter_this_project": "Solo este proyecto",
+  "agent_teams_panel_timeline": "Cronología de ejecución",
+  "agent_teams_panel_cancel": "Cancelar ejecución",
+  "agent_teams_panel_view_full_run": "Ver ejecución completa"
 }

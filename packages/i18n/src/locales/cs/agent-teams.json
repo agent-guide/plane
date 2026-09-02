@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Zobrazit celý běh",
   "agent_teams_panel_minutes": "{count} min",
   "agent_teams_panel_approve": "Schválit",
-  "agent_teams_panel_reject": "Zamítnout"
+  "agent_teams_panel_reject": "Zamítnout",
+  "agent_teams_project_subtitle": "Zodpovědný agent tým tohoto projektu, jeho workflow a čekající rozhodnutí. Správa vazeb probíhá v administrátorské konzoli.",
+  "agent_teams_active_agents": "Aktivní agenti",
+  "agent_teams_waiting_decisions": "Čekají na lidská rozhodnutí",
+  "agent_teams_card_waiting": "Čeká {count}",
+  "agent_teams_inbox_filter_this_project": "Pouze tento projekt",
+  "agent_teams_panel_timeline": "Časová osa běhu",
+  "agent_teams_panel_cancel": "Zrušit běh",
+  "agent_teams_panel_view_full_run": "Zobrazit celý běh"
 }

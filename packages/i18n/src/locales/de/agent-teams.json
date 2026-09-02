@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Vollständige Ausführung",
   "agent_teams_panel_minutes": "{count} Min.",
   "agent_teams_panel_approve": "Genehmigen",
-  "agent_teams_panel_reject": "Ablehnen"
+  "agent_teams_panel_reject": "Ablehnen",
+  "agent_teams_project_subtitle": "Verantwortliches Agent-Team dieses Projekts, dessen Workflow und offene Entscheidungen. Bindungsverwaltung erfolgt in der Admin-Konsole.",
+  "agent_teams_active_agents": "Aktive Agenten",
+  "agent_teams_waiting_decisions": "Warten auf menschliche Entscheidungen",
+  "agent_teams_card_waiting": "Warten {count}",
+  "agent_teams_inbox_filter_this_project": "Nur dieses Projekt",
+  "agent_teams_panel_timeline": "Ausführungszeitlinie",
+  "agent_teams_panel_cancel": "Ausführung abbrechen",
+  "agent_teams_panel_view_full_run": "Vollständige Ausführung"
 }

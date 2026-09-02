@@ -20,6 +20,7 @@ import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
+import Link from "next/link";
 // services
 import runtimeService, {
   type AgentTeam,
@@ -193,7 +194,17 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                             )}
                             {member.kind === "agent" ? t("agent_teams_kind_agent") : t("agent_teams_kind_human")}
                           </span>
-                          <span className="text-body-sm-medium text-primary">{member.displayName}</span>
+                          {member.planeUserId ? (
+                            /* Task-mode entry (member page = profile's assigned view, Plane native) */
+                            <Link
+                              href={`/${currentWorkspace?.slug ?? ""}/profile/${member.planeUserId}`}
+                              className="text-body-sm-medium text-primary hover:text-accent-primary hover:underline"
+                            >
+                              {member.displayName}
+                            </Link>
+                          ) : (
+                            <span className="text-body-sm-medium text-primary">{member.displayName}</span>
+                          )}
                           <span className="text-caption-sm-regular text-tertiary">{member.role}</span>
                           {member.capabilities && member.capabilities.length > 0 && (
                             <span className="ml-auto truncate text-caption-sm-regular text-tertiary">
@@ -217,7 +228,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                           key={project.projectId}
                           className={`flex items-center gap-3 px-4 py-3 ${index > 0 ? "border-t border-subtle" : ""}`}
                         >
-                          <span className="text-body-sm-medium text-primary">{project.projectName}</span>
+                          <span className="truncate text-body-sm-medium text-primary">{project.projectName}</span>
                           {project.workflowName && (
                             <span className="text-caption-sm-regular text-tertiary">
                               {project.workflowName}

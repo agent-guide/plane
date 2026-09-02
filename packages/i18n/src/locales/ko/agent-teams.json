@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "전체 실행 보기",
   "agent_teams_panel_minutes": "{count}분",
   "agent_teams_panel_approve": "승인",
-  "agent_teams_panel_reject": "거부"
+  "agent_teams_panel_reject": "거부",
+  "agent_teams_project_subtitle": "이 프로젝트를 담당하는 Agent 팀, 워크플로 및 대기 중인 결정 사항입니다. 바인딩 관리는 관리 콘솔에서 수행합니다.",
+  "agent_teams_active_agents": "활성 Agent",
+  "agent_teams_waiting_decisions": "사람 결정 대기",
+  "agent_teams_card_waiting": "대기 {count}",
+  "agent_teams_inbox_filter_this_project": "이 프로젝트만",
+  "agent_teams_panel_timeline": "실행 타임라인",
+  "agent_teams_panel_cancel": "실행 취소",
+  "agent_teams_panel_view_full_run": "전체 실행 보기"
 }

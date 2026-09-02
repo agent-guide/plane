@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Zobacz pełne uruchomienie",
   "agent_teams_panel_minutes": "{count} min",
   "agent_teams_panel_approve": "Zatwierdź",
-  "agent_teams_panel_reject": "Odrzuć"
+  "agent_teams_panel_reject": "Odrzuć",
+  "agent_teams_project_subtitle": "Zespół agentów odpowiedzialny za ten projekt, jego przepływ i oczekujące decyzje. Zarządzanie powiązaniami odbywa się w konsoli administracyjnej.",
+  "agent_teams_active_agents": "Aktywne agenty",
+  "agent_teams_waiting_decisions": "Oczekują na decyzje ludzi",
+  "agent_teams_card_waiting": "Oczekuje {count}",
+  "agent_teams_inbox_filter_this_project": "Tylko ten projekt",
+  "agent_teams_panel_timeline": "Oś czasu wykonania",
+  "agent_teams_panel_cancel": "Anuluj uruchomienie",
+  "agent_teams_panel_view_full_run": "Zobacz pełne uruchomienie"
 }

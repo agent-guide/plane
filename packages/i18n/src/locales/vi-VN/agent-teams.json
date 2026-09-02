@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Xem toàn bộ lượt chạy",
   "agent_teams_panel_minutes": "{count} phút",
   "agent_teams_panel_approve": "Phê duyệt",
-  "agent_teams_panel_reject": "Từ chối"
+  "agent_teams_panel_reject": "Từ chối",
+  "agent_teams_project_subtitle": "Nhóm Agent phụ trách dự án này, quy trình và các quyết định đang chờ. Quản lý liên kết được thực hiện trong bảng điều khiển quản trị.",
+  "agent_teams_active_agents": "Agent đang hoạt động",
+  "agent_teams_waiting_decisions": "Đang chờ quyết định của người",
+  "agent_teams_card_waiting": "Chờ {count}",
+  "agent_teams_inbox_filter_this_project": "Chỉ dự án này",
+  "agent_teams_panel_timeline": "Dòng thời gian thực thi",
+  "agent_teams_panel_cancel": "Hủy thực thi",
+  "agent_teams_panel_view_full_run": "Xem toàn bộ lượt chạy"
 }

@@ -22,7 +22,7 @@ import { Bot, ChevronRight, Inbox, Users, Workflow } from "lucide-react";
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
-import { agentTeamsPath } from "@/components/agent-teams/helper";
+import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 // services
 import runtimeService, {
   getCurrentRuntimeIdentityId,
@@ -30,11 +30,18 @@ import runtimeService, {
   type HumanInboxItem,
 } from "@/services/agent-teams/runtime.service";
 // hooks
+import { useRouter, useSearchParams } from "next/navigation";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 
 function AgentTeamsInboxPage() {
   const { t } = useTranslation();
+  const router = useRouter();
+  const { agentTeamsPath, approvalInboxPath } = useAgentTeamsLinks();
   const { currentWorkspace } = useWorkspace();
+  // Context filter (URL-scoped view + removable chip) — deep links from a
+  // project carry ?project=<id>; the global entry shows everything.
+  const searchParams = useSearchParams();
+  const projectFilter = searchParams.get("project") ?? "";
   // derived values
   const pageTitle = currentWorkspace?.name ? `${currentWorkspace?.name} - ${t("agent_teams_inbox_title")}` : undefined;
 
@@ -117,6 +124,12 @@ function AgentTeamsInboxPage() {
     [detail, loadInbox]
   );
 
+  const visibleItems = items.filter((item) => {
+    if (projectFilter && item.projectId !== projectFilter) return false;
+    if (assignedToMeOnly && item.assignedIdentityId !== getCurrentRuntimeIdentityId()) return false;
+    return true;
+  });
+
   const error =
     errorKey === "load"
       ? t("agent_teams_inbox_load_failed")
@@ -164,7 +177,7 @@ function AgentTeamsInboxPage() {
                     component={
                       <BreadcrumbLink
                         label="Agent Teams"
-                        href={agentTeamsPath(currentWorkspace?.slug ?? "")}
+                        href={agentTeamsPath}
                         icon={<Users className="size-4 text-tertiary" />}
                       />
                     }
@@ -195,7 +208,19 @@ function AgentTeamsInboxPage() {
         />
         <ContentWrapper>
           <div className="flex w-full flex-col gap-4 px-4 pt-4 pb-10">
-            <p className="max-w-2xl text-body-xs-regular text-tertiary">{t("agent_teams_inbox_subtitle")}</p>
+            <div className="flex items-start justify-between gap-4">
+              <p className="max-w-2xl text-body-xs-regular text-tertiary">{t("agent_teams_inbox_subtitle")}</p>
+              {projectFilter && (
+                <button
+                  type="button"
+                  onClick={() => router.replace(approvalInboxPath)}
+                  className="flex shrink-0 items-center gap-1 rounded bg-layer-3 px-2 py-1 text-caption-sm-medium text-secondary hover:bg-layer-3-hover"
+                >
+                  {t("agent_teams_inbox_filter_this_project")}
+                  <span aria-hidden>×</span>
+                </button>
+              )}
+            </div>
             {error && <div className="text-body-sm-regular text-danger-primary">{error}</div>}
 
             <div className="overflow-hidden rounded-lg border border-subtle bg-layer-1">
@@ -203,17 +228,14 @@ function AgentTeamsInboxPage() {
                 <div className="p-10 text-center text-body-sm-regular text-tertiary">
                   {t("agent_teams_inbox_loading")}
                 </div>
-              ) : items.length === 0 ? (
+              ) : visibleItems.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 p-10 text-center">
                   <Inbox className="size-6 text-tertiary" aria-hidden />
                   <div className="text-body-sm-regular text-tertiary">{t("agent_teams_inbox_empty")}</div>
                 </div>
               ) : (
                 <ul>
-                  {(assignedToMeOnly
-                    ? items.filter((item) => item.assignedIdentityId === getCurrentRuntimeIdentityId())
-                    : items
-                  ).map((item, index) => (
+                  {visibleItems.map((item, index) => (
                     <li key={`${item.scope}:${item.requestId}`} className={index > 0 ? "border-t border-subtle" : ""}>
                       <button
                         type="button"

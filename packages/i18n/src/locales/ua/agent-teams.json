@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Переглянути запуск повністю",
   "agent_teams_panel_minutes": "{count} хв",
   "agent_teams_panel_approve": "Погодити",
-  "agent_teams_panel_reject": "Відхилити"
+  "agent_teams_panel_reject": "Відхилити",
+  "agent_teams_project_subtitle": "Відповідальна команда агентів цього проєкту, її workflow та очікуючі рішення. Керування прив'язками — у консолі адміністрування.",
+  "agent_teams_active_agents": "Активні агенти",
+  "agent_teams_waiting_decisions": "Очікують людських рішень",
+  "agent_teams_card_waiting": "Очікує {count}",
+  "agent_teams_inbox_filter_this_project": "Тільки цей проєкт",
+  "agent_teams_panel_timeline": "Хронологія виконання",
+  "agent_teams_panel_cancel": "Скасувати запуск",
+  "agent_teams_panel_view_full_run": "Переглянути запуск повністю"
 }

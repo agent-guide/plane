@@ -28,6 +28,9 @@ export type HumanInboxItem = {
   requestId: string;
   tenantId: string;
   taskBindingId: string;
+  // Project scope for context-filtered views (Q9: NOT in the frozen §5.10
+  // projection — needs a contract addition or a server-side query param).
+  projectId?: string | null;
   assignedIdentityId?: string | null;
   title?: string | null;
   status: string;
@@ -80,6 +83,10 @@ export type AgentTeamMember = {
   role: string;
   capabilities?: string[];
   enabled: boolean;
+  // Plane user id — enables the member task-mode deep link (profile's
+  // assigned view). Applies to humans AND agents (design §5.2: agents are
+  // Bot users that carry assignments).
+  planeUserId?: string | null;
 };
 
 export type AgentTeamProject = {
@@ -123,6 +130,8 @@ export type WorkItemRuntimeSummary = {
   currentMemberName?: string | null;
   workflowStep?: string | null;
   controlStatus: "queued" | "running" | "waiting_human" | "blocked" | "failed" | "completed" | "cancelled";
+  // Active workflow run — cancel target and View-full-run deep link.
+  workflowRunId?: string | null;
   // Accumulated execution metrics (design §12.3).
   durationSeconds?: number | null;
   costUsd?: number | null;
@@ -130,6 +139,24 @@ export type WorkItemRuntimeSummary = {
   // Inline approval entry (design §12.6.4): the waiting human decision for
   // this work item, if any. Null when nothing awaits.
   pendingApproval?: HumanInboxItem | null;
+};
+
+export type ProjectTeamPanel = {
+  projectId: string;
+  projectName: string;
+  teamId: string;
+  teamName: string;
+  workflowName?: string | null;
+  workflowVersion?: number | null;
+  activeAgentCount?: number;
+  waitingDecisionCount?: number;
+};
+
+export type WorkItemTimelineEntry = {
+  id: string;
+  kind: string; // e.g. task.bound | handoff | agent_run | human_task
+  summary: string;
+  createdAt?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -183,6 +210,26 @@ let mockAgentRequest = {
   createdAt: "2026-08-31T10:20:00Z",
 };
 
+// 另一项目（内部运营工具）的待办，用于演示收件箱的项目过滤。
+let mockOpsAgentRequest = {
+  id: "ahr_3",
+  taskBindingId: "tb_ops_9",
+  agentRunId: "ar_ops_1",
+  gatewayRequestId: "gw_req_ops_2",
+  assignedIdentityId: "id_human_pm",
+  kind: "permission" as const,
+  title: "工单数据导出授权",
+  question: "Triage Agent 请求导出近 30 天工单数据用于聚类分析，是否授权？",
+  options: [
+    { value: "approve", label: "授权" },
+    { value: "reject", label: "拒绝" },
+  ],
+  context: { dataset: "tickets_30d", scope: "export" },
+  status: "pending",
+  deliveryStatus: "not_started" as HumanInboxItem["deliveryStatus"],
+  createdAt: "2026-09-01T16:40:00Z",
+};
+
 // text 型请求（§5.8 human_kind = text）：无固定选项，需要自由文本回答。
 let mockAgentTextRequest = {
   id: "ahr_2",
@@ -210,7 +257,7 @@ const mockTeams: AgentTeam[] = [
   {
     id: "team_delivery",
     name: "Delivery Team",
-    objective: "西藏物流培训平台交付",
+    objective: "取经项目交付",
     status: "active",
     memberCount: 4,
     activeTaskCount: 1,
@@ -235,10 +282,11 @@ const mockTeamMembers: Record<string, AgentTeamMember[]> = {
       id: "tm_1",
       identityId: "id_human_pm",
       kind: "human",
-      displayName: "张三",
+      displayName: "凌羽",
       role: "product_owner",
       capabilities: ["approve"],
       enabled: true,
+      planeUserId: "fe0a0929-4b7d-4556-bf48-5131ca01d721",
     },
     {
       id: "tm_2",
@@ -248,6 +296,7 @@ const mockTeamMembers: Record<string, AgentTeamMember[]> = {
       role: "ba",
       capabilities: ["requirements"],
       enabled: true,
+      planeUserId: "08eda94c-7b7e-48b5-9c08-bc69897f5aaa",
     },
     {
       id: "tm_3",
@@ -257,6 +306,7 @@ const mockTeamMembers: Record<string, AgentTeamMember[]> = {
       role: "developer",
       capabilities: ["coding"],
       enabled: true,
+      planeUserId: "20c813ec-1786-4857-b1fc-c6eac6f1a3b9",
     },
     {
       id: "tm_4",
@@ -266,6 +316,7 @@ const mockTeamMembers: Record<string, AgentTeamMember[]> = {
       role: "qa",
       capabilities: ["testing"],
       enabled: true,
+      planeUserId: "f77936c2-12b0-4d26-9b4c-1a159fbb9a27",
     },
   ],
   team_support: [
@@ -291,7 +342,12 @@ const mockTeamMembers: Record<string, AgentTeamMember[]> = {
 
 const mockTeamProjects: Record<string, AgentTeamProject[]> = {
   team_delivery: [
-    { projectId: "proj_1", projectName: "西藏物流培训平台", workflowName: "软件交付流程", workflowVersion: 3 },
+    {
+      projectId: "fbeebd0f-c512-406d-bafd-a762765b0da1",
+      projectName: "取经",
+      workflowName: "软件交付流程",
+      workflowVersion: 3,
+    },
   ],
   team_support: [],
 };
@@ -360,19 +416,21 @@ export class AgentTeamRuntimeService extends APIService {
           requestId: mockWorkflowNode.id,
           tenantId: "tenant_default",
           taskBindingId: mockWorkflowNode.taskBindingId,
+          projectId: "fbeebd0f-c512-406d-bafd-a762765b0da1",
           assignedIdentityId: mockWorkflowNode.assignedIdentityId,
           title: mockWorkflowNode.title,
           status: mockWorkflowNode.status,
           createdAt: mockWorkflowNode.createdAt,
         });
       }
-      for (const req of [mockAgentRequest, mockAgentTextRequest]) {
+      for (const req of [mockAgentRequest, mockAgentTextRequest, mockOpsAgentRequest]) {
         if (req.status !== "pending") continue;
         items.push({
           scope: "agent",
           requestId: req.id,
           tenantId: "tenant_default",
           taskBindingId: req.taskBindingId,
+          projectId: req.id === mockOpsAgentRequest.id ? "proj_ops_internal" : "fbeebd0f-c512-406d-bafd-a762765b0da1",
           assignedIdentityId: req.assignedIdentityId,
           title: req.title,
           status: req.status,
@@ -406,7 +464,12 @@ export class AgentTeamRuntimeService extends APIService {
           createdAt: mockWorkflowNode.createdAt,
         };
       }
-      const req = item.requestId === mockAgentTextRequest.id ? mockAgentTextRequest : mockAgentRequest;
+      const req =
+        item.requestId === mockAgentTextRequest.id
+          ? mockAgentTextRequest
+          : item.requestId === mockOpsAgentRequest.id
+            ? mockOpsAgentRequest
+            : mockAgentRequest;
       return {
         scope: "agent",
         requestId: req.id,
@@ -448,6 +511,11 @@ export class AgentTeamRuntimeService extends APIService {
       if (item.requestId === mockAgentTextRequest.id) {
         if (mockAgentTextRequest.status !== "pending") throw new Error("请求不在 pending 状态");
         mockAgentTextRequest = { ...mockAgentTextRequest, status: "answered", deliveryStatus: "pending" };
+        return;
+      }
+      if (item.requestId === mockOpsAgentRequest.id) {
+        if (mockOpsAgentRequest.status !== "pending") throw new Error("请求不在 pending 状态");
+        mockOpsAgentRequest = { ...mockOpsAgentRequest, status: "answered", deliveryStatus: "pending" };
         return;
       }
       if (mockAgentRequest.status !== "pending") throw new Error("请求不在 pending 状态");
@@ -530,6 +598,29 @@ export class AgentTeamRuntimeService extends APIService {
   }
 
   /**
+   * Project → responsible team panel (design §12.2). Assumed endpoint — the
+   * project binding read exists in §9 (/projects/{id}/agent-team-binding)
+   * but the aggregate counts need a query contract before 联调.
+   */
+  async getProjectTeamPanel(projectId: string): Promise<ProjectTeamPanel | null> {
+    if (MOCK) {
+      await delay(120);
+      if (projectId !== "fbeebd0f-c512-406d-bafd-a762765b0da1") return null;
+      return {
+        projectId,
+        projectName: "取经",
+        teamId: "team_delivery",
+        teamName: "Delivery Team",
+        workflowName: "软件交付流程",
+        workflowVersion: 3,
+        activeAgentCount: 3,
+        waitingDecisionCount: 1,
+      };
+    }
+    return (await this.get(`/api/v1/projects/${projectId}/agent-team-panel`)).data ?? null;
+  }
+
+  /**
    * Runtime summary for one Plane work item (design §12.3 Task Runtime
    * panel). Assumed endpoint — §9 freezes task-dimension reads only; the
    * issueId → taskBinding resolution lives in the Runtime projection and
@@ -551,7 +642,8 @@ export class AgentTeamRuntimeService extends APIService {
         teamName: "Delivery Team",
         currentMemberName: "BA Agent",
         workflowStep: "review",
-        controlStatus: awaiting ? "waiting_human" : "running",
+        workflowRunId: "wfr_1",
+        controlStatus: mockWorkflowNode.status === "cancelled" ? "cancelled" : awaiting ? "waiting_human" : "running",
         durationSeconds: 720,
         costUsd: 0.46,
         artifacts: [{ id: "art_1", name: "需求文档", version: 3 }],
@@ -561,6 +653,7 @@ export class AgentTeamRuntimeService extends APIService {
               requestId: mockWorkflowNode.id,
               tenantId: "tenant_default",
               taskBindingId: mockWorkflowNode.taskBindingId,
+              projectId: "fbeebd0f-c512-406d-bafd-a762765b0da1",
               assignedIdentityId: mockWorkflowNode.assignedIdentityId,
               title: mockWorkflowNode.title,
               status: mockWorkflowNode.status,
@@ -570,6 +663,59 @@ export class AgentTeamRuntimeService extends APIService {
       };
     }
     return (await this.get(`/api/v1/runtime/work-items/${issueId}/summary`)).data ?? null;
+  }
+
+  /** Execution timeline for the work item panel (design §12.3). */
+  async getWorkItemTimeline(issueId: string): Promise<WorkItemTimelineEntry[]> {
+    if (MOCK) {
+      await delay(120);
+      if (issueId !== "56e0c28c-a53a-494e-91e4-30da44f55d72") return [];
+      const entries: WorkItemTimelineEntry[] = [
+        {
+          id: "te_1",
+          kind: "task.bound",
+          summary: "任务绑定 Delivery Team，工作流启动",
+          createdAt: "2026-08-31T09:00:00Z",
+        },
+        { id: "h_1", kind: "handoff", summary: "交接至 BA Agent（requirements）", createdAt: "2026-08-31T09:00:00Z" },
+        {
+          id: "ar_1",
+          kind: "agent_run",
+          summary: "BA Agent 完成 requirements（产出 需求文档 v3）",
+          createdAt: "2026-08-31T09:05:00Z",
+        },
+        { id: "h_2", kind: "handoff", summary: "交接至 review 节点", createdAt: "2026-08-31T10:12:00Z" },
+      ];
+      if (mockWorkflowNode.status === "waiting_approval") {
+        entries.push({
+          id: "wn_1",
+          kind: "human_task",
+          summary: "等待人工审批：需求评审",
+          createdAt: "2026-08-31T10:12:00Z",
+        });
+      } else {
+        entries.push({ id: "wn_1", kind: "human_task", summary: "人工审批已通过", createdAt: "2026-08-31T11:00:00Z" });
+      }
+      return entries;
+    }
+    return (await this.get(`/api/v1/runtime/work-items/${issueId}/timeline`)).data ?? [];
+  }
+
+  /**
+   * Cancel the active workflow run of a runtime-managed work item
+   * (design §12.6.4 command; implementation §9: reuses the existing
+   * POST /api/v1/workflow-runs/{run_id}/cancel, requires runtime:control).
+   * Pause has no contract — deliberately not offered.
+   */
+  async cancelWorkItemRun(workflowRunId: string): Promise<void> {
+    if (MOCK) {
+      await delay(180);
+      if (mockWorkflowNode.status === "waiting_approval") {
+        mockWorkflowNode = { ...mockWorkflowNode, status: "cancelled" };
+      }
+      return;
+    }
+    await this.post(`/api/v1/workflow-runs/${workflowRunId}/cancel`, {});
   }
 }
 

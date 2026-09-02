@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Tüm çalıştırmayı gör",
   "agent_teams_panel_minutes": "{count} dk",
   "agent_teams_panel_approve": "Onayla",
-  "agent_teams_panel_reject": "Reddet"
+  "agent_teams_panel_reject": "Reddet",
+  "agent_teams_project_subtitle": "Bu projeden sorumlu aracı ekibi, iş akışı ve bekleyen kararlar. Bağlama yönetimi yönetim konsolunda yapılır.",
+  "agent_teams_active_agents": "Aktif aracılar",
+  "agent_teams_waiting_decisions": "İnsan kararları bekliyor",
+  "agent_teams_card_waiting": "Bekliyor {count}",
+  "agent_teams_inbox_filter_this_project": "Yalnızca bu proje",
+  "agent_teams_panel_timeline": "Yürütme zaman çizelgesi",
+  "agent_teams_panel_cancel": "Çalıştırmayı iptal et",
+  "agent_teams_panel_view_full_run": "Tüm çalıştırmayı gör"
 }

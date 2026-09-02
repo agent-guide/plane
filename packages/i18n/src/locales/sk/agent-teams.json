@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Zobraziť celý beh",
   "agent_teams_panel_minutes": "{count} min",
   "agent_teams_panel_approve": "Schváliť",
-  "agent_teams_panel_reject": "Zamietnuť"
+  "agent_teams_panel_reject": "Zamietnuť",
+  "agent_teams_project_subtitle": "Zodpovedný agent tím tohto projektu, jeho workflow a čakajúce rozhodnutia. Správa väzieb prebieha v administrátorskej konzole.",
+  "agent_teams_active_agents": "Aktívni agenti",
+  "agent_teams_waiting_decisions": "Čakajú na ľudské rozhodnutia",
+  "agent_teams_card_waiting": "Čaká {count}",
+  "agent_teams_inbox_filter_this_project": "Len tento projekt",
+  "agent_teams_panel_timeline": "Časová osa behu",
+  "agent_teams_panel_cancel": "Zrušiť beh",
+  "agent_teams_panel_view_full_run": "Zobraziť celý beh"
 }

@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Vezi rularea completă",
   "agent_teams_panel_minutes": "{count} min",
   "agent_teams_panel_approve": "Aprobă",
-  "agent_teams_panel_reject": "Respinge"
+  "agent_teams_panel_reject": "Respinge",
+  "agent_teams_project_subtitle": "Echipa de agenți responsabilă pentru acest proiect, fluxul său și deciziile în așteptare. Gestionarea legăturilor se face în consola de administrare.",
+  "agent_teams_active_agents": "Agenți activi",
+  "agent_teams_waiting_decisions": "Decizii umane în așteptare",
+  "agent_teams_card_waiting": "În așteptare {count}",
+  "agent_teams_inbox_filter_this_project": "Doar acest proiect",
+  "agent_teams_panel_timeline": "Cronologia execuției",
+  "agent_teams_panel_cancel": "Anulează rularea",
+  "agent_teams_panel_view_full_run": "Vezi rularea completă"
 }

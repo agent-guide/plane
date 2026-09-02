@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "View full run",
   "agent_teams_panel_minutes": "{count}m",
   "agent_teams_panel_approve": "Approve",
-  "agent_teams_panel_reject": "Reject"
+  "agent_teams_panel_reject": "Reject",
+  "agent_teams_project_subtitle": "Responsible agent team for this project, its workflow and pending human decisions. Binding management lives in the admin console.",
+  "agent_teams_active_agents": "Active Agents",
+  "agent_teams_waiting_decisions": "Waiting Human Decisions",
+  "agent_teams_card_waiting": "Waiting {count}",
+  "agent_teams_inbox_filter_this_project": "This project only",
+  "agent_teams_panel_timeline": "Execution timeline",
+  "agent_teams_panel_cancel": "Cancel run",
+  "agent_teams_panel_view_full_run": "View full run"
 }

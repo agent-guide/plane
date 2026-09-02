@@ -73,5 +73,13 @@
   "agent_teams_panel_view_run": "Lihat run lengkap",
   "agent_teams_panel_minutes": "{count} mnt",
   "agent_teams_panel_approve": "Setujui",
-  "agent_teams_panel_reject": "Tolak"
+  "agent_teams_panel_reject": "Tolak",
+  "agent_teams_project_subtitle": "Tim agen yang bertanggung jawab atas proyek ini, alur kerjanya, dan keputusan yang tertunda. Pengelolaan binding dilakukan di konsol admin.",
+  "agent_teams_active_agents": "Agen aktif",
+  "agent_teams_waiting_decisions": "Menunggu keputusan manusia",
+  "agent_teams_card_waiting": "Menunggu {count}",
+  "agent_teams_inbox_filter_this_project": "Hanya proyek ini",
+  "agent_teams_panel_timeline": "Linimasa eksekusi",
+  "agent_teams_panel_cancel": "Batalkan eksekusi",
+  "agent_teams_panel_view_full_run": "Lihat run lengkap"
 }
