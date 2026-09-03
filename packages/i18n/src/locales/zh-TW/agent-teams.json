@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "僅看該專案",
   "agent_teams_panel_timeline": "執行時間軸",
   "agent_teams_panel_cancel": "取消執行",
-  "agent_teams_panel_view_full_run": "查看完整執行"
+  "agent_teams_panel_view_full_run": "查看完整執行",
+  "agent_teams_chat_title": "會話",
+  "agent_teams_chat_new_session": "新會話",
+  "agent_teams_chat_free": "自由對話",
+  "agent_teams_chat_empty": "還沒有訊息，打個招呼吧。",
+  "agent_teams_chat_typing": "思考中…",
+  "agent_teams_chat_input_placeholder": "輸入訊息…（Enter 發送）",
+  "agent_teams_chat_send": "發送",
+  "agent_teams_chat_no_session": "選擇或開始一個會話。",
+  "agent_teams_chat_with": "與 {name} 對話",
+  "agent_teams_chat_send_failed": "生成失敗，請重試。",
+  "agent_teams_chat_copy": "複製",
+  "agent_teams_chat_copied": "已複製",
+  "agent_teams_chat_stop": "停止",
+  "agent_teams_chat_web_search": "聯網搜索",
+  "agent_teams_chat_sources": "{count} 個來源"
 }

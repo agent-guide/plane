@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "이 프로젝트만",
   "agent_teams_panel_timeline": "실행 타임라인",
   "agent_teams_panel_cancel": "실행 취소",
-  "agent_teams_panel_view_full_run": "전체 실행 보기"
+  "agent_teams_panel_view_full_run": "전체 실행 보기",
+  "agent_teams_chat_title": "대화",
+  "agent_teams_chat_new_session": "새 대화",
+  "agent_teams_chat_free": "자유 대화",
+  "agent_teams_chat_empty": "아직 메시지가 없습니다. 인사를 건네보세요.",
+  "agent_teams_chat_typing": "생각 중…",
+  "agent_teams_chat_input_placeholder": "메시지 입력… (Enter로 전송)",
+  "agent_teams_chat_send": "전송",
+  "agent_teams_chat_no_session": "대화를 선택하거나 시작하세요.",
+  "agent_teams_chat_with": "{name}과 대화",
+  "agent_teams_chat_send_failed": "생성에 실패했습니다. 다시 시도하세요.",
+  "agent_teams_chat_copy": "복사",
+  "agent_teams_chat_copied": "복사됨",
+  "agent_teams_chat_stop": "중지",
+  "agent_teams_chat_web_search": "웹 검색",
+  "agent_teams_chat_sources": "출처 {count}개"
 }

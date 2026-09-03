@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "Тільки цей проєкт",
   "agent_teams_panel_timeline": "Хронологія виконання",
   "agent_teams_panel_cancel": "Скасувати запуск",
-  "agent_teams_panel_view_full_run": "Переглянути запуск повністю"
+  "agent_teams_panel_view_full_run": "Переглянути запуск повністю",
+  "agent_teams_chat_title": "Діалоги",
+  "agent_teams_chat_new_session": "Новий діалог",
+  "agent_teams_chat_free": "Вільний діалог",
+  "agent_teams_chat_empty": "Повідомлень ще немає. Привітайтеся.",
+  "agent_teams_chat_typing": "Думає…",
+  "agent_teams_chat_input_placeholder": "Введіть повідомлення… (Enter — надіслати)",
+  "agent_teams_chat_send": "Надіслати",
+  "agent_teams_chat_no_session": "Виберіть або почніть діалог.",
+  "agent_teams_chat_with": "Чат з {name}",
+  "agent_teams_chat_send_failed": "Не вдалося згенерувати. Спробуйте ще раз.",
+  "agent_teams_chat_copy": "Копіювати",
+  "agent_teams_chat_copied": "Скопійовано",
+  "agent_teams_chat_stop": "Зупинити",
+  "agent_teams_chat_web_search": "Веб-пошук",
+  "agent_teams_chat_sources": "{count} джерел"
 }

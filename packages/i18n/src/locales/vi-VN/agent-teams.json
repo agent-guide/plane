@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "Chỉ dự án này",
   "agent_teams_panel_timeline": "Dòng thời gian thực thi",
   "agent_teams_panel_cancel": "Hủy thực thi",
-  "agent_teams_panel_view_full_run": "Xem toàn bộ lượt chạy"
+  "agent_teams_panel_view_full_run": "Xem toàn bộ lượt chạy",
+  "agent_teams_chat_title": "Hội thoại",
+  "agent_teams_chat_new_session": "Hội thoại mới",
+  "agent_teams_chat_free": "Đối thoại tự do",
+  "agent_teams_chat_empty": "Chưa có tin nhắn. Hãy chào hỏi.",
+  "agent_teams_chat_typing": "Đang suy nghĩ…",
+  "agent_teams_chat_input_placeholder": "Nhập tin nhắn… (Enter để gửi)",
+  "agent_teams_chat_send": "Gửi",
+  "agent_teams_chat_no_session": "Chọn hoặc bắt đầu hội thoại.",
+  "agent_teams_chat_with": "Trò chuyện với {name}",
+  "agent_teams_chat_send_failed": "Tạo nội dung thất bại. Thử lại.",
+  "agent_teams_chat_copy": "Sao chép",
+  "agent_teams_chat_copied": "Đã sao chép",
+  "agent_teams_chat_stop": "Dừng",
+  "agent_teams_chat_web_search": "Tìm kiếm web",
+  "agent_teams_chat_sources": "{count} nguồn"
 }

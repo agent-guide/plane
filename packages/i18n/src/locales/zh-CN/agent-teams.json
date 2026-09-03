@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "仅看该项目",
   "agent_teams_panel_timeline": "执行时间轴",
   "agent_teams_panel_cancel": "取消执行",
-  "agent_teams_panel_view_full_run": "查看完整执行"
+  "agent_teams_panel_view_full_run": "查看完整执行",
+  "agent_teams_chat_title": "会话",
+  "agent_teams_chat_new_session": "新会话",
+  "agent_teams_chat_free": "自由对话",
+  "agent_teams_chat_empty": "还没有消息，打个招呼吧。",
+  "agent_teams_chat_typing": "思考中…",
+  "agent_teams_chat_input_placeholder": "输入消息…（回车发送）",
+  "agent_teams_chat_send": "发送",
+  "agent_teams_chat_no_session": "选择或开始一个会话。",
+  "agent_teams_chat_with": "与 {name} 对话",
+  "agent_teams_chat_send_failed": "生成失败，请重试。",
+  "agent_teams_chat_copy": "复制",
+  "agent_teams_chat_copied": "已复制",
+  "agent_teams_chat_stop": "停止",
+  "agent_teams_chat_web_search": "联网搜索",
+  "agent_teams_chat_sources": "{count} 个来源"
 }

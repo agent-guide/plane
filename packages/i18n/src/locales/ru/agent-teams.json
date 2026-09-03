@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "Только этот проект",
   "agent_teams_panel_timeline": "Хронология выполнения",
   "agent_teams_panel_cancel": "Отменить запуск",
-  "agent_teams_panel_view_full_run": "Показать запуск целиком"
+  "agent_teams_panel_view_full_run": "Показать запуск целиком",
+  "agent_teams_chat_title": "Диалоги",
+  "agent_teams_chat_new_session": "Новый диалог",
+  "agent_teams_chat_free": "Свободный диалог",
+  "agent_teams_chat_empty": "Сообщений пока нет. Поприветствуйте.",
+  "agent_teams_chat_typing": "Думает…",
+  "agent_teams_chat_input_placeholder": "Введите сообщение… (Enter — отправить)",
+  "agent_teams_chat_send": "Отправить",
+  "agent_teams_chat_no_session": "Выберите или начните диалог.",
+  "agent_teams_chat_with": "Чат с {name}",
+  "agent_teams_chat_send_failed": "Не удалось сгенерировать. Повторите.",
+  "agent_teams_chat_copy": "Копировать",
+  "agent_teams_chat_copied": "Скопировано",
+  "agent_teams_chat_stop": "Остановить",
+  "agent_teams_chat_web_search": "Веб-поиск",
+  "agent_teams_chat_sources": "{count} источников"
 }

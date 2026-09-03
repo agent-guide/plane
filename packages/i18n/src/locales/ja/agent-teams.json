@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "このプロジェクトのみ",
   "agent_teams_panel_timeline": "実行タイムライン",
   "agent_teams_panel_cancel": "実行をキャンセル",
-  "agent_teams_panel_view_full_run": "実行全体を表示"
+  "agent_teams_panel_view_full_run": "実行全体を表示",
+  "agent_teams_chat_title": "会話",
+  "agent_teams_chat_new_session": "新しい会話",
+  "agent_teams_chat_free": "自由対話",
+  "agent_teams_chat_empty": "まだメッセージがありません。挨拶してみましょう。",
+  "agent_teams_chat_typing": "考えています…",
+  "agent_teams_chat_input_placeholder": "メッセージを入力…（Enter で送信）",
+  "agent_teams_chat_send": "送信",
+  "agent_teams_chat_no_session": "会話を選択または開始してください。",
+  "agent_teams_chat_with": "{name} とチャット",
+  "agent_teams_chat_send_failed": "生成に失敗しました。再試行してください。",
+  "agent_teams_chat_copy": "コピー",
+  "agent_teams_chat_copied": "コピーしました",
+  "agent_teams_chat_stop": "停止",
+  "agent_teams_chat_web_search": "ウェブ検索",
+  "agent_teams_chat_sources": "{count} 件のソース"
 }

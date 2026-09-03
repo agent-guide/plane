@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "This project only",
   "agent_teams_panel_timeline": "Execution timeline",
   "agent_teams_panel_cancel": "Cancel run",
-  "agent_teams_panel_view_full_run": "View full run"
+  "agent_teams_panel_view_full_run": "View full run",
+  "agent_teams_chat_title": "Conversations",
+  "agent_teams_chat_new_session": "New conversation",
+  "agent_teams_chat_free": "Free dialogue",
+  "agent_teams_chat_empty": "No messages yet. Say hello.",
+  "agent_teams_chat_typing": "Thinking…",
+  "agent_teams_chat_input_placeholder": "Type a message… (Enter to send)",
+  "agent_teams_chat_send": "Send",
+  "agent_teams_chat_no_session": "Select or start a conversation.",
+  "agent_teams_chat_with": "Chat with {name}",
+  "agent_teams_chat_send_failed": "Generation failed. Please retry.",
+  "agent_teams_chat_copy": "Copy",
+  "agent_teams_chat_copied": "Copied",
+  "agent_teams_chat_stop": "Stop",
+  "agent_teams_chat_web_search": "Web search",
+  "agent_teams_chat_sources": "{count} sources"
 }

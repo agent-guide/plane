@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "Len tento projekt",
   "agent_teams_panel_timeline": "Časová osa behu",
   "agent_teams_panel_cancel": "Zrušiť beh",
-  "agent_teams_panel_view_full_run": "Zobraziť celý beh"
+  "agent_teams_panel_view_full_run": "Zobraziť celý beh",
+  "agent_teams_chat_title": "Konverzácie",
+  "agent_teams_chat_new_session": "Nová konverzácia",
+  "agent_teams_chat_free": "Voľný dialóg",
+  "agent_teams_chat_empty": "Zatiaľ žiadne správy. Pozdravte.",
+  "agent_teams_chat_typing": "Premýšľa…",
+  "agent_teams_chat_input_placeholder": "Napíšte správu… (Enter na odoslanie)",
+  "agent_teams_chat_send": "Odoslať",
+  "agent_teams_chat_no_session": "Vyberte alebo začnite konverzáciu.",
+  "agent_teams_chat_with": "Chat s {name}",
+  "agent_teams_chat_send_failed": "Generovanie zlyhalo. Skúste znova.",
+  "agent_teams_chat_copy": "Kopírovať",
+  "agent_teams_chat_copied": "Skopírované",
+  "agent_teams_chat_stop": "Zastaviť",
+  "agent_teams_chat_web_search": "Webové vyhľadávanie",
+  "agent_teams_chat_sources": "{count} zdrojov"
 }

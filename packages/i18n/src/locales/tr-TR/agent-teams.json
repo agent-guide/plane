@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "Yalnızca bu proje",
   "agent_teams_panel_timeline": "Yürütme zaman çizelgesi",
   "agent_teams_panel_cancel": "Çalıştırmayı iptal et",
-  "agent_teams_panel_view_full_run": "Tüm çalıştırmayı gör"
+  "agent_teams_panel_view_full_run": "Tüm çalıştırmayı gör",
+  "agent_teams_chat_title": "Konuşmalar",
+  "agent_teams_chat_new_session": "Yeni konuşma",
+  "agent_teams_chat_free": "Serbest diyalog",
+  "agent_teams_chat_empty": "Henüz mesaj yok. Selam verin.",
+  "agent_teams_chat_typing": "Düşünüyor…",
+  "agent_teams_chat_input_placeholder": "Mesaj yazın… (Enter ile gönder)",
+  "agent_teams_chat_send": "Gönder",
+  "agent_teams_chat_no_session": "Bir konuşma seçin veya başlatın.",
+  "agent_teams_chat_with": "{name} ile sohbet",
+  "agent_teams_chat_send_failed": "Üretilemedi. Tekrar deneyin.",
+  "agent_teams_chat_copy": "Kopyala",
+  "agent_teams_chat_copied": "Kopyalandı",
+  "agent_teams_chat_stop": "Durdur",
+  "agent_teams_chat_web_search": "Web araması",
+  "agent_teams_chat_sources": "{count} kaynak"
 }

@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "Hanya proyek ini",
   "agent_teams_panel_timeline": "Linimasa eksekusi",
   "agent_teams_panel_cancel": "Batalkan eksekusi",
-  "agent_teams_panel_view_full_run": "Lihat run lengkap"
+  "agent_teams_panel_view_full_run": "Lihat run lengkap",
+  "agent_teams_chat_title": "Percakapan",
+  "agent_teams_chat_new_session": "Percakapan baru",
+  "agent_teams_chat_free": "Dialog bebas",
+  "agent_teams_chat_empty": "Belum ada pesan. Sapa dulu.",
+  "agent_teams_chat_typing": "Berpikir…",
+  "agent_teams_chat_input_placeholder": "Ketik pesan… (Enter untuk kirim)",
+  "agent_teams_chat_send": "Kirim",
+  "agent_teams_chat_no_session": "Pilih atau mulai percakapan.",
+  "agent_teams_chat_with": "Chat dengan {name}",
+  "agent_teams_chat_send_failed": "Gagal menghasilkan. Coba lagi.",
+  "agent_teams_chat_copy": "Salin",
+  "agent_teams_chat_copied": "Tersalin",
+  "agent_teams_chat_stop": "Hentikan",
+  "agent_teams_chat_web_search": "Pencarian web",
+  "agent_teams_chat_sources": "{count} sumber"
 }

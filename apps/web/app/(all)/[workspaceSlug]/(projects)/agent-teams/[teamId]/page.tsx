@@ -14,7 +14,7 @@ import { observer } from "mobx-react";
 import { useTranslation } from "@plane/i18n";
 import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
 // icons
-import { Bot, User, Users } from "lucide-react";
+import { Bot, ExternalLink, MessageSquare, User, Users } from "lucide-react";
 // components
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
@@ -34,12 +34,37 @@ import runtimeService, {
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import type { Route } from "./+types/page";
 
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+function Section({
+  title,
+  count,
+  viewAllHref,
+  viewAllLabel,
+  children,
+}: {
+  title: string;
+  count?: number;
+  // Deep link to the admin console's full archive (View all ↗, §3.0) —
+  // rendered only when the console base URL is configured.
+  viewAllHref?: string;
+  viewAllLabel?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="flex flex-col gap-2">
       <h4 className="flex items-center gap-2 text-16 font-medium text-primary">
         {title}
         {count !== undefined && <span className="text-caption-sm-regular text-tertiary">{count}</span>}
+        {viewAllHref && viewAllLabel && (
+          <a
+            href={viewAllHref}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-secondary-hover ml-auto flex items-center gap-1 text-caption-sm-medium text-secondary"
+          >
+            {viewAllLabel}
+            <ExternalLink className="size-3" aria-hidden />
+          </a>
+        )}
       </h4>
       {children}
     </section>
@@ -67,7 +92,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
   const { teamId } = params;
   const { t } = useTranslation();
   const { currentWorkspace } = useWorkspace();
-  const { agentTeamsPath } = useAgentTeamsLinks();
+  const { agentTeamsPath, memberChatPath } = useAgentTeamsLinks();
   // derived values
   const pageTitle = currentWorkspace?.name ? `${currentWorkspace?.name} - Agent Team` : undefined;
 
@@ -101,6 +126,10 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
 
   const statusLabel = (key: string) => t(`agent_teams_status_${key}`);
   const emptyLabel = t("agent_teams_empty_section");
+  const viewAllLabel = t("agent_teams_view_all");
+  // Admin console deep-link base (§3.0 View all ↗ targets) — optional env;
+  // sections render without the link when unset.
+  const consoleBaseUrl = import.meta.env.VITE_RUNTIME_CONSOLE_BASE_URL as string | undefined;
 
   return (
     <>
@@ -206,6 +235,13 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                             <span className="text-body-sm-medium text-primary">{member.displayName}</span>
                           )}
                           <span className="text-caption-sm-regular text-tertiary">{member.role}</span>
+                          <Link
+                            href={memberChatPath(member.identityId, member.displayName)}
+                            className="hover:text-secondary-hover ml-1 flex items-center gap-1 text-caption-sm-medium text-secondary"
+                            title={t("agent_teams_chat_with", { name: member.displayName })}
+                          >
+                            <MessageSquare className="size-3.5" aria-hidden />
+                          </Link>
                           {member.capabilities && member.capabilities.length > 0 && (
                             <span className="ml-auto truncate text-caption-sm-regular text-tertiary">
                               {member.capabilities.join(" · ")}
@@ -242,7 +278,12 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                 </Section>
 
                 {/* Active Tasks */}
-                <Section title={t("agent_teams_active_tasks_title")} count={data.activeTasks.length}>
+                <Section
+                  title={t("agent_teams_active_tasks_title")}
+                  count={data.activeTasks.length}
+                  viewAllHref={consoleBaseUrl ? `${consoleBaseUrl}/runtime/tasks?team=${teamId}` : undefined}
+                  viewAllLabel={viewAllLabel}
+                >
                   {data.activeTasks.length === 0 ? (
                     <EmptyRow label={emptyLabel} />
                   ) : (
@@ -274,7 +315,12 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                 </Section>
 
                 {/* Runs summary */}
-                <Section title={t("agent_teams_runs_title")} count={data.runs.length}>
+                <Section
+                  title={t("agent_teams_runs_title")}
+                  count={data.runs.length}
+                  viewAllHref={consoleBaseUrl ? `${consoleBaseUrl}/runtime/runs?team=${teamId}` : undefined}
+                  viewAllLabel={viewAllLabel}
+                >
                   {data.runs.length === 0 ? (
                     <EmptyRow label={emptyLabel} />
                   ) : (
@@ -304,7 +350,12 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                 </Section>
 
                 {/* Artifacts summary */}
-                <Section title={t("agent_teams_artifacts_title")} count={data.artifacts.length}>
+                <Section
+                  title={t("agent_teams_artifacts_title")}
+                  count={data.artifacts.length}
+                  viewAllHref={consoleBaseUrl ? `${consoleBaseUrl}/runtime/artifacts?team=${teamId}` : undefined}
+                  viewAllLabel={viewAllLabel}
+                >
                   {data.artifacts.length === 0 ? (
                     <EmptyRow label={emptyLabel} />
                   ) : (

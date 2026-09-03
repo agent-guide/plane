@@ -17,6 +17,12 @@ export const agentTeamDetailPath = (workspaceSlug: string, teamId: string) =>
 
 export const approvalInboxPath = (workspaceSlug: string) => `${agentTeamsPath(workspaceSlug)}/inbox`;
 
+export const chatPath = (workspaceSlug: string) => `${agentTeamsPath(workspaceSlug)}/chat`;
+
+/** Member-scoped chat deep link: opens (or creates) that member's session. */
+export const memberChatPath = (workspaceSlug: string, identityId: string, displayName: string) =>
+  `${chatPath(workspaceSlug)}?member=${identityId}&name=${encodeURIComponent(displayName)}`;
+
 /** Resolves the workspace slug from route params; for use inside components. */
 export const useAgentTeamsLinks = () => {
   const { workspaceSlug } = useParams();
@@ -24,5 +30,7 @@ export const useAgentTeamsLinks = () => {
     agentTeamsPath: agentTeamsPath(workspaceSlug),
     agentTeamDetailPath: (teamId: string) => agentTeamDetailPath(workspaceSlug, teamId),
     approvalInboxPath: approvalInboxPath(workspaceSlug),
+    chatPath: chatPath(workspaceSlug),
+    memberChatPath: (identityId: string, displayName: string) => memberChatPath(workspaceSlug, identityId, displayName),
   };
 };

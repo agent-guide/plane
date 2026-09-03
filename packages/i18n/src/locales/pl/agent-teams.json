@@ -81,5 +81,20 @@
   "agent_teams_inbox_filter_this_project": "Tylko ten projekt",
   "agent_teams_panel_timeline": "Oś czasu wykonania",
   "agent_teams_panel_cancel": "Anuluj uruchomienie",
-  "agent_teams_panel_view_full_run": "Zobacz pełne uruchomienie"
+  "agent_teams_panel_view_full_run": "Zobacz pełne uruchomienie",
+  "agent_teams_chat_title": "Rozmowy",
+  "agent_teams_chat_new_session": "Nowa rozmowa",
+  "agent_teams_chat_free": "Swobodna rozmowa",
+  "agent_teams_chat_empty": "Brak wiadomości. Przywitaj się.",
+  "agent_teams_chat_typing": "Myśli…",
+  "agent_teams_chat_input_placeholder": "Wpisz wiadomość… (Enter, aby wysłać)",
+  "agent_teams_chat_send": "Wyślij",
+  "agent_teams_chat_no_session": "Wybierz lub rozpocznij rozmowę.",
+  "agent_teams_chat_with": "Czat z {name}",
+  "agent_teams_chat_send_failed": "Generowanie nie powiodło się. Spróbuj ponownie.",
+  "agent_teams_chat_copy": "Kopiuj",
+  "agent_teams_chat_copied": "Skopiowano",
+  "agent_teams_chat_stop": "Zatrzymaj",
+  "agent_teams_chat_web_search": "Wyszukiwanie w sieci",
+  "agent_teams_chat_sources": "{count} źródeł"
 }
