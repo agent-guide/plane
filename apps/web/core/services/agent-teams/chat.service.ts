@@ -74,15 +74,33 @@ function authHeaders(): Record<string, string> {
 }
 
 async function refreshAuth(): Promise<void> {
-  if (!auth?.refreshToken) throw new Error("chat auth expired without a refresh token");
+  if (!auth?.refreshToken) return devLogin();
+  const response = await axios
+    .post(
+      `${BASE_URL}/api/v1/auth/refresh`,
+      { refreshToken: auth.refreshToken },
+      { headers: { "X-Tenant-ID": TENANT_ID } }
+    )
+    .catch(() => null);
+  const data = response?.data?.data ?? response?.data;
+  if (!data?.accessToken) return devLogin();
+  saveAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken ?? auth.refreshToken });
+}
+
+/** Dev fallback: static env tokens expire in 15 minutes; log in with the
+ * dev account instead of hand-rotating env values (removed with the BFF). */
+async function devLogin(): Promise<void> {
+  const email = (import.meta.env.VITE_EXPERTS_DEV_EMAIL as string | undefined) ?? "";
+  const password = (import.meta.env.VITE_EXPERTS_DEV_PASSWORD as string | undefined) ?? "";
+  if (!email || !password) throw new Error("experts auth expired without dev credentials");
   const response = await axios.post(
-    `${BASE_URL}/api/v1/auth/refresh`,
-    { refreshToken: auth.refreshToken },
+    `${BASE_URL}/api/v1/auth/login`,
+    { email, password },
     { headers: { "X-Tenant-ID": TENANT_ID } }
   );
   const data = response.data?.data ?? response.data;
-  if (!data?.accessToken) throw new Error("chat auth refresh failed");
-  saveAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken ?? auth.refreshToken });
+  if (!data?.accessToken) throw new Error("experts dev login failed");
+  saveAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken ?? "" });
 }
 
 export type ChatRole = "user" | "assistant";
