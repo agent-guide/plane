@@ -235,13 +235,15 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                             <span className="text-body-sm-medium text-primary">{member.displayName}</span>
                           )}
                           <span className="text-caption-sm-regular text-tertiary">{member.role}</span>
-                          <Link
-                            href={memberChatPath(member.identityId, member.displayName)}
-                            className="hover:text-secondary-hover ml-1 flex items-center gap-1 text-caption-sm-medium text-secondary"
-                            title={t("agent_teams_chat_with", { name: member.displayName })}
-                          >
-                            <MessageSquare className="size-3.5" aria-hidden />
-                          </Link>
+                          {member.kind === "agent" && member.expertId ? (
+                            <Link
+                              href={memberChatPath(member.expertId, member.displayName)}
+                              className="hover:text-secondary-hover ml-1 flex items-center gap-1 text-caption-sm-medium text-secondary"
+                              title={t("agent_teams_chat_with", { name: member.displayName })}
+                            >
+                              <MessageSquare className="size-3.5" aria-hidden />
+                            </Link>
+                          ) : null}
                           {member.capabilities && member.capabilities.length > 0 && (
                             <span className="ml-auto truncate text-caption-sm-regular text-tertiary">
                               {member.capabilities.join(" · ")}

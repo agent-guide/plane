@@ -14,7 +14,7 @@
  * VITE_RUNTIME_API_MOCK=0 and VITE_RUNTIME_API_BASE_URL to point at a real
  * Runtime deployment for联调.
  */
-import { APIService } from "../api.service";
+import { expertsHttp, expertsRequest } from "./experts-auth";
 
 // ---------------------------------------------------------------------------
 // Contract types (implementation plan §5.8–5.10, camelCase schemas)
@@ -75,6 +75,15 @@ export type AgentTeam = {
   artifactCount?: number;
 };
 
+/** Runtime identity directory entry (§5.1) — display fields for members. */
+export type RuntimeIdentity = {
+  id: string;
+  kind: "human" | "agent";
+  displayName?: string;
+  userId?: string | null;
+  expertId?: string | null;
+};
+
 export type AgentTeamMember = {
   id: string;
   identityId: string;
@@ -87,6 +96,9 @@ export type AgentTeamMember = {
   // assigned view). Applies to humans AND agents (design §5.2: agents are
   // Bot users that carry assignments).
   planeUserId?: string | null;
+  // Agent members: the expert this member runs as — chat sessions bind by
+  // expertId, so the member chat entry must deep link with it.
+  expertId?: string | null;
 };
 
 export type AgentTeamProject = {
@@ -164,8 +176,7 @@ export type WorkItemTimelineEntry = {
 // ---------------------------------------------------------------------------
 
 const MOCK = import.meta.env.VITE_RUNTIME_API_MOCK !== "0";
-const BASE_URL = (import.meta.env.VITE_RUNTIME_API_BASE_URL as string | undefined) ?? "/runtime-api";
-
+// Real mode targets the same v1 backend as the chat service (shared auth).
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -400,10 +411,10 @@ const mockTeamArtifacts: Record<string, AgentTeamArtifactSummary[]> = {
   team_support: [],
 };
 
-export class AgentTeamRuntimeService extends APIService {
-  constructor() {
-    super(BASE_URL);
-  }
+export class AgentTeamRuntimeService {
+  // Deliberately NOT extending APIService: its 401 interceptor redirects to
+  // the Plane login (redirect loop against the v1 backend). All real calls
+  // go through the shared expertsHttp (silent refresh) instead.
 
   /** GET /api/v1/runtime/human-inbox — read-only projection of both scopes. */
   async listHumanInbox(): Promise<HumanInboxItem[]> {
@@ -440,7 +451,11 @@ export class AgentTeamRuntimeService extends APIService {
       }
       return items;
     }
-    return (await this.get("/api/v1/runtime/human-inbox")).data;
+    const payload = await expertsRequest((headers) =>
+      expertsHttp.get("/api/v1/runtime/human-inbox", { headers }).then((r) => r.data)
+    );
+    // v1 wraps lists ({items}) — normalize to a bare array.
+    return (payload as { items?: HumanInboxItem[] })?.items ?? (Array.isArray(payload) ? payload : []);
   }
 
   /** Detail for one inbox item, resolving scope to the right shape. */
@@ -490,7 +505,10 @@ export class AgentTeamRuntimeService extends APIService {
       item.scope === "workflow"
         ? `/api/v1/runtime/workflow-human-nodes/${item.requestId}`
         : `/api/v1/runtime/agent-human-requests/${item.requestId}`;
-    return { scope: item.scope, ...(await this.get(url)).data };
+    const data = await expertsRequest((headers) => expertsHttp.get(url, { headers }).then((r) => r.data));
+    // Both detail endpoints key the row as "id" — map to the inbox item's
+    // requestId so the page can route the answer without re-deriving it.
+    return { scope: item.scope, requestId: (data as { id?: string })?.id ?? item.requestId, ...data };
   }
 
   /**
@@ -528,7 +546,12 @@ export class AgentTeamRuntimeService extends APIService {
       item.scope === "workflow"
         ? `/api/v1/runtime/workflow-human-nodes/${item.requestId}/answer`
         : `/api/v1/runtime/agent-human-requests/${item.requestId}/answer`;
-    await this.post(url, answer);
+    // idempotencyKey is REQUIRED by both answer endpoints (§2.6: the two
+    // scopes never share an idempotency space). Key = scope + requestId + a
+    // content digest, so retapping the same option replays safely while a
+    // different answer to the same item gets a distinct key.
+    const idempotencyKey = `${item.scope}:${item.requestId}:${JSON.stringify(answer)}`;
+    await expertsRequest((headers) => expertsHttp.post(url, { answer, idempotencyKey }, { headers }));
   }
 
   /** GET /api/v1/agent-teams */
@@ -537,7 +560,10 @@ export class AgentTeamRuntimeService extends APIService {
       await delay(120);
       return mockTeams.filter((team) => team.status !== "archived");
     }
-    return (await this.get("/api/v1/agent-teams")).data;
+    const payload = await expertsRequest((headers) =>
+      expertsHttp.get("/api/v1/agent-teams", { headers }).then((r) => r.data)
+    );
+    return (payload as { items?: AgentTeam[] })?.items ?? (Array.isArray(payload) ? payload : []);
   }
 
   /** GET /api/v1/agent-teams/{team_id} */
@@ -548,16 +574,44 @@ export class AgentTeamRuntimeService extends APIService {
       if (!team) throw new Error("team not found");
       return team;
     }
-    return (await this.get(`/api/v1/agent-teams/${teamId}`)).data;
+    return expertsRequest((headers) =>
+      expertsHttp.get(`/api/v1/agent-teams/${teamId}`, { headers }).then((r) => r.data)
+    );
   }
 
   /** GET /api/v1/agent-teams/{team_id}/members — read-only in Plane (§12.6.1). */
+  /** GET /api/v1/runtime/identities — id/kind/displayName/userId/expertId. */
+  async listIdentities(): Promise<RuntimeIdentity[]> {
+    const payload = await expertsRequest((headers) =>
+      expertsHttp.get("/api/v1/runtime/identities", { headers }).then((r) => r.data)
+    );
+    return (payload as { items?: RuntimeIdentity[] })?.items ?? (Array.isArray(payload) ? payload : []);
+  }
+
   async listTeamMembers(teamId: string): Promise<AgentTeamMember[]> {
     if (MOCK) {
       await delay(120);
       return (mockTeamMembers[teamId] ?? []).filter((m) => m.enabled);
     }
-    return (await this.get(`/api/v1/agent-teams/${teamId}/members`)).data;
+    const [payload, identities] = await Promise.all([
+      expertsRequest((headers) =>
+        expertsHttp.get(`/api/v1/agent-teams/${teamId}/members`, { headers }).then((r) => r.data)
+      ),
+      // The members contract carries identityId only; enrich display fields
+      // from the runtime identity directory (displayName/kind live there).
+      this.listIdentities().catch(() => []),
+    ]);
+    const byIdentity = new Map(identities.map((identity) => [identity.id, identity]));
+    const members = (payload as { items?: AgentTeamMember[] })?.items ?? (Array.isArray(payload) ? payload : []);
+    return members.map((member) => {
+      const identity = byIdentity.get(member.identityId);
+      return Object.assign({}, member, {
+        displayName: member.displayName ?? identity?.displayName ?? member.role,
+        kind: member.kind ?? identity?.kind,
+        planeUserId: member.planeUserId ?? identity?.userId ?? undefined,
+        expertId: member.expertId ?? identity?.expertId ?? undefined,
+      });
+    });
   }
 
   /** GET /api/v1/agent-teams/{team_id}/projects */
@@ -566,7 +620,10 @@ export class AgentTeamRuntimeService extends APIService {
       await delay(120);
       return mockTeamProjects[teamId] ?? [];
     }
-    return (await this.get(`/api/v1/agent-teams/${teamId}/projects`)).data;
+    const payload = await expertsRequest((headers) =>
+      expertsHttp.get(`/api/v1/agent-teams/${teamId}/projects`, { headers }).then((r) => r.data)
+    );
+    return (payload as { items?: AgentTeamProject[] })?.items ?? (Array.isArray(payload) ? payload : []);
   }
 
   // Assumed endpoints — §9 freezes task-dimension reads only; team-dimension
@@ -578,7 +635,14 @@ export class AgentTeamRuntimeService extends APIService {
       await delay(120);
       return mockTeamActiveTasks[teamId] ?? [];
     }
-    return (await this.get(`/api/v1/agent-teams/${teamId}/active-tasks`)).data;
+    // Assumed endpoint — degrade to empty until the contract lands (§Q9-①).
+    try {
+      return await expertsRequest((headers) =>
+        expertsHttp.get(`/api/v1/agent-teams/${teamId}/active-tasks`, { headers }).then((r) => r.data)
+      );
+    } catch {
+      return [];
+    }
   }
 
   async listTeamRuns(teamId: string): Promise<AgentTeamRunSummary[]> {
@@ -586,7 +650,13 @@ export class AgentTeamRuntimeService extends APIService {
       await delay(120);
       return mockTeamRuns[teamId] ?? [];
     }
-    return (await this.get(`/api/v1/agent-teams/${teamId}/runs`)).data;
+    try {
+      return await expertsRequest((headers) =>
+        expertsHttp.get(`/api/v1/agent-teams/${teamId}/runs`, { headers }).then((r) => r.data)
+      );
+    } catch {
+      return [];
+    }
   }
 
   async listTeamArtifacts(teamId: string): Promise<AgentTeamArtifactSummary[]> {
@@ -594,7 +664,13 @@ export class AgentTeamRuntimeService extends APIService {
       await delay(120);
       return mockTeamArtifacts[teamId] ?? [];
     }
-    return (await this.get(`/api/v1/agent-teams/${teamId}/artifacts`)).data;
+    try {
+      return await expertsRequest((headers) =>
+        expertsHttp.get(`/api/v1/agent-teams/${teamId}/artifacts`, { headers }).then((r) => r.data)
+      );
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -617,7 +693,13 @@ export class AgentTeamRuntimeService extends APIService {
         waitingDecisionCount: 1,
       };
     }
-    return (await this.get(`/api/v1/projects/${projectId}/agent-team-panel`)).data ?? null;
+    try {
+      return await expertsRequest((headers) =>
+        expertsHttp.get(`/api/v1/projects/${projectId}/agent-team-panel`, { headers }).then((r) => r.data)
+      );
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -662,7 +744,13 @@ export class AgentTeamRuntimeService extends APIService {
           : null,
       };
     }
-    return (await this.get(`/api/v1/runtime/work-items/${issueId}/summary`)).data ?? null;
+    try {
+      return await expertsRequest((headers) =>
+        expertsHttp.get(`/api/v1/runtime/work-items/${issueId}/summary`, { headers }).then((r) => r.data)
+      );
+    } catch {
+      return null;
+    }
   }
 
   /** Execution timeline for the work item panel (design §12.3). */
@@ -698,7 +786,13 @@ export class AgentTeamRuntimeService extends APIService {
       }
       return entries;
     }
-    return (await this.get(`/api/v1/runtime/work-items/${issueId}/timeline`)).data ?? [];
+    try {
+      return await expertsRequest((headers) =>
+        expertsHttp.get(`/api/v1/runtime/work-items/${issueId}/timeline`, { headers }).then((r) => r.data)
+      );
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -715,7 +809,9 @@ export class AgentTeamRuntimeService extends APIService {
       }
       return;
     }
-    await this.post(`/api/v1/workflow-runs/${workflowRunId}/cancel`, {});
+    await expertsRequest((headers) =>
+      expertsHttp.post(`/api/v1/workflow-runs/${workflowRunId}/cancel`, {}, { headers })
+    );
   }
 }
 
