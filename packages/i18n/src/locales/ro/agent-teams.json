@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Copiat",
   "agent_teams_chat_stop": "Oprește",
   "agent_teams_chat_web_search": "Căutare web",
-  "agent_teams_chat_sources": "{count} surse"
+  "agent_teams_chat_sources": "{count} surse",
+  "agent_teams_chat_archive_view": "Vezi arhivate",
+  "agent_teams_chat_active_view": "Înapoi la active",
+  "agent_teams_chat_archive": "Arhivează",
+  "agent_teams_chat_unarchive": "Dezarhivează"
 }

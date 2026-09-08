@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Zkopírováno",
   "agent_teams_chat_stop": "Zastavit",
   "agent_teams_chat_web_search": "Webové hledání",
-  "agent_teams_chat_sources": "{count} zdrojů"
+  "agent_teams_chat_sources": "{count} zdrojů",
+  "agent_teams_chat_archive_view": "Zobrazit archivované",
+  "agent_teams_chat_active_view": "Zpět na aktivní",
+  "agent_teams_chat_archive": "Archivovat",
+  "agent_teams_chat_unarchive": "Zrušit archivaci"
 }

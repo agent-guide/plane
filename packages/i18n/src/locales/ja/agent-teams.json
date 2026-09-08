@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "コピーしました",
   "agent_teams_chat_stop": "停止",
   "agent_teams_chat_web_search": "ウェブ検索",
-  "agent_teams_chat_sources": "{count} 件のソース"
+  "agent_teams_chat_sources": "{count} 件のソース",
+  "agent_teams_chat_archive_view": "アーカイブを表示",
+  "agent_teams_chat_active_view": "アクティブに戻る",
+  "agent_teams_chat_archive": "アーカイブ",
+  "agent_teams_chat_unarchive": "アーカイブ解除"
 }

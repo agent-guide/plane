@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Đã sao chép",
   "agent_teams_chat_stop": "Dừng",
   "agent_teams_chat_web_search": "Tìm kiếm web",
-  "agent_teams_chat_sources": "{count} nguồn"
+  "agent_teams_chat_sources": "{count} nguồn",
+  "agent_teams_chat_archive_view": "Xem đã lưu trữ",
+  "agent_teams_chat_active_view": "Quay lại đang hoạt động",
+  "agent_teams_chat_archive": "Lưu trữ",
+  "agent_teams_chat_unarchive": "Bỏ lưu trữ"
 }

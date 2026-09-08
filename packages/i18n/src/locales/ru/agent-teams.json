@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Скопировано",
   "agent_teams_chat_stop": "Остановить",
   "agent_teams_chat_web_search": "Веб-поиск",
-  "agent_teams_chat_sources": "{count} источников"
+  "agent_teams_chat_sources": "{count} источников",
+  "agent_teams_chat_archive_view": "Показать архивные",
+  "agent_teams_chat_active_view": "Вернуться к активным",
+  "agent_teams_chat_archive": "В архив",
+  "agent_teams_chat_unarchive": "Из архива"
 }

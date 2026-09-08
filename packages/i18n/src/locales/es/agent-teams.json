@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Copiado",
   "agent_teams_chat_stop": "Detener",
   "agent_teams_chat_web_search": "Búsqueda web",
-  "agent_teams_chat_sources": "{count} fuentes"
+  "agent_teams_chat_sources": "{count} fuentes",
+  "agent_teams_chat_archive_view": "Ver archivados",
+  "agent_teams_chat_active_view": "Volver a activas",
+  "agent_teams_chat_archive": "Archivar",
+  "agent_teams_chat_unarchive": "Desarchivar"
 }

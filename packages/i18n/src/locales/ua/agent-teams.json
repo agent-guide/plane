@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Скопійовано",
   "agent_teams_chat_stop": "Зупинити",
   "agent_teams_chat_web_search": "Веб-пошук",
-  "agent_teams_chat_sources": "{count} джерел"
+  "agent_teams_chat_sources": "{count} джерел",
+  "agent_teams_chat_archive_view": "Переглянути архівні",
+  "agent_teams_chat_active_view": "Назад до активних",
+  "agent_teams_chat_archive": "В архів",
+  "agent_teams_chat_unarchive": "З архіву"
 }

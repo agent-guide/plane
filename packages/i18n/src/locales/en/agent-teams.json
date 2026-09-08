@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Copied",
   "agent_teams_chat_stop": "Stop",
   "agent_teams_chat_web_search": "Web search",
-  "agent_teams_chat_sources": "{count} sources"
+  "agent_teams_chat_sources": "{count} sources",
+  "agent_teams_chat_archive_view": "View archived",
+  "agent_teams_chat_active_view": "Back to active",
+  "agent_teams_chat_archive": "Archive",
+  "agent_teams_chat_unarchive": "Unarchive"
 }

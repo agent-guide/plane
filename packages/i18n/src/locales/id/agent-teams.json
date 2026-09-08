@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Tersalin",
   "agent_teams_chat_stop": "Hentikan",
   "agent_teams_chat_web_search": "Pencarian web",
-  "agent_teams_chat_sources": "{count} sumber"
+  "agent_teams_chat_sources": "{count} sumber",
+  "agent_teams_chat_archive_view": "Lihat arsip",
+  "agent_teams_chat_active_view": "Kembali ke aktif",
+  "agent_teams_chat_archive": "Arsipkan",
+  "agent_teams_chat_unarchive": "Batalkan arsip"
 }

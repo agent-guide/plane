@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "Kopyalandı",
   "agent_teams_chat_stop": "Durdur",
   "agent_teams_chat_web_search": "Web araması",
-  "agent_teams_chat_sources": "{count} kaynak"
+  "agent_teams_chat_sources": "{count} kaynak",
+  "agent_teams_chat_archive_view": "Arşivlenenleri gör",
+  "agent_teams_chat_active_view": "Aktiflere dön",
+  "agent_teams_chat_archive": "Arşivle",
+  "agent_teams_chat_unarchive": "Arşivden çıkar"
 }

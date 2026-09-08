@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "已複製",
   "agent_teams_chat_stop": "停止",
   "agent_teams_chat_web_search": "聯網搜索",
-  "agent_teams_chat_sources": "{count} 個來源"
+  "agent_teams_chat_sources": "{count} 個來源",
+  "agent_teams_chat_archive_view": "查看封存",
+  "agent_teams_chat_active_view": "返回活躍",
+  "agent_teams_chat_archive": "封存",
+  "agent_teams_chat_unarchive": "取消封存"
 }

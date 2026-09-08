@@ -18,7 +18,7 @@ import { Button } from "@plane/propel/button";
 import { useTranslation } from "@plane/i18n";
 import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
 // icons
-import { Bot, Globe, MessageSquare, Plus, Send, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Bot, Globe, MessageSquare, Plus, Send, Users } from "lucide-react";
 // components
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
@@ -63,16 +63,17 @@ function AgentTeamsChatPage() {
   const [streaming, setStreaming] = useState<StreamingAssistant | null>(null);
   const [copiedId, setCopiedId] = useState("");
   const [titleHints, setTitleHints] = useState<Record<string, string>>({});
+  const [archiveView, setArchiveView] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await chatService.listSessions();
+      const list = await chatService.listSessions(archiveView ? "archived" : "active");
       setSessions(list);
       // Member deep link: open the existing member session or create one.
-      if (memberParam) {
+      if (memberParam && !archiveView) {
         const existing = list.find((s) => s.expertId === memberParam);
         if (existing) {
           setActiveId(existing.id);
@@ -92,7 +93,7 @@ function AgentTeamsChatPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memberParam, nameParam]);
+  }, [memberParam, nameParam, archiveView]);
 
   useEffect(() => {
     void loadSessions();
@@ -251,27 +252,60 @@ function AgentTeamsChatPage() {
           <div className="flex h-full w-full overflow-hidden">
             {/* session list */}
             <aside className="w-full max-w-60 shrink-0 border-r border-subtle">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveId("");
+                  setArchiveView((prev) => !prev);
+                }}
+                className="flex w-full items-center gap-1.5 border-b border-subtle px-3 py-2 text-caption-sm-medium text-secondary hover:bg-layer-2-hover"
+              >
+                {archiveView ? (
+                  <ArchiveRestore className="size-3.5" aria-hidden />
+                ) : (
+                  <Archive className="size-3.5" aria-hidden />
+                )}
+                {archiveView ? t("agent_teams_chat_active_view") : t("agent_teams_chat_archive_view")}
+              </button>
               {loading ? (
                 <div className="p-4 text-body-sm-regular text-tertiary">{t("agent_teams_inbox_loading")}</div>
               ) : (
                 <div className="flex flex-col">
                   {sessions.map((session) => (
-                    <button
-                      key={session.id}
-                      type="button"
-                      onClick={() => setActiveId(session.id)}
-                      className={`flex w-full flex-col gap-0.5 border-b border-subtle px-3 py-2.5 text-left ${
-                        session.id === activeId ? "bg-layer-2" : "hover:bg-layer-2-hover"
-                      }`}
-                    >
-                      <span className="flex w-full items-center gap-1.5 truncate text-body-xs-medium">
-                        {session.expertName && <Bot className="size-3 shrink-0 text-accent-primary" aria-hidden />}
-                        {titleHints[session.id] ?? session.title}
-                      </span>
-                      <span className="truncate text-caption-sm-regular text-tertiary">
-                        {session.expertName ?? t("agent_teams_chat_free")}
-                      </span>
-                    </button>
+                    <div key={session.id} className="group relative">
+                      <button
+                        type="button"
+                        onClick={() => setActiveId(session.id)}
+                        className={`flex w-full flex-col gap-0.5 border-b border-subtle px-3 py-2.5 text-left ${
+                          session.id === activeId ? "bg-layer-2" : "hover:bg-layer-2-hover"
+                        }`}
+                      >
+                        <span className="flex w-full items-center gap-1.5 truncate text-body-xs-medium">
+                          {session.expertName && <Bot className="size-3 shrink-0 text-accent-primary" aria-hidden />}
+                          {titleHints[session.id] ?? session.title}
+                        </span>
+                        <span className="truncate text-caption-sm-regular text-tertiary">
+                          {session.expertName ?? t("agent_teams_chat_free")}
+                        </span>
+                      </button>
+                      {/* Sibling (not nested) button — a11y lint forbids nested
+                          interactive elements; hover-revealed archive action. */}
+                      <button
+                        type="button"
+                        title={archiveView ? t("agent_teams_chat_unarchive") : t("agent_teams_chat_archive")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void chatService.setArchived(session.id, !archiveView).then(() => loadSessions());
+                        }}
+                        className="hover:text-secondary-hover absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-tertiary opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                      >
+                        {archiveView ? (
+                          <ArchiveRestore className="size-3.5" aria-hidden />
+                        ) : (
+                          <Archive className="size-3.5" aria-hidden />
+                        )}
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}

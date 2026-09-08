@@ -96,5 +96,9 @@
   "agent_teams_chat_copied": "복사됨",
   "agent_teams_chat_stop": "중지",
   "agent_teams_chat_web_search": "웹 검색",
-  "agent_teams_chat_sources": "출처 {count}개"
+  "agent_teams_chat_sources": "출처 {count}개",
+  "agent_teams_chat_archive_view": "보관함 보기",
+  "agent_teams_chat_active_view": "활성으로 돌아가기",
+  "agent_teams_chat_archive": "보관",
+  "agent_teams_chat_unarchive": "보관 해제"
 }
