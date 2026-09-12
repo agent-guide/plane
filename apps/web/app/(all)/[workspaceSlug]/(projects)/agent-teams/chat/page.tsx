@@ -223,7 +223,7 @@ function AgentTeamsChatPage() {
                   <Breadcrumbs.Item
                     component={
                       <BreadcrumbLink
-                        label="Agent Teams"
+                        label={t("agent_teams_breadcrumb")}
                         href={agentTeamsPath}
                         icon={<Users className="size-4 text-tertiary" />}
                       />

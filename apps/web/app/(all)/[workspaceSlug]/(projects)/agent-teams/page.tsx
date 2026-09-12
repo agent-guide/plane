@@ -76,7 +76,7 @@ function WorkspaceAgentTeamsPage() {
                   <Breadcrumbs.Item
                     component={
                       <BreadcrumbLink
-                        label="Agent Teams"
+                        label={t("agent_teams_breadcrumb")}
                         disableTooltip
                         icon={<Users className="size-4 text-tertiary" />}
                       />
