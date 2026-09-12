@@ -8,6 +8,7 @@ import { useMemo, useCallback } from "react";
 // plane imports
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { CycleIcon, IntakeIcon, ModuleIcon, PageIcon, ViewsIcon, WorkItemsIcon } from "@plane/propel/icons";
+import { Bot as BotIcon } from "lucide-react";
 import type { EUserProjectRoles, IPartialProject } from "@plane/types";
 import type { TNavigationItem } from "@/components/navigation/tab-navigation-root";
 
@@ -82,6 +83,18 @@ export const useNavigationItems = ({
         access: [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
         shouldRender: !!project?.page_view,
         sortOrder: 5,
+      },
+      // Agent Teams extension — Project Overview (§12.2): first tab, the
+      // project's landing view.
+      {
+        i18n_key: "sidebar.project_overview",
+        key: "overview",
+        name: "Overview",
+        href: `/${workspaceSlug}/projects/${projectId}/overview`,
+        icon: BotIcon,
+        access: [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+        shouldRender: true,
+        sortOrder: 0,
       },
       {
         i18n_key: "sidebar.intake",

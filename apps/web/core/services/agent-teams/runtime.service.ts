@@ -14,7 +14,7 @@
  * VITE_RUNTIME_API_MOCK=0 and VITE_RUNTIME_API_BASE_URL to point at a real
  * Runtime deployment for联调.
  */
-import { expertsHttp, expertsRequest } from "./experts-auth";
+import { expertsBaseUrl, expertsHttp, expertsRequest } from "./experts-auth";
 
 // ---------------------------------------------------------------------------
 // Contract types (implementation plan §5.8–5.10, camelCase schemas)
@@ -124,6 +124,43 @@ export type AgentTeamRunSummary = {
   startedAt?: string;
 };
 
+export type ProjectRuntimeBinding = {
+  id: string;
+  teamId: string;
+  teamName: string;
+  workflowName?: string | null;
+  workflowVersion?: number | null;
+  engineName?: string | null;
+  mappingStatus: "valid" | "needs_revalidation" | "invalid";
+  updatedAt: string;
+};
+
+export type ProjectRuntimeTask = {
+  taskId: string;
+  title: string;
+  externalItemId?: string | null;
+  controlStatus: "queued" | "running" | "waiting_human" | "blocked" | "failed" | "completed" | "cancelled";
+  currentMemberName?: string | null;
+  updatedAt: string;
+};
+
+export type ProjectRuntimeRun = {
+  runId: string;
+  taskId: string;
+  taskTitle: string;
+  status: string;
+  startedAt: string;
+  finishedAt: string;
+};
+
+export type ProjectRuntimeOverview = {
+  projectId: string;
+  binding: ProjectRuntimeBinding | null;
+  counts: { activeTasks: number; waitingHuman: number; runningAgents: number };
+  tasks: ProjectRuntimeTask[];
+  recentRuns: ProjectRuntimeRun[];
+};
+
 export type AgentTeamArtifactSummary = {
   id: string;
   artifactKey: string;
@@ -147,7 +184,13 @@ export type WorkItemRuntimeSummary = {
   // Accumulated execution metrics (design §12.3).
   durationSeconds?: number | null;
   costUsd?: number | null;
-  artifacts?: Array<{ id: string; name: string; version: number }>;
+  artifacts?: Array<{
+    id: string;
+    name: string;
+    version: number;
+    mimeType?: string | null;
+    sizeBytes?: number | null;
+  }>;
   // Inline approval entry (design §12.6.4): the waiting human decision for
   // this work item, if any. Null when nothing awaits.
   pendingApproval?: HumanInboxItem | null;
@@ -753,6 +796,19 @@ export class AgentTeamRuntimeService {
     }
   }
 
+  /** Presigned download URL for a runtime artifact (opens the deliverable).
+   * The backend returns a path-absolute URL; resolving it against the fork
+   * origin 404s — anchor it to the Runtime API base instead. */
+  async getArtifactDownloadUrl(artifactId: string): Promise<string> {
+    const payload = await expertsRequest((headers) =>
+      expertsHttp
+        .get<{ downloadUrl: string }>(`/api/v1/runtime/artifacts/${artifactId}/download-url`, { headers })
+        .then((r) => r.data)
+    );
+    const url = payload.downloadUrl;
+    return url.startsWith("/") ? `${expertsBaseUrl()}${url}` : url;
+  }
+
   /** Execution timeline for the work item panel (design §12.3). */
   async getWorkItemTimeline(issueId: string): Promise<WorkItemTimelineEntry[]> {
     if (MOCK) {
@@ -811,6 +867,22 @@ export class AgentTeamRuntimeService {
     }
     await expertsRequest((headers) =>
       expertsHttp.post(`/api/v1/workflow-runs/${workflowRunId}/cancel`, {}, { headers })
+    );
+  }
+
+  /** GET /api/v1/runtime/projects/{project_id}/overview — project-dimension
+   * aggregate (design §12.2 backing query). Real-only: the dev token channel
+   * serves it directly, and it has no mock-era contract to mirror. */
+  async getProjectRuntimeOverview(projectId: string): Promise<ProjectRuntimeOverview> {
+    return expertsRequest((headers) =>
+      expertsHttp
+        .get(`/api/v1/runtime/projects/${projectId}/overview`, {
+          headers,
+          // The fork only holds the Plane project UUID; the backend resolves
+          // it through the Work Management project mapping (Q9-⑥ addressing).
+          params: { idKind: "external" },
+        })
+        .then((r) => r.data)
     );
   }
 }

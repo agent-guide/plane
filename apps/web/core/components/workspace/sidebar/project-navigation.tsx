@@ -11,6 +11,7 @@ import { useParams, usePathname } from "next/navigation";
 import { EUserPermissionsLevel, EUserPermissions } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { CycleIcon, IntakeIcon, ModuleIcon, PageIcon, ViewsIcon, WorkItemsIcon } from "@plane/propel/icons";
+import { Bot as BotIcon } from "lucide-react";
 import type { EUserProjectRoles } from "@plane/types";
 // plane ui
 // components
@@ -130,6 +131,18 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
         shouldRender: project?.inbox_view ?? false,
         sortOrder: 6,
       },
+      // Agent Teams extension — Project Overview (§12.2): first tab, the
+      // project's landing view.
+      {
+        i18n_key: "sidebar.project_overview",
+        key: "overview",
+        name: "Overview",
+        href: `/${workspaceSlug}/projects/${projectId}/overview`,
+        icon: BotIcon,
+        access: [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+        shouldRender: true,
+        sortOrder: 0,
+      },
     ],
     [project]
   );
@@ -147,7 +160,8 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
     };
 
     // sort navigation items by sortOrder
-    const sortedNavigationItems = navigationItems(workspaceSlug, projectId).sort(
+    // spread-then-sort: toSorted needs lib es2023; this file's tsconfig targets older
+    const sortedNavigationItems = [...navigationItems(workspaceSlug, projectId)].sort(
       (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)
     );
 

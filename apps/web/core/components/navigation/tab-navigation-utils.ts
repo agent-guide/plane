@@ -12,7 +12,9 @@ export type TTabPreferences = {
 
 // Constants
 export const TAB_PREFS_KEY = "plane_tab_prefs";
-export const DEFAULT_TAB_KEY = "work_items";
+// Agent Teams fork default: projects land on the Overview page (§12.2,
+// Linear/Jira-style); per-user per-project preferences still override this.
+export const DEFAULT_TAB_KEY = "overview";
 
 /**
  * Get tab preferences for a specific project from localStorage

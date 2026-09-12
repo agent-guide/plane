@@ -22,6 +22,16 @@ export const extendedRoutes: RouteConfigEntry[] = [
         route(":workspaceSlug/agent-teams/inbox", "./(all)/[workspaceSlug]/(projects)/agent-teams/inbox/page.tsx"),
         route(":workspaceSlug/agent-teams/chat", "./(all)/[workspaceSlug]/(projects)/agent-teams/chat/page.tsx"),
         route(":workspaceSlug/agent-teams/:teamId", "./(all)/[workspaceSlug]/(projects)/agent-teams/[teamId]/page.tsx"),
+        // Project Overview page (design §12.2, Linear-style): the project's
+        // landing view hosting the responsible-team panel, counts, controlled
+        // tasks and recent runs. Mirrors the core project detail layout chain
+        // so it deep-merges into it and gains the ProjectAuthWrapper.
+        layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/layout.tsx", [
+          route(
+            ":workspaceSlug/projects/:projectId/overview",
+            "./(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/overview/page.tsx"
+          ),
+        ]),
       ]),
     ]),
   ]),
