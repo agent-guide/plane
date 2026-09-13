@@ -247,7 +247,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
         </SidebarPropertyListItem>
       </div>
       {/* Agent Teams extension slot (design §12.5-5) */}
-      <WorkItemRuntimePanel issueId={issueId} />
+      <WorkItemRuntimePanel issueId={issueId} workspaceSlug={workspaceSlug} />
     </div>
   );
 });

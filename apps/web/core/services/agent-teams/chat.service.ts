@@ -11,13 +11,13 @@
  *   GET        /api/v1/chat/sessions/{id}/messages
  *   POST       /api/v1/chat/sessions/{id}/turns (SSE stream, token deltas)
  *
- * Auth note: the old app authenticated with its own login token. Until the
- * P4 BFF exchanges the Plane session for a Runtime token, dev setups pass
- * the tenant/token via env (VITE_EXPERTS_TENANT_ID / VITE_EXPERTS_API_TOKEN,
- * base VITE_EXPERTS_API_BASE_URL) — the BFF replaces exactly this header
- * block and nothing else changes.
+ * Auth: the §12.6.7 BFF (shared experts-auth module) exchanges the Plane
+ * session for a short-lived Runtime user token — no env tokens in the
+ * browser. This module only keeps the SSE fetch (the one path axios
+ * interceptors can't cover).
  */
-import axios, { create as axiosCreate, type AxiosInstance } from "axios";
+import { create as axiosCreate, type AxiosInstance } from "axios";
+import { expertsBaseUrl, expertsAuthHeaders, invalidateExpertsAuth } from "./experts-auth";
 import {
   buildToolTraceItem,
   readErrorMessage,
@@ -29,79 +29,7 @@ import {
   STREAM_IDLE_TIMEOUT_MS,
 } from "./chat-stream";
 
-const BASE_URL = (import.meta.env.VITE_EXPERTS_API_BASE_URL as string | undefined) ?? "";
-const TENANT_ID = (import.meta.env.VITE_EXPERTS_TENANT_ID as string | undefined) ?? "";
-
-// ---------------------------------------------------------------------------
-// Auth — the old app's token lifecycle, dev-shaped: tokens bootstrap from env
-// (or localStorage), and a 401 triggers ONE silent refresh + retry instead of
-// the redirect loop (the BFF replaces this whole block later).
-// ---------------------------------------------------------------------------
-
-const STORAGE_KEY = "agent-teams-chat-auth";
-
-type AuthState = { accessToken: string; refreshToken: string };
-
-function loadAuth(): AuthState | null {
-  if (typeof window !== "undefined") {
-    try {
-      const cached = window.localStorage.getItem(STORAGE_KEY);
-      if (cached) return JSON.parse(cached) as AuthState;
-    } catch {
-      // fall through to env
-    }
-  }
-  const accessToken = (import.meta.env.VITE_EXPERTS_API_TOKEN as string | undefined) ?? "";
-  const refreshToken = (import.meta.env.VITE_EXPERTS_REFRESH_TOKEN as string | undefined) ?? "";
-  return accessToken ? { accessToken, refreshToken } : null;
-}
-
-let auth: AuthState | null = loadAuth();
-
-function saveAuth(next: AuthState | null) {
-  auth = next;
-  if (typeof window !== "undefined") {
-    if (next) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    else window.localStorage.removeItem(STORAGE_KEY);
-  }
-}
-
-function authHeaders(): Record<string, string> {
-  return {
-    "X-Tenant-ID": TENANT_ID,
-    ...(auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {}),
-  };
-}
-
-async function refreshAuth(): Promise<void> {
-  if (!auth?.refreshToken) return devLogin();
-  const response = await axios
-    .post(
-      `${BASE_URL}/api/v1/auth/refresh`,
-      { refreshToken: auth.refreshToken },
-      { headers: { "X-Tenant-ID": TENANT_ID } }
-    )
-    .catch(() => null);
-  const data = response?.data?.data ?? response?.data;
-  if (!data?.accessToken) return devLogin();
-  saveAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken ?? auth.refreshToken });
-}
-
-/** Dev fallback: static env tokens expire in 15 minutes; log in with the
- * dev account instead of hand-rotating env values (removed with the BFF). */
-async function devLogin(): Promise<void> {
-  const email = (import.meta.env.VITE_EXPERTS_DEV_EMAIL as string | undefined) ?? "";
-  const password = (import.meta.env.VITE_EXPERTS_DEV_PASSWORD as string | undefined) ?? "";
-  if (!email || !password) throw new Error("experts auth expired without dev credentials");
-  const response = await axios.post(
-    `${BASE_URL}/api/v1/auth/login`,
-    { email, password },
-    { headers: { "X-Tenant-ID": TENANT_ID } }
-  );
-  const data = response.data?.data ?? response.data;
-  if (!data?.accessToken) throw new Error("experts dev login failed");
-  saveAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken ?? "" });
-}
+const BASE_URL = expertsBaseUrl();
 
 export type ChatRole = "user" | "assistant";
 
@@ -159,15 +87,15 @@ export class ChatService {
     this.http = axiosCreate({ baseURL: BASE_URL });
   }
 
-  /** Request with one silent token refresh + retry on 401. */
+  /** Request with one silent re-exchange + retry on 401 (§12.6.7 BFF). */
   private async request<T>(fn: (headers: Record<string, string>) => Promise<T>): Promise<T> {
     try {
-      return await fn(authHeaders());
+      return await fn(await expertsAuthHeaders());
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
-        await refreshAuth();
-        return await fn(authHeaders());
+        invalidateExpertsAuth();
+        return await fn(await expertsAuthHeaders());
       }
       throw error;
     }
@@ -264,13 +192,13 @@ export class ChatService {
     callbacks.signal?.addEventListener("abort", onAbort);
 
     try {
-      const postTurn = () =>
+      const postTurn = async () =>
         fetch(`${BASE_URL}/api/v1/chat/sessions/${encodeURIComponent(sessionId)}/turns`, {
           method: "POST",
           headers: {
             Accept: "text/event-stream",
             "Content-Type": "application/json",
-            ...authHeaders(),
+            ...(await expertsAuthHeaders()),
           },
           body: JSON.stringify({
             question,
@@ -282,8 +210,8 @@ export class ChatService {
 
       let response = await postTurn();
       if (response.status === 401) {
-        // Silent refresh + one retry — same lifecycle as the old app.
-        await refreshAuth();
+        // Silent re-exchange + one retry — same lifecycle as the old app.
+        invalidateExpertsAuth();
         response = await postTurn();
       }
       if (!response.ok || !response.body) {

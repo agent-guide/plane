@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { observer } from "mobx-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 // i18n
 import { useTranslation } from "@plane/i18n";
 // icons
@@ -19,12 +19,18 @@ import { Bot } from "lucide-react";
 // components
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import runtimeService, { type ProjectTeamPanel } from "@/services/agent-teams/runtime.service";
+import { setExpertsWorkspaceSlug } from "@/services/agent-teams/experts-auth";
 
 export const ProjectTeamBadge = observer(function ProjectTeamBadge({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const router = useRouter();
   const { agentTeamDetailPath, approvalInboxPath } = useAgentTeamsLinks();
   const [panel, setPanel] = useState<ProjectTeamPanel | null>(null);
+  const routerParams = useParams<{ workspaceSlug?: string }>();
+  // §12.6.7 BFF 身份交换按 workspace 取作用域（身份映射 connection+scope）。
+  useEffect(() => {
+    if (routerParams.workspaceSlug) setExpertsWorkspaceSlug(routerParams.workspaceSlug);
+  }, [routerParams.workspaceSlug]);
 
   const load = useCallback(async () => {
     try {

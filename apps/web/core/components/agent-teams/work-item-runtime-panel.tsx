@@ -25,9 +25,11 @@ import runtimeService, {
   type WorkItemRuntimeSummary,
   type WorkItemTimelineEntry,
 } from "@/services/agent-teams/runtime.service";
+import { setExpertsWorkspaceSlug } from "@/services/agent-teams/experts-auth";
 
 type WorkItemRuntimePanelProps = {
   issueId: string;
+  workspaceSlug: string;
 };
 
 function formatSize(bytes: number): string {
@@ -43,7 +45,10 @@ function formatEntryTime(value: string): string {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({ issueId }: WorkItemRuntimePanelProps) {
+export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
+  issueId,
+  workspaceSlug,
+}: WorkItemRuntimePanelProps) {
   const { t } = useTranslation();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
   const [summary, setSummary] = useState<WorkItemRuntimeSummary | null>(null);
@@ -84,6 +89,11 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({ iss
       setLoading(false);
     }
   }, [issueId]);
+
+  // §12.6.7 BFF 身份交换按 workspace 取作用域（身份映射 connection+scope）。
+  useEffect(() => {
+    setExpertsWorkspaceSlug(workspaceSlug);
+  }, [workspaceSlug]);
 
   useEffect(() => {
     void loadSummary();
