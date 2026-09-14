@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "Запуск агента",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "Входящие согласований",
   "agent_teams_inbox_subtitle": "Ожидающие решения из узлов согласования workflow и запросов агентов. Согласовать, отклонить или запросить изменения — команды уходят в Agent Team Runtime, состояние Plane напрямую не изменяется.",
   "agent_teams_inbox_scope_workflow": "Workflow",

@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "Exécution d'agent",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "Boîte d'approbation",
   "agent_teams_inbox_subtitle": "Décisions humaines en attente issues des nœuds d'approbation de workflow et des requêtes d'agent. Approuver, rejeter ou demander des modifications — les commandes vont vers l'Agent Team Runtime, l'état Plane n'est jamais modifié directement.",
   "agent_teams_inbox_scope_workflow": "Workflow",

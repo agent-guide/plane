@@ -28,6 +28,13 @@ export type HumanInboxItem = {
   requestId: string;
   tenantId: string;
   taskBindingId: string;
+  // Card-summary enrichment (§12.6.4) — task name plus the Provider (Plane)
+  // ids for project naming / deep links; absent for locally-originated tasks.
+  taskId?: string | null;
+  taskTitle?: string | null;
+  externalScopeId?: string | null;
+  externalProjectId?: string | null;
+  externalItemId?: string | null;
   // Project scope for context-filtered views (Q9: NOT in the frozen §5.10
   // projection — needs a contract addition or a server-side query param).
   projectId?: string | null;

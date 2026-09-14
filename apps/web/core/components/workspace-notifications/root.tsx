@@ -21,6 +21,9 @@ import { useWorkspaceIssueProperties } from "@/hooks/use-workspace-issue-propert
 import { useNotificationPreview } from "@/hooks/use-notification-preview";
 // local imports
 import { InboxContentRoot } from "../inbox/content";
+// agent teams extension (§12.6.4 — approvals tab detail takes over the pane)
+import { useAgentApprovalsSelection } from "@/components/agent-teams/approvals-context";
+import { AgentApprovalDetailPane } from "@/components/agent-teams/approval-detail";
 
 type NotificationsRootProps = {
   workspaceSlug?: string;
@@ -38,6 +41,9 @@ export const NotificationsRoot = observer(function NotificationsRoot({ workspace
   } = useWorkspaceNotifications();
   const { fetchUserProjectInfo } = useUserPermissions();
   const { isWorkItem, PeekOverviewComponent, setPeekWorkItem } = useNotificationPreview();
+  // A selected agent-teams approval takes over the pane (same master-detail
+  // as notifications); release it when a notification gets selected instead.
+  const { selected: selectedApproval, setSelected: setSelectedApproval } = useAgentApprovalsSelection();
   // derived values
   const { workspace_slug, project_id, issue_id, is_inbox_issue } =
     notificationLiteByNotificationId(currentSelectedNotificationId);
@@ -82,9 +88,17 @@ export const NotificationsRoot = observer(function NotificationsRoot({ workspace
     [setCurrentSelectedNotificationId, setPeekWorkItem]
   );
 
+  // Selecting a notification releases the approval pane selection (and vice
+  // versa) — only one master-detail target at a time.
+  useEffect(() => {
+    if (currentSelectedNotificationId) setSelectedApproval(null);
+  }, [currentSelectedNotificationId, setSelectedApproval]);
+
   return (
     <div className={cn("h-full w-full overflow-hidden", isWorkItem && "overflow-y-auto")}>
-      {!currentSelectedNotificationId ? (
+      {selectedApproval ? (
+        <AgentApprovalDetailPane workspaceSlug={(workspaceSlug ?? currentWorkspace?.slug) as string} />
+      ) : !currentSelectedNotificationId ? (
         <div className="flex size-full items-center justify-center">
           <EmptyStateCompact assetKey="unknown" assetClassName="size-20" />
         </div>

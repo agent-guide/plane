@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "All",
-      "mentions": "Mentions"
+      "mentions": "Mentions",
+      "team_approvals": "Team approvals"
     },
     "filter": {
       "assigned": "Assigned to me",

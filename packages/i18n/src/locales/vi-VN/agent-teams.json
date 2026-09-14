@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "Chạy Agent",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "Hộp thư phê duyệt",
   "agent_teams_inbox_subtitle": "Các quyết định của con người đang chờ từ nút phê duyệt quy trình và yêu cầu của Agent. Phê duyệt, từ chối hoặc yêu cầu thay đổi — lệnh gửi tới Agent Team Runtime, trạng thái Plane không bao giờ bị sửa đổi trực tiếp.",
   "agent_teams_inbox_scope_workflow": "Quy trình",

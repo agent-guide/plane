@@ -12,6 +12,7 @@
  * watching until the current member appears (then settle again), and stop
  * early when the project turns out unbound.
  */
+import { observable } from "mobx";
 import runtimeService from "./runtime.service";
 import { setExpertsWorkspaceSlug } from "./experts-auth";
 
@@ -19,6 +20,13 @@ const POLL_INTERVAL_MS = 4000;
 const MAX_ATTEMPTS = 5;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Issue ids currently inside the create→bind catch-up window. The list row
+ * subscribes to this to show a connecting state instead of a raw
+ * backlog/unassigned row until the runtime settles.
+ */
+export const connectingIssueIds = observable.set<string>();
 
 /**
  * @param refresh the caller re-fetches the single work item into the store;
@@ -36,6 +44,20 @@ export async function catchUpCreatedWorkItem(
   // panel has set it yet, so scope it here or every call 403s and gives up.
   setExpertsWorkspaceSlug(workspaceSlug);
 
+  connectingIssueIds.add(issueId);
+  try {
+    return await runCatchUp(workspaceSlug, projectId, issueId, refresh);
+  } finally {
+    connectingIssueIds.delete(issueId);
+  }
+}
+
+async function runCatchUp(
+  workspaceSlug: string,
+  projectId: string,
+  issueId: string,
+  refresh: () => Promise<unknown> | unknown
+): Promise<boolean> {
   let refreshed = false;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     if (attempt > 0) await sleep(POLL_INTERVAL_MS);

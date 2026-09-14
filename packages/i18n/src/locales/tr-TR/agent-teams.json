@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "Ajan Çalıştırması",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "Onay gelen kutusu",
   "agent_teams_inbox_subtitle": "İş akışı onay düğümlerinden ve aracı isteklerinden bekleyen insan kararları. Onayla, reddet veya değişiklik iste — komutlar Agent Team Runtime'a gider, Plane durumu asla doğrudan değiştirilmez.",
   "agent_teams_inbox_scope_workflow": "İş akışı",

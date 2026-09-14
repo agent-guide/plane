@@ -9,12 +9,15 @@ import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // plane imports
 import type { TNotificationTab } from "@plane/constants";
-import { NOTIFICATION_TABS } from "@plane/constants";
+import { ENotificationTab, NOTIFICATION_TABS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { Header, Row, ERowVariant, EHeaderVariant, ContentWrapper } from "@plane/ui";
 import { cn, getNumberCount } from "@plane/utils";
 // components
 import { CountChip } from "@/components/common/count-chip";
+// agent teams extension (design §12.6.4 — third inbox tab)
+import { AgentApprovalCardList } from "@/components/agent-teams/approval-card-list";
+import { usePendingApprovals } from "@/services/agent-teams/runtime-swr";
 // hooks
 import { useWorkspaceNotifications } from "@/hooks/store/notifications";
 import { useWorkspace } from "@/hooks/store/use-workspace";
@@ -39,9 +42,13 @@ export const NotificationsSidebarRoot = observer(function NotificationsSidebarRo
   } = useWorkspaceNotifications();
 
   const { t } = useTranslation();
+  // Agent teams approvals share the tab bar; count comes from the runtime
+  // inbox (same SWR key as the top-nav badge — one request drives both).
+  const { count: pendingApprovals } = usePendingApprovals(workspaceSlug?.toString());
   // derived values
   const workspace = workspaceSlug ? getWorkspaceBySlug(workspaceSlug.toString()) : undefined;
   const notificationIds = workspace ? notificationIdsByWorkspaceId(workspace.id) : undefined;
+  const isApprovalsTab = currentNotificationTab === ENotificationTab.TEAM_APPROVALS;
 
   const handleTabClick = useCallback(
     (tabValue: TNotificationTab) => {
@@ -93,13 +100,39 @@ export const NotificationsSidebarRoot = observer(function NotificationsSidebarRo
               )}
             </div>
           ))}
+          {/* agent teams approvals tab — same interaction, count from the runtime inbox */}
+          {/* oxlint-disable-next-line jsx_a11y/click-events-have-key-events oxlint-disable-next-line jsx_a11y/no-static-element-interactions */}
+          <div
+            className="relative h-full cursor-pointer px-3"
+            onClick={() => handleTabClick(ENotificationTab.TEAM_APPROVALS as TNotificationTab)}
+          >
+            <div
+              className={cn(
+                "relative flex h-full items-center justify-center gap-1 text-body-xs-medium transition-all",
+                {
+                  "text-accent-primary": isApprovalsTab,
+                  "text-primary hover:text-secondary": !isApprovalsTab,
+                }
+              )}
+            >
+              <div className="font-medium">{t("notification.tabs.team_approvals")}</div>
+              {pendingApprovals > 0 && <CountChip count={getNumberCount(pendingApprovals)} />}
+            </div>
+            {isApprovalsTab && (
+              <div className="absolute right-0 bottom-0 left-0 rounded-t-md border border-accent-strong" />
+            )}
+          </div>
         </Header>
 
-        {/* applied filters */}
-        <AppliedFilters workspaceSlug={workspaceSlug.toString()} />
+        {/* applied filters — not applicable to the approvals tab */}
+        {!isApprovalsTab && <AppliedFilters workspaceSlug={workspaceSlug.toString()} />}
 
-        {/* rendering notifications */}
-        {loader === "init-loader" ? (
+        {/* rendering notifications / approvals */}
+        {isApprovalsTab ? (
+          <ContentWrapper variant={ERowVariant.HUGGING}>
+            <AgentApprovalCardList workspaceSlug={workspaceSlug.toString()} />
+          </ContentWrapper>
+        ) : loader === "init-loader" ? (
           <div className="relative h-full w-full overflow-hidden">
             <NotificationsLoader />
           </div>

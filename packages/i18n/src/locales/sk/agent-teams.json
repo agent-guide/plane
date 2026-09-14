@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "Agent Run",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "Schránka schválení",
   "agent_teams_inbox_subtitle": "Čakajúce ľudské rozhodnutia z uzlov schvaľovania workflow a žiadostí agentov. Schváliť, zamietnuť alebo požiadať o úpravy — príkazy smerujú do Agent Team Runtime, stav Plane sa nikdy nemení priamo.",
   "agent_teams_inbox_scope_workflow": "Workflow",

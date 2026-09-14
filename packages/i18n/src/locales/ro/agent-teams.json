@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "Run Agent",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "Inbox aprobări",
   "agent_teams_inbox_subtitle": "Decizii umane în așteptare din nodurile de aprobare ale fluxului și cererile agenților. Aprobă, respinge sau solicită modificări — comenzile merg către Agent Team Runtime, starea Plane nu este niciodată modificată direct.",
   "agent_teams_inbox_scope_workflow": "Flux de lucru",

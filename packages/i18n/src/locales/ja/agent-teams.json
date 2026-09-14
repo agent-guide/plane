@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "エージェント実行",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "承認トレイ",
   "agent_teams_inbox_subtitle": "ワークフロー承認ノードと Agent リクエストからの待機中の意思決定。承認・却下・修正依頼のコマンドは Agent Team Runtime に送信され、Plane の状態は直接変更されません。",
   "agent_teams_inbox_scope_workflow": "ワークフロー",

@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "에이전트 실행",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "승인 수신함",
   "agent_teams_inbox_subtitle": "워크플로 승인 노드와 Agent 요청의 대기 중인 결정 사항입니다. 승인·거부·수정 요청 명령은 Agent Team Runtime으로 전송되며 Plane 상태는 직접 변경되지 않습니다.",
   "agent_teams_inbox_scope_workflow": "워크플로",

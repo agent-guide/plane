@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "Wszystko",
-      "mentions": "Wzmianki"
+      "mentions": "Wzmianki",
+      "team_approvals": "Team approvals"
     },
     "filter": {
       "assigned": "Przypisano mnie",

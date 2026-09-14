@@ -16,6 +16,7 @@ import runtimeService, {
   type WorkItemRuntimeSummary,
   type WorkItemTimelineEntry,
 } from "./runtime.service";
+import { setExpertsWorkspaceSlug } from "./experts-auth";
 
 const ACTIVE_POLL_MS = 5000;
 // A just-created work item is bound a few seconds AFTER creation (webhook →
@@ -88,4 +89,27 @@ export function useProjectRuntimeOverview(projectId: string) {
       shouldRetryOnError: false,
     }
   );
+}
+
+/**
+ * Waiting human decisions (§12.6.4) — the third notifications-inbox tab and
+ * the top-nav inbox badge share this key, so the count costs ONE request.
+ * The endpoint only returns waiting items, so length IS the pending count.
+ * Polling is presence-driven: tight while decisions wait, slow otherwise.
+ */
+export function usePendingApprovals(workspaceSlug: string | undefined) {
+  const swr = useSWR(
+    workspaceSlug ? (["agent-teams", "inbox"] as const) : null,
+    () => {
+      setExpertsWorkspaceSlug(workspaceSlug as string);
+      return runtimeService.listHumanInbox();
+    },
+    {
+      keepPreviousData: true,
+      refreshInterval: (latest: Awaited<ReturnType<typeof runtimeService.listHumanInbox>> | undefined) =>
+        (latest?.length ?? 0) > 0 ? ACTIVE_POLL_MS : 30000,
+      shouldRetryOnError: false,
+    }
+  );
+  return { items: swr.data ?? [], count: swr.data?.length ?? 0, mutate: swr.mutate, isLoading: swr.isLoading };
 }

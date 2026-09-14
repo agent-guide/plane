@@ -7,6 +7,8 @@
   "agent_teams_panel_title": "Agent Team",
   "agent_teams_panel_pending": "Runtime summary appears here once the Agent Team Runtime API is connected.",
   "agent_teams_summary_badge": "Run Agen",
+  "agent_teams_approvals_empty": "暂无待审批",
+  "agent_teams_approvals_open": "去处理",
   "agent_teams_inbox_title": "Kotak masuk persetujuan",
   "agent_teams_inbox_subtitle": "Keputusan manusia yang menunggu dari node persetujuan alur kerja dan permintaan agen. Setujui, tolak, atau minta perubahan — perintah dikirim ke Agent Team Runtime, status Plane tidak pernah diubah langsung.",
   "agent_teams_inbox_scope_workflow": "Alur kerja",
