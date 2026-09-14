@@ -34,6 +34,8 @@ import { convertToISODateString } from "@plane/utils";
 import { CycleService } from "@/services/cycle.service";
 import { IssueArchiveService, IssueService } from "@/services/issue";
 import { ModuleService } from "@/services/module.service";
+// agent teams extension (§12.6.1 new-item catch-up)
+import { catchUpCreatedWorkItem } from "@/services/agent-teams/created-item-catchup";
 //
 import type { IIssueRootStore } from "../root.store";
 import {
@@ -535,6 +537,15 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
 
     // add Issue to Store
     this.addIssue(response, shouldUpdateList);
+
+    // Agent Teams catch-up (§6/§12.6.1): runtime-managed projects bind the
+    // new item (state/assignee) a few seconds after creation — when that
+    // happens, re-fetch this one row so the list settles without a reload.
+    // Fire-and-forget; unbound projects stop after the first check.
+    void catchUpCreatedWorkItem(workspaceSlug, projectId, response.id, async () => {
+      const issue = await this.issueService.retrieve(workspaceSlug, projectId, response.id, {});
+      if (issue) this.rootIssueStore.issues.addIssue([issue]);
+    });
 
     // If shouldUpdateList is true, call fetchParentStats
     // oxlint-disable-next-line no-unused-expressions

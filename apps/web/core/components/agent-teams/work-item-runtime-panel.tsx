@@ -19,17 +19,19 @@ import { Bot, ChevronDown, Clock, ExternalLink, FileBox, GitBranch, User, Users 
 // components
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
+import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import Link from "next/link";
 // services
-import runtimeService, {
-  type WorkItemRuntimeSummary,
-  type WorkItemTimelineEntry,
-} from "@/services/agent-teams/runtime.service";
+import runtimeService, { type WorkItemTimelineEntry } from "@/services/agent-teams/runtime.service";
+import { useWorkItemRuntime } from "@/services/agent-teams/runtime-swr";
 import { setExpertsWorkspaceSlug } from "@/services/agent-teams/experts-auth";
 
 type WorkItemRuntimePanelProps = {
   issueId: string;
   workspaceSlug: string;
+  projectId: string;
+  /** Native created_at — distinguishes "just created, binding in flight" from a genuinely unbound work item. */
+  issueCreatedAt?: string | null;
 };
 
 function formatSize(bytes: number): string {
@@ -48,15 +50,27 @@ function formatEntryTime(value: string): string {
 export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   issueId,
   workspaceSlug,
+  projectId,
+  issueCreatedAt,
 }: WorkItemRuntimePanelProps) {
   const { t } = useTranslation();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
-  const [summary, setSummary] = useState<WorkItemRuntimeSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  // SWR-backed (runtime-swr): polls only while the run is moving — status,
+  // member, step and the timeline keep flowing without a manual refresh.
+  const { summary: summarySwr, timeline: timelineSwr, inBindingWindow } = useWorkItemRuntime(
+    issueId,
+    issueCreatedAt
+  );
+  const summary = summarySwr.data ?? null;
+  const timeline: WorkItemTimelineEntry[] | null = timelineSwr.data ?? null;
+  const loading = summarySwr.isLoading && !summarySwr.data;
   const [answering, setAnswering] = useState("");
-  const [timeline, setTimeline] = useState<WorkItemTimelineEntry[] | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+
+  const refresh = useCallback(async () => {
+    await Promise.all([summarySwr.mutate(), timelineSwr.mutate()]);
+  }, [summarySwr, timelineSwr]);
 
   const openArtifact = useCallback(async (artifactId: string) => {
     try {
@@ -68,36 +82,29 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     }
   }, []);
 
-  const loadSummary = useCallback(async () => {
-    setLoading(true);
-    try {
-      const next = await runtimeService.getWorkItemRuntimeSummary(issueId);
-      setSummary(next);
-      // Timeline loads alongside; failure keeps it hidden, not blocking.
-      if (next) {
-        try {
-          setTimeline(await runtimeService.getWorkItemTimeline(issueId));
-        } catch {
-          setTimeline(null);
-        }
-      } else {
-        setTimeline(null);
-      }
-    } catch {
-      setSummary(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [issueId]);
-
   // §12.6.7 BFF 身份交换按 workspace 取作用域（身份映射 connection+scope）。
   useEffect(() => {
     setExpertsWorkspaceSlug(workspaceSlug);
   }, [workspaceSlug]);
 
+  // Runtime progress also lands in NATIVE Plane state (§6 writeback: state
+  // field / assignee) and the activity feed (§12.4 agent summary comments) —
+  // neither refreshes on its own. When the runtime view advances, pull both:
+  // issue details + activities, same trigger pattern the attachment widgets
+  // use.
+  const { fetchIssue, fetchActivities } = useIssueDetail();
+  const runtimeSignature = [
+    summary?.controlStatus ?? "",
+    summary?.currentMemberName ?? "",
+    summary?.workflowStep ?? "",
+    timeline?.length ?? 0,
+  ].join("|");
   useEffect(() => {
-    void loadSummary();
-  }, [loadSummary]);
+    if (!summary) return;
+    void fetchIssue(workspaceSlug, projectId, issueId);
+    void fetchActivities(workspaceSlug, projectId, issueId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signature covers every input
+  }, [runtimeSignature]);
 
   const handleAnswer = useCallback(
     async (value: string) => {
@@ -106,14 +113,14 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       setAnswering(value);
       try {
         await runtimeService.answerHumanInboxItem(approval, { value });
-        await loadSummary();
+        await refresh();
       } catch {
         // Errors surface via the inbox page; the panel just keeps its state.
       } finally {
         setAnswering("");
       }
     },
-    [summary, loadSummary]
+    [summary, refresh]
   );
 
   const handleCancel = useCallback(async () => {
@@ -121,13 +128,13 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     setCancelling(true);
     try {
       await runtimeService.cancelWorkItemRun(summary.workflowRunId);
-      await loadSummary();
+      await refresh();
     } catch {
       // Cancel failures surface via the admin console; panel keeps state.
     } finally {
       setCancelling(false);
     }
-  }, [summary, loadSummary]);
+  }, [summary, refresh]);
 
   // Deep-link target base for the admin console (A3 pages). Optional — the
   // link is simply not offered until the deployment URL is configured.
@@ -155,8 +162,16 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
         {loading ? (
           <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">{t("agent_teams_inbox_loading")}</div>
         ) : !summary ? (
-          // Quiet state for work items outside any Project-Team policy.
-          <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">{t("agent_teams_panel_not_bound")}</div>
+          inBindingWindow() ? (
+            // Just created: webhook → projection → auto-start is in flight
+            // (a few seconds). "Connecting", not the unbound dead-end.
+            <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">
+              {t("agent_teams_panel_connecting")}
+            </div>
+          ) : (
+            // Quiet state for work items outside any Project-Team policy.
+            <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">{t("agent_teams_panel_not_bound")}</div>
+          )
         ) : (
           <>
             {/* Row rhythm mirrors the native block: space-y-2.5, h-7.5 rows,

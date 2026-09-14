@@ -252,7 +252,12 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
             </SidebarPropertyListItem>
           </div>
           {/* Agent Teams extension slot (design §12.5-5) */}
-          <WorkItemRuntimePanel issueId={issueId} workspaceSlug={workspaceSlug} />
+          <WorkItemRuntimePanel
+            issueId={issueId}
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            issueCreatedAt={issue.created_at}
+          />
         </div>
       </div>
     </>

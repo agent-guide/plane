@@ -12,7 +12,7 @@
  * Deep links: team page, work item, admin run archive; the full board/list
  * stays one click away on the native /issues tab (never rebuilt here).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -28,14 +28,13 @@ import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 // services
 import { IssueService } from "@/services/issue/issue.service";
-import runtimeService, { type ProjectRuntimeOverview } from "@/services/agent-teams/runtime.service";
+import { useProjectRuntimeOverview } from "@/services/agent-teams/runtime-swr";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import type { TIssue } from "@plane/types";
 
-const POLL_SECONDS = 10;
 const RECENT_ITEMS = 8;
 const issueService = new IssueService();
 
@@ -79,25 +78,21 @@ function ProjectOverviewPage() {
   const { toggleCreateIssueModal } = useCommandPalette();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
 
-  const [overview, setOverview] = useState<ProjectRuntimeOverview | null>(null);
+  // SWR-backed (runtime-swr): the runtime aggregate polls only while the
+  // project has something running; native issues refresh on focus/mutate.
+  const {
+    data: overview,
+    error: runtimeError,
+    isLoading: runtimeLoading,
+    mutate: retryOverview,
+  } = useProjectRuntimeOverview(projectId);
   const [issues, setIssues] = useState<TIssue[] | null>(null);
-  const [runtimeFailed, setRuntimeFailed] = useState(false);
+  const runtimeFailed = !!runtimeError && !overview;
   // Manual retry in-flight flag: without it a retry against a still-down
   // backend leaves the error state visually unchanged — the click looks dead.
   const [retrying, setRetrying] = useState(false);
-  const hasLoadedOnce = useRef(false);
 
-  const load = useCallback(async () => {
-    // Runtime aggregate and native issues load independently: the page stays
-    // useful when only one of them is available. The runtime promise is
-    // returned so the manual-retry button can show its in-flight state.
-    const runtimeLoad = runtimeService
-      .getProjectRuntimeOverview(projectId)
-      .then((next) => {
-        setOverview(next);
-        setRuntimeFailed(false);
-      })
-      .catch(() => setRuntimeFailed(true));
+  const loadIssues = useCallback(() => {
     issueService
       .getIssues(workspaceSlug, projectId, { per_page: "100", order_by: "-updated_at" })
       .then((res) => {
@@ -115,23 +110,16 @@ function ProjectOverviewPage() {
         setIssues(flat);
       })
       .catch(() => setIssues((prev) => prev));
-    if (!hasLoadedOnce.current) {
-      hasLoadedOnce.current = true;
-    }
-    return runtimeLoad;
   }, [projectId, workspaceSlug]);
 
   useEffect(() => {
-    hasLoadedOnce.current = false;
     setIssues(null);
-    void load();
-    const timer = window.setInterval(() => void load(), POLL_SECONDS * 1000);
-    return () => window.clearInterval(timer);
-  }, [load]);
+    loadIssues();
+  }, [loadIssues]);
 
   const consoleBaseUrl = import.meta.env.VITE_RUNTIME_CONSOLE_BASE_URL as string | undefined;
   const binding = overview?.binding ?? null;
-  const loading = !hasLoadedOnce.current;
+  const loading = runtimeLoading && !overview && !issues;
   const statusLabel = (key: string) => t(`agent_teams_status_${key}`);
 
   // Native progress: work items grouped by state group.
@@ -251,7 +239,7 @@ function ProjectOverviewPage() {
                       disabled={retrying}
                       onClick={() => {
                         setRetrying(true);
-                        void load().finally(() => setRetrying(false));
+                        void Promise.resolve(retryOverview()).finally(() => setRetrying(false));
                       }}
                       className="flex items-center gap-1.5 rounded-md border-subtle bg-layer-2 px-3 py-1.5 text-caption-sm-medium text-secondary hover:bg-layer-3 disabled:cursor-not-allowed disabled:opacity-60"
                     >
