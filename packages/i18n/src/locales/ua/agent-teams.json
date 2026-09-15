@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Створити завдання",
   "agent_teams_panel_artifact_open": "Відкрити результат",
-  "agent_teams_panel_elapsed": "минуло {count} хв"
+  "agent_teams_panel_elapsed": "минуло {count} хв",
+  "agent_teams_artifact_preview_failed": "Не вдалося завантажити попередній перегляд, спробуйте ще раз",
+  "agent_teams_artifact_unsupported": "Цей тип файлу не можна переглянути — завантажте його",
+  "agent_teams_artifact_copy": "Копіювати",
+  "agent_teams_artifact_copied": "Скопійовано",
+  "agent_teams_artifact_download": "Завантажити",
+  "agent_teams_artifact_retry": "Спробувати ще раз",
+  "agent_teams_panel_retry": "Запустити знову",
+  "agent_teams_panel_retrying": "Запуск…",
+  "agent_teams_panel_retry_confirm": "Запустити це завдання знову? Почнеться нове виконання; історія зберігається.",
+  "agent_teams_panel_retry_unavailable": "Зараз не вдалося перезапустити — оновіть сторінку та спробуйте ще раз"
 }

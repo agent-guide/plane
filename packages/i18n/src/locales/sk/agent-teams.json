@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Nová úloha",
   "agent_teams_panel_artifact_open": "Otvoriť výstup",
-  "agent_teams_panel_elapsed": "uplynulo {count} min"
+  "agent_teams_panel_elapsed": "uplynulo {count} min",
+  "agent_teams_artifact_preview_failed": "Náhľad sa nepodarilo načítať, skúste znova",
+  "agent_teams_artifact_unsupported": "Tento typ súboru nie je možné zobraziť v náhľade, stiahnite si ho",
+  "agent_teams_artifact_copy": "Kopírovať",
+  "agent_teams_artifact_copied": "Skopírované",
+  "agent_teams_artifact_download": "Stiahnuť",
+  "agent_teams_artifact_retry": "Skúsiť znova",
+  "agent_teams_panel_retry": "Spustiť znova",
+  "agent_teams_panel_retrying": "Spúšťa sa…",
+  "agent_teams_panel_retry_confirm": "Spustiť túto úlohu znova? Začne sa nové vykonanie; história sa zachová.",
+  "agent_teams_panel_retry_unavailable": "Teraz nie je možné reštartovať — obnovte stránku a skúste to znova"
 }

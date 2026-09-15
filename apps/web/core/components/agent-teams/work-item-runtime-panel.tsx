@@ -11,9 +11,13 @@
  * never mutate Plane state directly.
  */
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { observer } from "mobx-react";
 // i18n
 import { useTranslation } from "@plane/i18n";
+// plane imports
+import { Button } from "@plane/propel/button";
+import { EModalWidth, ModalCore } from "@plane/ui";
 // icons
 import { Bot, ChevronDown, Clock, ExternalLink, FileBox, GitBranch, User, Users } from "lucide-react";
 // components
@@ -22,8 +26,9 @@ import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import Link from "next/link";
 // services
-import runtimeService, { type WorkItemTimelineEntry } from "@/services/agent-teams/runtime.service";
+import runtimeService, { type RuntimeArtifact, type WorkItemTimelineEntry } from "@/services/agent-teams/runtime.service";
 import { useWorkItemRuntime } from "@/services/agent-teams/runtime-swr";
+import { AgentArtifactPreviewModal } from "@/components/agent-teams/artifact-preview-modal";
 import { setExpertsWorkspaceSlug } from "@/services/agent-teams/experts-auth";
 
 type WorkItemRuntimePanelProps = {
@@ -67,20 +72,12 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   const [answering, setAnswering] = useState("");
   const [timelineOpen, setTimelineOpen] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  // In-page artifact preview (§12.6) — replaces raw new-tab opens.
+  const [previewArtifact, setPreviewArtifact] = useState<RuntimeArtifact | null>(null);
 
   const refresh = useCallback(async () => {
     await Promise.all([summarySwr.mutate(), timelineSwr.mutate()]);
   }, [summarySwr, timelineSwr]);
-
-  const openArtifact = useCallback(async (artifactId: string) => {
-    try {
-      const url = await runtimeService.getArtifactDownloadUrl(artifactId);
-      window.open(url, "_blank", "noreferrer");
-    } catch {
-      // Leave silently — the summary keeps rendering; downloads can fail on
-      // expiry/permission and the user can retry from the admin console.
-    }
-  }, []);
 
   // §12.6.7 BFF 身份交换按 workspace 取作用域（身份映射 connection+scope）。
   useEffect(() => {
@@ -136,10 +133,52 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     }
   }, [summary, refresh]);
 
+  // §8 retry contract: a failed/cancelled run restarts as a NEW run — fresh
+  // controlled start on the same task, lineage-linked to the terminal binding.
+  // Confirmation uses the platform modal (not window.confirm) — same command
+  // language as the rest of the panel.
+  const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const handleRetry = useCallback(async () => {
+    if (!summary?.taskId || !summary?.taskBindingId) {
+      setRetryError(t("agent_teams_panel_retry_unavailable"));
+      return;
+    }
+    setRetryError(null);
+    setRetrying(true);
+    try {
+      await runtimeService.retryWorkItemTask(summary.taskId, summary.taskBindingId);
+      setRetryConfirmOpen(false);
+      // A single revalidate can be dropped (transport hiccup), and the
+      // terminal state has NO polling to recover it — the panel would freeze
+      // on the old "failed" view. Re-pull until the summary reflects the new
+      // run (bounded: the restart is already committed server-side).
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await refresh();
+        const status = summarySwr.data?.controlStatus;
+        if (status && status !== "failed" && status !== "cancelled" && status !== "completed") break;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      // Retry failures were previously swallowed silently — show them in the
+      // modal so the user knows the restart did NOT happen (and why).
+      const detail = (error as { response?: { data?: { message?: string }; status?: number } })?.response?.data;
+      setRetryError(detail?.message ?? String((error as Error)?.message ?? error));
+    } finally {
+      setRetrying(false);
+    }
+  }, [summary, refresh, summarySwr, t]);
+
   // Deep-link target base for the admin console (A3 pages). Optional — the
   // link is simply not offered until the deployment URL is configured.
   const consoleBaseUrl = import.meta.env.VITE_RUNTIME_CONSOLE_BASE_URL as string | undefined;
-  const isTerminal = summary?.controlStatus === "completed" || summary?.controlStatus === "cancelled";
+  // failed is terminal too — it must show retry (not cancel) and the
+  // "elapsed" label flips to total minutes.
+  const isTerminal =
+    summary?.controlStatus === "completed" ||
+    summary?.controlStatus === "cancelled" ||
+    summary?.controlStatus === "failed";
 
   return (
     <div className="w-full" data-issue-id={issueId}>
@@ -193,7 +232,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                         key={artifact.id}
                         type="button"
                         title={t("agent_teams_panel_artifact_open")}
-                        onClick={() => void openArtifact(artifact.id)}
+                        onClick={() => setPreviewArtifact(artifact)}
                         className="group flex w-full items-center gap-1.5 rounded px-1 text-left hover:bg-layer-3"
                       >
                         <FileBox className="size-3 shrink-0 text-tertiary" aria-hidden />
@@ -383,9 +422,59 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                 </button>
               </div>
             )}
+            {/* Retry — recovery action for terminal failures (§12.6.4 command
+                placement: work-facing recovery lives here, not in the console). */}
+            {(summary.controlStatus === "failed" || summary.controlStatus === "cancelled") && (
+              <div className="mt-3 flex items-center justify-end border-t border-subtle pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRetryConfirmOpen(true)}
+                  className="text-caption-sm-medium text-accent-primary hover:text-accent-hover"
+                >
+                  {t("agent_teams_panel_retry")}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
+
+      {/* Retry confirmation — platform modal (ModalCore), matching the panel's
+          component language instead of a native browser dialog. Portaled with
+          outside-click guards: the panel lives inside the work-item peek,
+          whose document-level outside-click detector would read modal clicks
+          as "outside the peek" and close it (taking the modal down before the
+          click handler runs) — same pitfall as the artifact preview modal. */}
+      {createPortal(
+        <div
+          data-prevent-outside-click
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ModalCore isOpen={retryConfirmOpen} handleClose={() => setRetryConfirmOpen(false)} width={EModalWidth.SM}>
+        <div className="flex flex-col gap-4 p-6">
+          <h3 className="text-base-medium text-primary">{t("agent_teams_panel_retry")}</h3>
+          <p className="text-body-sm-regular text-secondary">{t("agent_teams_panel_retry_confirm")}</p>
+          {retryError && (
+            <p className="rounded bg-danger-subtle px-2.5 py-1.5 text-caption-sm-medium text-danger-primary">
+              {retryError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setRetryConfirmOpen(false)} disabled={retrying}>
+              {t("agent_teams_panel_cancel")}
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => void handleRetry()} disabled={retrying}>
+              {retrying ? t("agent_teams_panel_retrying") : t("agent_teams_panel_retry")}
+            </Button>
+          </div>
+        </div>
+          </ModalCore>
+        </div>,
+        document.body
+      )}
+
+      <AgentArtifactPreviewModal artifact={previewArtifact} onClose={() => setPreviewArtifact(null)} />
     </div>
   );
 });

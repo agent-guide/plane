@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Item kerja baru",
   "agent_teams_panel_artifact_open": "Buka hasil",
-  "agent_teams_panel_elapsed": "berlalu {count} mnt"
+  "agent_teams_panel_elapsed": "berlalu {count} mnt",
+  "agent_teams_artifact_preview_failed": "Pratinjau gagal dimuat, silakan coba lagi",
+  "agent_teams_artifact_unsupported": "Jenis berkas ini tidak bisa dipratinjau, unduh saja",
+  "agent_teams_artifact_copy": "Salin",
+  "agent_teams_artifact_copied": "Tersalin",
+  "agent_teams_artifact_download": "Unduh",
+  "agent_teams_artifact_retry": "Coba lagi",
+  "agent_teams_panel_retry": "Jalankan lagi",
+  "agent_teams_panel_retrying": "Memulai…",
+  "agent_teams_panel_retry_confirm": "Jalankan tugas ini lagi? Eksekusi baru dimulai; riwayat tetap tersimpan.",
+  "agent_teams_panel_retry_unavailable": "Tidak dapat menjalankan ulang sekarang — muat ulang dan coba lagi"
 }

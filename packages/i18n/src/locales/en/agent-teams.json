@@ -144,5 +144,15 @@
   "agent_teams_project_go_work_items": "View work items",
   "agent_teams_project_new_item": "New work item",
   "agent_teams_panel_artifact_open": "Open deliverable",
-  "agent_teams_panel_elapsed": "elapsed {count}m"
+  "agent_teams_panel_elapsed": "elapsed {count}m",
+  "agent_teams_artifact_preview_failed": "Preview failed to load, please retry",
+  "agent_teams_artifact_unsupported": "This file type can't be previewed — download it instead",
+  "agent_teams_artifact_copy": "Copy",
+  "agent_teams_artifact_copied": "Copied",
+  "agent_teams_artifact_download": "Download",
+  "agent_teams_artifact_retry": "Retry",
+  "agent_teams_panel_retry": "Run again",
+  "agent_teams_panel_retrying": "Starting…",
+  "agent_teams_panel_retry_confirm": "Run this task again? A new execution starts; the history is kept.",
+  "agent_teams_panel_retry_unavailable": "Cannot restart right now — refresh and try again"
 }

@@ -23,9 +23,9 @@ import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
+import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 // services
 import runtimeService, {
-  getCurrentRuntimeIdentityId,
   type HumanInboxDetail,
   type HumanInboxItem,
 } from "@/services/agent-teams/runtime.service";
@@ -60,6 +60,12 @@ function AgentTeamsInboxPage() {
   const [answering, setAnswering] = useState("");
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(false);
   const [textAnswer, setTextAnswer] = useState("");
+  // Current user's Runtime identity (resolved once) — backs the
+  // "assigned to me" filter; empty when the user has no mapped identity.
+  const [myIdentityId, setMyIdentityId] = useState<string | null>(null);
+  useEffect(() => {
+    void runtimeService.getCurrentRuntimeIdentityId().then(setMyIdentityId);
+  }, []);
 
   const loadInbox = useCallback(async () => {
     setLoading(true);
@@ -126,7 +132,7 @@ function AgentTeamsInboxPage() {
 
   const visibleItems = items.filter((item) => {
     if (projectFilter && item.projectId !== projectFilter) return false;
-    if (assignedToMeOnly && item.assignedIdentityId !== getCurrentRuntimeIdentityId()) return false;
+    if (assignedToMeOnly && item.assignedIdentityId !== myIdentityId) return false;
     return true;
   });
 
@@ -292,18 +298,32 @@ function AgentTeamsInboxPage() {
                 </div>
               ) : (
                 <>
-                  {/* decision question — the focus of this dialog */}
-                  <p className="mt-3 text-body-sm-regular text-primary">{detail.question}</p>
+                  {/* decision question — the focus of this dialog. Agent
+                      questions carry markdown (checklists, tables) —
+                      shared prose renderer. */}
+                  <MarkdownPreview content={detail.question ?? ""} className="mt-3" />
                   {/* context meta — soft panel, comfortably spaced */}
                   {(detail.context || detail.deliveryStatus) && (
                     <div className="mt-4 flex flex-col gap-y-1.5 rounded-md bg-layer-2 px-3.5 py-3">
                       {detail.context &&
-                        Object.entries(detail.context).map(([key, value]) => (
-                          <div key={key} className="flex justify-between gap-4 text-caption-sm-regular text-tertiary">
-                            <span>{contextLabel(key)}</span>
-                            <span className="text-secondary">{String(value)}</span>
-                          </div>
-                        ))}
+                        Object.entries(detail.context).map(([key, value]) =>
+                          typeof value === "string" && /\n|#{1,6} |\|---|- |\* /.test(value) ? (
+                            // Long/markdown-bearing values (agent checklists,
+                            // tables) get the shared prose renderer. No field
+                            // label: the document carries its own heading.
+                            <div
+                              key={key}
+                              className="max-h-[50vh] overflow-y-auto rounded-md border border-subtle bg-layer-1 px-4 py-3"
+                            >
+                              <MarkdownPreview content={value} />
+                            </div>
+                          ) : (
+                            <div key={key} className="flex justify-between gap-4 text-caption-sm-regular text-tertiary">
+                              <span>{contextLabel(key)}</span>
+                              <span className="text-secondary">{String(value)}</span>
+                            </div>
+                          )
+                        )}
                       {detail.scope === "agent" && detail.deliveryStatus && (
                         <div className="flex justify-between gap-4 text-caption-sm-regular text-tertiary">
                           <span>{contextLabel("delivery")}</span>

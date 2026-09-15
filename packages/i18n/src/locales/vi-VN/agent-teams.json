@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Tạo mục việc",
   "agent_teams_panel_artifact_open": "Mở nội dung",
-  "agent_teams_panel_elapsed": "đã qua {count} phút"
+  "agent_teams_panel_elapsed": "đã qua {count} phút",
+  "agent_teams_artifact_preview_failed": "Không tải được bản xem trước, vui lòng thử lại",
+  "agent_teams_artifact_unsupported": "Không thể xem trước loại tệp này, hãy tải xuống",
+  "agent_teams_artifact_copy": "Sao chép",
+  "agent_teams_artifact_copied": "Đã sao chép",
+  "agent_teams_artifact_download": "Tải xuống",
+  "agent_teams_artifact_retry": "Thử lại",
+  "agent_teams_panel_retry": "Chạy lại",
+  "agent_teams_panel_retrying": "Đang khởi động…",
+  "agent_teams_panel_retry_confirm": "Chạy lại tác vụ này? Một lần thực thi mới bắt đầu; lịch sử được giữ lại.",
+  "agent_teams_panel_retry_unavailable": "Hiện không thể chạy lại — tải lại trang và thử lại"
 }

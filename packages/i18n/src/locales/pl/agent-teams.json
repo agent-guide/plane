@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Nowy element pracy",
   "agent_teams_panel_artifact_open": "Otwórz rezultat",
-  "agent_teams_panel_elapsed": "upłynęło {count} min"
+  "agent_teams_panel_elapsed": "upłynęło {count} min",
+  "agent_teams_artifact_preview_failed": "Nie udało się wczytać podglądu, spróbuj ponownie",
+  "agent_teams_artifact_unsupported": "Tego typu pliku nie można wyświetlić w podglądzie, pobierz go",
+  "agent_teams_artifact_copy": "Kopiuj",
+  "agent_teams_artifact_copied": "Skopiowano",
+  "agent_teams_artifact_download": "Pobierz",
+  "agent_teams_artifact_retry": "Ponów",
+  "agent_teams_panel_retry": "Uruchom ponownie",
+  "agent_teams_panel_retrying": "Uruchamianie…",
+  "agent_teams_panel_retry_confirm": "Uruchomić to zadanie ponownie? Rozpocznie się nowe wykonanie; historia zostanie zachowana.",
+  "agent_teams_panel_retry_unavailable": "Nie można teraz uruchomić ponownie — odśwież i spróbuj ponownie"
 }

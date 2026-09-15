@@ -11,6 +11,7 @@
  */
 import { useState } from "react";
 import { observer } from "mobx-react";
+import Link from "next/link";
 import useSWR from "swr";
 // i18n
 import { useTranslation } from "@plane/i18n";
@@ -22,6 +23,8 @@ import { calculateTimeAgo, cn } from "@plane/utils";
 import { Bot } from "lucide-react";
 // components
 import { useAgentApprovalsSelection } from "@/components/agent-teams/approvals-context";
+import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
+import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 // services
 import runtimeService, { type HumanInboxItem } from "@/services/agent-teams/runtime.service";
 import { usePendingApprovals } from "@/services/agent-teams/runtime-swr";
@@ -42,6 +45,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
   workspaceSlug: string;
 }) {
   const { t } = useTranslation();
+  const { agentTeamDetailPath } = useAgentTeamsLinks();
   const { selected, setSelected } = useAgentApprovalsSelection();
   const { mutate: mutateApprovals } = usePendingApprovals(workspaceSlug);
   const [answering, setAnswering] = useState("");
@@ -79,9 +83,11 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
   const options = detail?.options ?? [];
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-6">
+    // Full-width pane: header pins to the top, everything below scrolls in
+    // place — long checklists never push the answer actions out of reach.
+    <div className="flex h-full w-full flex-col">
       {/* header — the item is context, the question below is the focus */}
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-subtle px-6 py-4">
         <div className="flex size-8 flex-shrink-0 items-center justify-center rounded-lg border border-subtle bg-layer-2">
           <Bot className="size-4 text-secondary" aria-hidden />
         </div>
@@ -94,35 +100,78 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
               {selected.title ?? detail?.title ?? t("agent_teams_panel_approve_now")}
             </span>
           </div>
-          <span className="text-caption-sm-regular text-tertiary">
-            {[selected.taskTitle, selected.createdAt && calculateTimeAgo(selected.createdAt)]
-              .filter(Boolean)
-              .join(" · ")}
+          {/* Team + task breadcrumb — both deep-link to their pages so the
+              decision can be made with full context one click away. */}
+          <span className="flex items-center gap-1 text-caption-sm-regular text-tertiary">
+            {selected.teamId && selected.teamName && (
+              <>
+                <Link
+                  href={agentTeamDetailPath(selected.teamId)}
+                  className="truncate hover:text-secondary"
+                  title={selected.teamName}
+                >
+                  {selected.teamName}
+                </Link>
+                {selected.taskTitle && <span aria-hidden>·</span>}
+              </>
+            )}
+            {selected.taskTitle &&
+            selected.externalProjectId &&
+            selected.externalItemId ? (
+              <Link
+                href={`/${workspaceSlug}/projects/${selected.externalProjectId}/issues/${selected.externalItemId}`}
+                className="truncate hover:text-secondary"
+                title={selected.taskTitle}
+              >
+                {selected.taskTitle}
+              </Link>
+            ) : (
+              selected.taskTitle && <span className="truncate">{selected.taskTitle}</span>
+            )}
+            {selected.createdAt && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="shrink-0">{calculateTimeAgo(selected.createdAt)}</span>
+              </>
+            )}
           </span>
         </div>
       </div>
 
       {isLoading || (!detail && !errorKey) ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-6">
           <div className="h-4 w-3/4 animate-pulse rounded bg-layer-3" />
           <div className="h-4 w-1/2 animate-pulse rounded bg-layer-3" />
         </div>
       ) : (
-        <>
-          <p className="text-body-sm-regular text-primary">{detail?.question}</p>
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
+          {/* The question body often carries agent-authored markdown
+              (checklists, tables) — shared prose renderer, same treatment
+              as the artifact preview. */}
+          <MarkdownPreview content={detail?.question ?? ""} />
 
           {contextEntries.length > 0 && (
             <div className="flex flex-col gap-y-1.5 rounded-md bg-layer-2 px-3.5 py-3">
-              {contextEntries.map(([key, value]) => (
-                <div key={key} className="flex items-baseline justify-between gap-3">
-                  <span className="shrink-0 text-caption-sm-regular text-tertiary">
-                    {contextLabel(key, t)}
-                  </span>
-                  <span className="break-all text-right text-caption-sm-regular text-secondary">
-                    {String(value)}
-                  </span>
-                </div>
-              ))}
+              {contextEntries.map(([key, value]) =>
+                typeof value === "string" && /\n|#{1,6} |\|---|- |\* /.test(value) ? (
+                  // Long/markdown-bearing values (agent checklists, tables)
+                  // get the shared prose renderer instead of one raw line.
+                  // No field label: the document carries its own heading, and
+                  // raw keys like "text" read as noise.
+                  <div key={key}>
+                    <MarkdownPreview content={value} />
+                  </div>
+                ) : (
+                  <div key={key} className="flex items-baseline justify-between gap-3">
+                    <span className="shrink-0 text-caption-sm-regular text-tertiary">
+                      {contextLabel(key, t)}
+                    </span>
+                    <span className="break-all text-right text-caption-sm-regular text-secondary">
+                      {String(value)}
+                    </span>
+                  </div>
+                )
+              )}
             </div>
           )}
 
@@ -185,7 +234,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

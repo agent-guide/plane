@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Nuova attività",
   "agent_teams_panel_artifact_open": "Apri il deliverable",
-  "agent_teams_panel_elapsed": "{count} min trascorsi"
+  "agent_teams_panel_elapsed": "{count} min trascorsi",
+  "agent_teams_artifact_preview_failed": "Anteprima non caricata, riprova",
+  "agent_teams_artifact_unsupported": "Questo tipo di file non è visualizzabile in anteprima, scaricalo",
+  "agent_teams_artifact_copy": "Copia",
+  "agent_teams_artifact_copied": "Copiato",
+  "agent_teams_artifact_download": "Scarica",
+  "agent_teams_artifact_retry": "Riprova",
+  "agent_teams_panel_retry": "Esegui di nuovo",
+  "agent_teams_panel_retrying": "Avvio…",
+  "agent_teams_panel_retry_confirm": "Eseguire di nuovo questo task? Parte una nuova esecuzione; la cronologia resta.",
+  "agent_teams_panel_retry_unavailable": "Impossibile riavviare ora: aggiorna e riprova"
 }

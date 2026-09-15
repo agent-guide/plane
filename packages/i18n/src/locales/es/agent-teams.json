@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Nueva tarea",
   "agent_teams_panel_artifact_open": "Abrir el entregable",
-  "agent_teams_panel_elapsed": "{count} min transcurridas"
+  "agent_teams_panel_elapsed": "{count} min transcurridas",
+  "agent_teams_artifact_preview_failed": "No se pudo cargar la vista previa, reintente",
+  "agent_teams_artifact_unsupported": "Este tipo de archivo no se puede previsualizar, descárguelo",
+  "agent_teams_artifact_copy": "Copiar",
+  "agent_teams_artifact_copied": "Copiado",
+  "agent_teams_artifact_download": "Descargar",
+  "agent_teams_artifact_retry": "Reintentar",
+  "agent_teams_panel_retry": "Ejecutar de nuevo",
+  "agent_teams_panel_retrying": "Iniciando…",
+  "agent_teams_panel_retry_confirm": "¿Ejecutar esta tarea de nuevo? Se inicia una nueva ejecución; el historial se conserva.",
+  "agent_teams_panel_retry_unavailable": "No se puede reiniciar ahora: actualiza e inténtalo de nuevo"
 }

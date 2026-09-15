@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Element de lucru nou",
   "agent_teams_panel_artifact_open": "Deschide rezultatul",
-  "agent_teams_panel_elapsed": "{count} min scurse"
+  "agent_teams_panel_elapsed": "{count} min scurse",
+  "agent_teams_artifact_preview_failed": "Previzualizarea nu s-a încărcat, încercați din nou",
+  "agent_teams_artifact_unsupported": "Acest tip de fișier nu poate fi previzualizat, descărcați-l",
+  "agent_teams_artifact_copy": "Copiază",
+  "agent_teams_artifact_copied": "Copiat",
+  "agent_teams_artifact_download": "Descarcă",
+  "agent_teams_artifact_retry": "Reîncearcă",
+  "agent_teams_panel_retry": "Rulează din nou",
+  "agent_teams_panel_retrying": "Se pornește…",
+  "agent_teams_panel_retry_confirm": "Rulezi din nou acest task? Începe o nouă execuție; istoricul rămâne.",
+  "agent_teams_panel_retry_unavailable": "Nu se poate reporni acum — reîmprospătați și încercați din nou"
 }

@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "新增工作項",
   "agent_teams_panel_artifact_open": "開啟產出內容",
-  "agent_teams_panel_elapsed": "已進行 {count} 分鐘"
+  "agent_teams_panel_elapsed": "已進行 {count} 分鐘",
+  "agent_teams_artifact_preview_failed": "預覽載入失敗，請重試",
+  "agent_teams_artifact_unsupported": "該檔案類型暫不支援頁內預覽，請下載查看",
+  "agent_teams_artifact_copy": "複製",
+  "agent_teams_artifact_copied": "已複製",
+  "agent_teams_artifact_download": "下載",
+  "agent_teams_artifact_retry": "重試",
+  "agent_teams_panel_retry": "重新執行",
+  "agent_teams_panel_retrying": "啟動中…",
+  "agent_teams_panel_retry_confirm": "重新執行此任務？將開始一次新的執行，歷史紀錄保留。",
+  "agent_teams_panel_retry_unavailable": "暫時無法重新執行，請稍後重新整理再試"
 }

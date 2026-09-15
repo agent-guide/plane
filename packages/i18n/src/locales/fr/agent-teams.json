@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Nouvel élément",
   "agent_teams_panel_artifact_open": "Ouvrir le livrable",
-  "agent_teams_panel_elapsed": "{count} min écoulées"
+  "agent_teams_panel_elapsed": "{count} min écoulées",
+  "agent_teams_artifact_preview_failed": "Échec du chargement de l'aperçu, veuillez réessayer",
+  "agent_teams_artifact_unsupported": "Ce type de fichier ne peut pas être prévisualisé, téléchargez-le",
+  "agent_teams_artifact_copy": "Copier",
+  "agent_teams_artifact_copied": "Copié",
+  "agent_teams_artifact_download": "Télécharger",
+  "agent_teams_artifact_retry": "Réessayer",
+  "agent_teams_panel_retry": "Relancer",
+  "agent_teams_panel_retrying": "Démarrage…",
+  "agent_teams_panel_retry_confirm": "Relancer cette tâche ? Une nouvelle exécution démarre ; l'historique est conservé.",
+  "agent_teams_panel_retry_unavailable": "Impossible de relancer pour le moment — actualisez puis réessayez"
 }

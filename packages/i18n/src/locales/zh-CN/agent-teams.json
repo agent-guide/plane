@@ -144,5 +144,15 @@
   "agent_teams_project_go_work_items": "查看工作项",
   "agent_teams_project_new_item": "新建工作项",
   "agent_teams_panel_artifact_open": "打开产出内容",
-  "agent_teams_panel_elapsed": "已进行 {count} 分钟"
+  "agent_teams_panel_elapsed": "已进行 {count} 分钟",
+  "agent_teams_artifact_preview_failed": "预览加载失败，请重试",
+  "agent_teams_artifact_unsupported": "该文件类型暂不支持页内预览，请下载查看",
+  "agent_teams_artifact_copy": "复制",
+  "agent_teams_artifact_copied": "已复制",
+  "agent_teams_artifact_download": "下载",
+  "agent_teams_artifact_retry": "重试",
+  "agent_teams_panel_retry": "重新运行",
+  "agent_teams_panel_retrying": "启动中…",
+  "agent_teams_panel_retry_confirm": "重新运行此任务？将开始一次新的执行，历史记录保留。",
+  "agent_teams_panel_retry_unavailable": "暂时无法重新运行，请稍后刷新重试"
 }

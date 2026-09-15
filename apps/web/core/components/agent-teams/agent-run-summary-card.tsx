@@ -13,7 +13,7 @@
  * Deliverable rows match the runtime summary's artifacts by name+version and reuse
  * the panel's signed-download flow for "view".
  */
-import { useCallback } from "react";
+import { useState } from "react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
 // i18n
@@ -23,8 +23,10 @@ import type { TIssueComment } from "@plane/types";
 import { calculateTimeAgo, cn } from "@plane/utils";
 // icons
 import { Bot, ExternalLink, FileBox } from "lucide-react";
+// components
+import { AgentArtifactPreviewModal } from "@/components/agent-teams/artifact-preview-modal";
 // services
-import runtimeService from "@/services/agent-teams/runtime.service";
+import runtimeService, { type RuntimeArtifact } from "@/services/agent-teams/runtime.service";
 
 type TAgentRunSummaryCardProps = {
   comment: TIssueComment | undefined;
@@ -72,16 +74,8 @@ export const AgentRunSummaryCard = observer(function AgentRunSummaryCard({
   issueId,
 }: TAgentRunSummaryCardProps) {
   const { t } = useTranslation();
-
-  const openArtifact = useCallback(async (artifactId: string) => {
-    try {
-      const url = await runtimeService.getArtifactDownloadUrl(artifactId);
-      window.open(url, "_blank", "noreferrer");
-    } catch {
-      // Leave silently — downloads can fail on expiry/permission; the row
-      // stays and the user can retry from the panel or admin console.
-    }
-  }, []);
+  // In-page artifact preview (§12.6) — same modal the sidebar panel opens.
+  const [previewArtifact, setPreviewArtifact] = useState<RuntimeArtifact | null>(null);
 
   const run = comment ? parseRunSummary(comment.comment_html) : null;
 
@@ -144,7 +138,7 @@ export const AgentRunSummaryCard = observer(function AgentRunSummaryCard({
                   key={label}
                   type="button"
                   title={t("agent_teams_panel_artifact_open")}
-                  onClick={() => void openArtifact(artifact.id)}
+                  onClick={() => setPreviewArtifact(artifact)}
                   className="group flex w-fit items-center gap-1.5 rounded px-0.5 text-left hover:bg-layer-3"
                 >
                   <FileBox className="size-3.5 shrink-0 text-tertiary" aria-hidden />
@@ -170,6 +164,7 @@ export const AgentRunSummaryCard = observer(function AgentRunSummaryCard({
           )
         )}
       </div>
+      <AgentArtifactPreviewModal artifact={previewArtifact} onClose={() => setPreviewArtifact(null)} />
     </div>
   );
 });

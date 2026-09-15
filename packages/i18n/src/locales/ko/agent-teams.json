@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "작업 항목 만들기",
   "agent_teams_panel_artifact_open": "산출물 열기",
-  "agent_teams_panel_elapsed": "{count}분 경과"
+  "agent_teams_panel_elapsed": "{count}분 경과",
+  "agent_teams_artifact_preview_failed": "미리보기를 불러오지 못했습니다. 다시 시도해 주세요",
+  "agent_teams_artifact_unsupported": "이 파일 형식은 미리보기할 수 없습니다. 다운로드해 주세요",
+  "agent_teams_artifact_copy": "복사",
+  "agent_teams_artifact_copied": "복사됨",
+  "agent_teams_artifact_download": "다운로드",
+  "agent_teams_artifact_retry": "재시도",
+  "agent_teams_panel_retry": "다시 실행",
+  "agent_teams_panel_retrying": "시작 중…",
+  "agent_teams_panel_retry_confirm": "이 작업을 다시 실행할까요? 새 실행이 시작되며 기록은 유지됩니다.",
+  "agent_teams_panel_retry_unavailable": "지금은 다시 실행할 수 없습니다. 새로고침 후 다시 시도하세요"
 }

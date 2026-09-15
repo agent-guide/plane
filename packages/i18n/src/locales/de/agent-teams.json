@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Neuer Arbeitseintrag",
   "agent_teams_panel_artifact_open": "Ergebnis öffnen",
-  "agent_teams_panel_elapsed": "{count} Min. vergangen"
+  "agent_teams_panel_elapsed": "{count} Min. vergangen",
+  "agent_teams_artifact_preview_failed": "Vorschau konnte nicht geladen werden, bitte erneut versuchen",
+  "agent_teams_artifact_unsupported": "Dieser Dateityp kann nicht in der Vorschau angezeigt werden, bitte herunterladen",
+  "agent_teams_artifact_copy": "Kopieren",
+  "agent_teams_artifact_copied": "Kopiert",
+  "agent_teams_artifact_download": "Herunterladen",
+  "agent_teams_artifact_retry": "Erneut versuchen",
+  "agent_teams_panel_retry": "Erneut ausführen",
+  "agent_teams_panel_retrying": "Wird gestartet…",
+  "agent_teams_panel_retry_confirm": "Diese Aufgabe erneut ausführen? Es startet eine neue Ausführung; der Verlauf bleibt erhalten.",
+  "agent_teams_panel_retry_unavailable": "Neustart derzeit nicht möglich — bitte neu laden und erneut versuchen"
 }

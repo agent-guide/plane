@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "作業項目を作成",
   "agent_teams_panel_artifact_open": "成果物を開く",
-  "agent_teams_panel_elapsed": "経過 {count} 分"
+  "agent_teams_panel_elapsed": "経過 {count} 分",
+  "agent_teams_artifact_preview_failed": "プレビューの読み込みに失敗しました。再試行してください",
+  "agent_teams_artifact_unsupported": "このファイル形式はプレビューできません。ダウンロードしてください",
+  "agent_teams_artifact_copy": "コピー",
+  "agent_teams_artifact_copied": "コピーしました",
+  "agent_teams_artifact_download": "ダウンロード",
+  "agent_teams_artifact_retry": "再試行",
+  "agent_teams_panel_retry": "再実行",
+  "agent_teams_panel_retrying": "開始中…",
+  "agent_teams_panel_retry_confirm": "このタスクを再実行しますか？新しい実行が開始され、履歴は保持されます。",
+  "agent_teams_panel_retry_unavailable": "現在再実行できません。更新して再試行してください"
 }

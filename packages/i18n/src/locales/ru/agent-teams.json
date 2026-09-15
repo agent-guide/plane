@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Создать задачу",
   "agent_teams_panel_artifact_open": "Открыть результат",
-  "agent_teams_panel_elapsed": "прошло {count} мин"
+  "agent_teams_panel_elapsed": "прошло {count} мин",
+  "agent_teams_artifact_preview_failed": "Не удалось загрузить предпросмотр, повторите попытку",
+  "agent_teams_artifact_unsupported": "Этот тип файла нельзя предпросмотреть — скачайте его",
+  "agent_teams_artifact_copy": "Копировать",
+  "agent_teams_artifact_copied": "Скопировано",
+  "agent_teams_artifact_download": "Скачать",
+  "agent_teams_artifact_retry": "Повторить",
+  "agent_teams_panel_retry": "Запустить снова",
+  "agent_teams_panel_retrying": "Запуск…",
+  "agent_teams_panel_retry_confirm": "Запустить задачу снова? Начнётся новое выполнение; история сохраняется.",
+  "agent_teams_panel_retry_unavailable": "Перезапуск сейчас недоступен — обновите страницу и повторите"
 }

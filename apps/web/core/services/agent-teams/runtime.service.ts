@@ -1,18 +1,16 @@
 /**
  * Copyright © 2026 agent-guide contributors
  * SPDX-License-Identifier: AGPL-3.0-only
- * See the LICENSE.txt file in the repository root for details.
+ * See the LICENSE.txt in the repository root for details.
  *
  * Agent Teams extension — Runtime API client (design §12.6.6 thin-extension
  * component; §12.6.7 auth boundary). Talks ONLY to the stable Runtime HTTP
  * contract (implementation plan §9, frozen 42d4b3c) and never imports Runtime
  * source code.
  *
- * Auth note (§12.6.7): in production this must run behind the plane-api BFF
- * exchanging the Plane session for a short-lived Runtime user token. Until
- * that lands (P4), the client is mock-by-default: set
- * VITE_RUNTIME_API_MOCK=0 and VITE_RUNTIME_API_BASE_URL to point at a real
- * Runtime deployment for联调.
+ * Auth (§12.6.7): every call runs through the BFF-exchanged short-lived
+ * Runtime user token (see ./experts-auth); VITE_EXPERTS_API_BASE_URL points
+ * at the Runtime deployment.
  */
 import { expertsBaseUrl, expertsHttp, expertsRequest } from "./experts-auth";
 
@@ -21,6 +19,15 @@ import { expertsBaseUrl, expertsHttp, expertsRequest } from "./experts-auth";
 // ---------------------------------------------------------------------------
 
 export type HumanInboxScope = "workflow" | "agent";
+
+/**
+ * Context values on human requests. The frozen backend contract types them
+ * as JSON `Any`, but every observed producer writes scalar values — string
+ * values may carry full markdown documents (e.g. the "text" checklist key),
+ * which render through MarkdownPreview. Declared here so consumers can
+ * branch on `typeof value === "string"` without casting.
+ */
+export type HumanInboxContextValue = string | number | boolean | null;
 
 export type HumanInboxItem = {
   scope: HumanInboxScope;
@@ -32,6 +39,10 @@ export type HumanInboxItem = {
   // ids for project naming / deep links; absent for locally-originated tasks.
   taskId?: string | null;
   taskTitle?: string | null;
+  // Team enrichment — the approval detail names the responsible team and
+  // deep-links to its page.
+  teamId?: string | null;
+  teamName?: string | null;
   externalScopeId?: string | null;
   externalProjectId?: string | null;
   externalItemId?: string | null;
@@ -58,7 +69,7 @@ export type HumanInboxDetail = {
   title?: string | null;
   question?: string | null;
   options?: Array<{ value: string; label: string }> | null;
-  context?: Record<string, unknown> | null;
+  context?: Record<string, HumanInboxContextValue> | null;
   status: string;
   // Agent scope only.
   deliveryStatus?: HumanInboxItem["deliveryStatus"];
@@ -180,6 +191,8 @@ export type AgentTeamArtifactSummary = {
 export type WorkItemRuntimeSummary = {
   issueId: string;
   taskBindingId: string;
+  // Internal task id — retry target for the §8 controlled-start command.
+  taskId: string;
   taskName: string;
   teamId: string;
   teamName: string;
@@ -191,16 +204,19 @@ export type WorkItemRuntimeSummary = {
   // Accumulated execution metrics (design §12.3).
   durationSeconds?: number | null;
   costUsd?: number | null;
-  artifacts?: Array<{
-    id: string;
-    name: string;
-    version: number;
-    mimeType?: string | null;
-    sizeBytes?: number | null;
-  }>;
+  artifacts?: RuntimeArtifact[];
   // Inline approval entry (design §12.6.4): the waiting human decision for
   // this work item, if any. Null when nothing awaits.
   pendingApproval?: HumanInboxItem | null;
+};
+
+/** One deliverable of a work item's run (summary + preview + download flows). */
+export type RuntimeArtifact = {
+  id: string;
+  name: string;
+  version: number;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
 };
 
 export type ProjectTeamPanel = {
@@ -225,282 +241,13 @@ export type WorkItemTimelineEntry = {
 // Client
 // ---------------------------------------------------------------------------
 
-const MOCK = import.meta.env.VITE_RUNTIME_API_MOCK !== "0";
-// Real mode targets the same v1 backend as the chat service (shared auth).
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// §7 时序断点快照：一个 workflow 级审批 + 一个 agent 级授权请求。
-// 两个独立可变状态：回答走各自端点，互不共享状态机（实施 §2.6）。
-let mockWorkflowNode = {
-  id: "wn_review_1",
-  taskBindingId: "tb_1",
-  workflowRunId: "wfr_1",
-  nodeKey: "review",
-  assignedIdentityId: "id_human_pm",
-  kind: "choice" as const,
-  title: "需求评审",
-  question: "是否批准 BA Agent 产出的需求文档（v3）？",
-  options: [
-    { value: "approve", label: "批准" },
-    { value: "reject", label: "驳回" },
-    { value: "request_changes", label: "要求修改" },
-  ],
-  context: { artifactKey: "requirements", artifactVersion: 3 },
-  status: "waiting_approval",
-  createdAt: "2026-08-31T10:12:00Z",
-};
-
-let mockAgentRequest = {
-  id: "ahr_1",
-  taskBindingId: "tb_1",
-  agentRunId: "ar_2",
-  gatewayRequestId: "gw_req_7",
-  assignedIdentityId: "id_human_pm",
-  kind: "permission" as const,
-  title: "生产数据库访问授权",
-  question: "Developer Agent 请求读取生产库 orders 表以复现缺陷，是否授权？",
-  options: [
-    { value: "approve", label: "授权" },
-    { value: "reject", label: "拒绝" },
-  ],
-  context: { table: "orders", scope: "read-only" },
-  status: "pending",
-  deliveryStatus: "not_started" as HumanInboxItem["deliveryStatus"],
-  createdAt: "2026-08-31T10:20:00Z",
-};
-
-// 另一项目（内部运营工具）的待办，用于演示收件箱的项目过滤。
-let mockOpsAgentRequest = {
-  id: "ahr_3",
-  taskBindingId: "tb_ops_9",
-  agentRunId: "ar_ops_1",
-  gatewayRequestId: "gw_req_ops_2",
-  assignedIdentityId: "id_human_pm",
-  kind: "permission" as const,
-  title: "工单数据导出授权",
-  question: "Triage Agent 请求导出近 30 天工单数据用于聚类分析，是否授权？",
-  options: [
-    { value: "approve", label: "授权" },
-    { value: "reject", label: "拒绝" },
-  ],
-  context: { dataset: "tickets_30d", scope: "export" },
-  status: "pending",
-  deliveryStatus: "not_started" as HumanInboxItem["deliveryStatus"],
-  createdAt: "2026-09-01T16:40:00Z",
-};
-
-// text 型请求（§5.8 human_kind = text）：无固定选项，需要自由文本回答。
-let mockAgentTextRequest = {
-  id: "ahr_2",
-  taskBindingId: "tb_1",
-  agentRunId: "ar_1",
-  gatewayRequestId: "gw_req_9",
-  assignedIdentityId: "id_human_pm",
-  kind: "text" as const,
-  title: "需求澄清",
-  question: "「支持批量导入」是指 Excel 模板导入还是 API 批量创建？请说明预期场景。",
-  options: null,
-  context: { requirement: "REQ-1024", source: "需求文档 v3 §2.3" },
-  status: "pending",
-  deliveryStatus: "not_started" as HumanInboxItem["deliveryStatus"],
-  createdAt: "2026-08-31T10:30:00Z",
-};
-
-// 当前用户的 Runtime Identity（§12.6.7 真实场景由 BFF 用 Plane session 换取；
-// mock 里即 assignedIdentityId = id_human_pm 的那个人）。
-const MOCK_CURRENT_IDENTITY_ID = "id_human_pm";
-
-// Team snapshots mirrored from the admin-console mock (same §7 scenario:
-// Delivery Team active with a waiting-human task; Support Team still draft).
-const mockTeams: AgentTeam[] = [
-  {
-    id: "team_delivery",
-    name: "Delivery Team",
-    objective: "取经项目交付",
-    status: "active",
-    memberCount: 4,
-    activeTaskCount: 1,
-    runningRunCount: 1,
-    artifactCount: 1,
-  },
-  {
-    id: "team_support",
-    name: "Support Team",
-    objective: "工单处理与客户支持",
-    status: "draft",
-    memberCount: 2,
-    activeTaskCount: 0,
-    runningRunCount: 0,
-    artifactCount: 0,
-  },
-];
-
-const mockTeamMembers: Record<string, AgentTeamMember[]> = {
-  team_delivery: [
-    {
-      id: "tm_1",
-      identityId: "id_human_pm",
-      kind: "human",
-      displayName: "凌羽",
-      role: "product_owner",
-      capabilities: ["approve"],
-      enabled: true,
-      planeUserId: "fe0a0929-4b7d-4556-bf48-5131ca01d721",
-    },
-    {
-      id: "tm_2",
-      identityId: "id_agent_ba",
-      kind: "agent",
-      displayName: "BA Agent",
-      role: "ba",
-      capabilities: ["requirements"],
-      enabled: true,
-      planeUserId: "08eda94c-7b7e-48b5-9c08-bc69897f5aaa",
-    },
-    {
-      id: "tm_3",
-      identityId: "id_agent_dev",
-      kind: "agent",
-      displayName: "Developer Agent",
-      role: "developer",
-      capabilities: ["coding"],
-      enabled: true,
-      planeUserId: "20c813ec-1786-4857-b1fc-c6eac6f1a3b9",
-    },
-    {
-      id: "tm_4",
-      identityId: "id_agent_qa",
-      kind: "agent",
-      displayName: "QA Agent",
-      role: "qa",
-      capabilities: ["testing"],
-      enabled: true,
-      planeUserId: "f77936c2-12b0-4d26-9b4c-1a159fbb9a27",
-    },
-  ],
-  team_support: [
-    {
-      id: "tm_5",
-      identityId: "id_human_support",
-      kind: "human",
-      displayName: "李四",
-      role: "support_lead",
-      enabled: true,
-    },
-    {
-      id: "tm_6",
-      identityId: "id_agent_triage",
-      kind: "agent",
-      displayName: "Triage Agent",
-      role: "triage",
-      capabilities: ["triage"],
-      enabled: true,
-    },
-  ],
-};
-
-const mockTeamProjects: Record<string, AgentTeamProject[]> = {
-  team_delivery: [
-    {
-      projectId: "fbeebd0f-c512-406d-bafd-a762765b0da1",
-      projectName: "取经",
-      workflowName: "软件交付流程",
-      workflowVersion: 3,
-    },
-  ],
-  team_support: [],
-};
-
-const mockTeamActiveTasks: Record<string, AgentTeamActiveTask[]> = {
-  team_delivery: [
-    {
-      taskBindingId: "tb_1",
-      taskName: "批量导入功能需求",
-      controlStatus: "waiting_human",
-      activeMemberName: "BA Agent",
-    },
-  ],
-  team_support: [],
-};
-
-const mockTeamRuns: Record<string, AgentTeamRunSummary[]> = {
-  team_delivery: [
-    {
-      id: "ar_1",
-      taskName: "批量导入功能需求",
-      agentName: "BA Agent",
-      nodeKey: "requirements",
-      status: "completed",
-      startedAt: "2026-08-31T09:00:30Z",
-    },
-    {
-      id: "ar_2",
-      taskName: "批量导入功能需求",
-      agentName: "Developer Agent",
-      nodeKey: "review",
-      status: "running",
-      startedAt: "2026-08-31T10:00:00Z",
-    },
-  ],
-  team_support: [],
-};
-
-const mockTeamArtifacts: Record<string, AgentTeamArtifactSummary[]> = {
-  team_delivery: [
-    {
-      id: "art_1",
-      artifactKey: "requirements",
-      name: "需求文档",
-      version: 3,
-      producedBy: "BA Agent",
-      createdAt: "2026-08-31T09:05:00Z",
-    },
-  ],
-  team_support: [],
-};
-
 export class AgentTeamRuntimeService {
   // Deliberately NOT extending APIService: its 401 interceptor redirects to
-  // the Plane login (redirect loop against the v1 backend). All real calls
-  // go through the shared expertsHttp (silent refresh) instead.
+  // the Plane login (redirect loop against the v1 backend). All calls go
+  // through the shared expertsHttp (silent refresh) instead.
 
   /** GET /api/v1/runtime/human-inbox — read-only projection of both scopes. */
   async listHumanInbox(): Promise<HumanInboxItem[]> {
-    if (MOCK) {
-      await delay(120);
-      const items: HumanInboxItem[] = [];
-      if (mockWorkflowNode.status === "waiting_approval") {
-        items.push({
-          scope: "workflow",
-          requestId: mockWorkflowNode.id,
-          tenantId: "tenant_default",
-          taskBindingId: mockWorkflowNode.taskBindingId,
-          projectId: "fbeebd0f-c512-406d-bafd-a762765b0da1",
-          assignedIdentityId: mockWorkflowNode.assignedIdentityId,
-          title: mockWorkflowNode.title,
-          status: mockWorkflowNode.status,
-          createdAt: mockWorkflowNode.createdAt,
-        });
-      }
-      for (const req of [mockAgentRequest, mockAgentTextRequest, mockOpsAgentRequest]) {
-        if (req.status !== "pending") continue;
-        items.push({
-          scope: "agent",
-          requestId: req.id,
-          tenantId: "tenant_default",
-          taskBindingId: req.taskBindingId,
-          projectId: req.id === mockOpsAgentRequest.id ? "proj_ops_internal" : "fbeebd0f-c512-406d-bafd-a762765b0da1",
-          assignedIdentityId: req.assignedIdentityId,
-          title: req.title,
-          status: req.status,
-          deliveryStatus: req.deliveryStatus,
-          createdAt: req.createdAt,
-        });
-      }
-      return items;
-    }
     const payload = await expertsRequest((headers) =>
       expertsHttp.get("/api/v1/runtime/human-inbox", { headers }).then((r) => r.data)
     );
@@ -510,47 +257,6 @@ export class AgentTeamRuntimeService {
 
   /** Detail for one inbox item, resolving scope to the right shape. */
   async getHumanInboxDetail(item: HumanInboxItem): Promise<HumanInboxDetail> {
-    if (MOCK) {
-      await delay(120);
-      if (item.scope === "workflow") {
-        return {
-          scope: "workflow",
-          requestId: mockWorkflowNode.id,
-          taskBindingId: mockWorkflowNode.taskBindingId,
-          workflowRunId: mockWorkflowNode.workflowRunId,
-          nodeKey: mockWorkflowNode.nodeKey,
-          assignedIdentityId: mockWorkflowNode.assignedIdentityId,
-          kind: mockWorkflowNode.kind,
-          title: mockWorkflowNode.title,
-          question: mockWorkflowNode.question,
-          options: mockWorkflowNode.options,
-          context: mockWorkflowNode.context,
-          status: mockWorkflowNode.status,
-          createdAt: mockWorkflowNode.createdAt,
-        };
-      }
-      const req =
-        item.requestId === mockAgentTextRequest.id
-          ? mockAgentTextRequest
-          : item.requestId === mockOpsAgentRequest.id
-            ? mockOpsAgentRequest
-            : mockAgentRequest;
-      return {
-        scope: "agent",
-        requestId: req.id,
-        taskBindingId: req.taskBindingId,
-        agentRunId: req.agentRunId,
-        assignedIdentityId: req.assignedIdentityId,
-        kind: req.kind === "permission" ? "choice" : req.kind,
-        title: req.title,
-        question: req.question,
-        options: req.options,
-        context: req.context,
-        status: req.status,
-        deliveryStatus: req.deliveryStatus,
-        createdAt: req.createdAt,
-      };
-    }
     const url =
       item.scope === "workflow"
         ? `/api/v1/runtime/workflow-human-nodes/${item.requestId}`
@@ -568,30 +274,6 @@ export class AgentTeamRuntimeService {
    * itself never exposes a shared answer state machine).
    */
   async answerHumanInboxItem(item: HumanInboxItem, answer: Record<string, unknown>): Promise<void> {
-    if (MOCK) {
-      await delay(180);
-      if (item.scope === "workflow") {
-        // CAS precondition (§5.8): only a waiting_approval node is answerable.
-        if (mockWorkflowNode.status !== "waiting_approval") throw new Error("节点不在 waiting_approval 状态");
-        mockWorkflowNode = { ...mockWorkflowNode, status: "completed" };
-        return;
-      }
-      if (item.requestId === mockAgentTextRequest.id) {
-        if (mockAgentTextRequest.status !== "pending") throw new Error("请求不在 pending 状态");
-        mockAgentTextRequest = { ...mockAgentTextRequest, status: "answered", deliveryStatus: "pending" };
-        return;
-      }
-      if (item.requestId === mockOpsAgentRequest.id) {
-        if (mockOpsAgentRequest.status !== "pending") throw new Error("请求不在 pending 状态");
-        mockOpsAgentRequest = { ...mockOpsAgentRequest, status: "answered", deliveryStatus: "pending" };
-        return;
-      }
-      if (mockAgentRequest.status !== "pending") throw new Error("请求不在 pending 状态");
-      // Local answer recorded; Gateway delivery stays pending until the
-      // worker confirms (§5.9) — the AgentRun must not look resumed yet.
-      mockAgentRequest = { ...mockAgentRequest, status: "answered", deliveryStatus: "pending" };
-      return;
-    }
     const url =
       item.scope === "workflow"
         ? `/api/v1/runtime/workflow-human-nodes/${item.requestId}/answer`
@@ -606,10 +288,6 @@ export class AgentTeamRuntimeService {
 
   /** GET /api/v1/agent-teams */
   async listTeams(): Promise<AgentTeam[]> {
-    if (MOCK) {
-      await delay(120);
-      return mockTeams.filter((team) => team.status !== "archived");
-    }
     const payload = await expertsRequest((headers) =>
       expertsHttp.get("/api/v1/agent-teams", { headers }).then((r) => r.data)
     );
@@ -618,18 +296,11 @@ export class AgentTeamRuntimeService {
 
   /** GET /api/v1/agent-teams/{team_id} */
   async getTeam(teamId: string): Promise<AgentTeam> {
-    if (MOCK) {
-      await delay(120);
-      const team = mockTeams.find((t) => t.id === teamId);
-      if (!team) throw new Error("team not found");
-      return team;
-    }
     return expertsRequest((headers) =>
       expertsHttp.get(`/api/v1/agent-teams/${teamId}`, { headers }).then((r) => r.data)
     );
   }
 
-  /** GET /api/v1/agent-teams/{team_id}/members — read-only in Plane (§12.6.1). */
   /** GET /api/v1/runtime/identities — id/kind/displayName/userId/expertId. */
   async listIdentities(): Promise<RuntimeIdentity[]> {
     const payload = await expertsRequest((headers) =>
@@ -638,11 +309,8 @@ export class AgentTeamRuntimeService {
     return (payload as { items?: RuntimeIdentity[] })?.items ?? (Array.isArray(payload) ? payload : []);
   }
 
+  /** GET /api/v1/agent-teams/{team_id}/members — read-only in Plane (§12.6.1). */
   async listTeamMembers(teamId: string): Promise<AgentTeamMember[]> {
-    if (MOCK) {
-      await delay(120);
-      return (mockTeamMembers[teamId] ?? []).filter((m) => m.enabled);
-    }
     const [payload, identities] = await Promise.all([
       expertsRequest((headers) =>
         expertsHttp.get(`/api/v1/agent-teams/${teamId}/members`, { headers }).then((r) => r.data)
@@ -666,10 +334,6 @@ export class AgentTeamRuntimeService {
 
   /** GET /api/v1/agent-teams/{team_id}/projects */
   async listTeamProjects(teamId: string): Promise<AgentTeamProject[]> {
-    if (MOCK) {
-      await delay(120);
-      return mockTeamProjects[teamId] ?? [];
-    }
     const payload = await expertsRequest((headers) =>
       expertsHttp.get(`/api/v1/agent-teams/${teamId}/projects`, { headers }).then((r) => r.data)
     );
@@ -681,10 +345,6 @@ export class AgentTeamRuntimeService {
   // (design §12.1) and need a query contract before 联调.
 
   async listTeamActiveTasks(teamId: string): Promise<AgentTeamActiveTask[]> {
-    if (MOCK) {
-      await delay(120);
-      return mockTeamActiveTasks[teamId] ?? [];
-    }
     // Assumed endpoint — degrade to empty until the contract lands (§Q9-①).
     try {
       return await expertsRequest((headers) =>
@@ -696,10 +356,6 @@ export class AgentTeamRuntimeService {
   }
 
   async listTeamRuns(teamId: string): Promise<AgentTeamRunSummary[]> {
-    if (MOCK) {
-      await delay(120);
-      return mockTeamRuns[teamId] ?? [];
-    }
     try {
       return await expertsRequest((headers) =>
         expertsHttp.get(`/api/v1/agent-teams/${teamId}/runs`, { headers }).then((r) => r.data)
@@ -710,10 +366,6 @@ export class AgentTeamRuntimeService {
   }
 
   async listTeamArtifacts(teamId: string): Promise<AgentTeamArtifactSummary[]> {
-    if (MOCK) {
-      await delay(120);
-      return mockTeamArtifacts[teamId] ?? [];
-    }
     try {
       return await expertsRequest((headers) =>
         expertsHttp.get(`/api/v1/agent-teams/${teamId}/artifacts`, { headers }).then((r) => r.data)
@@ -729,20 +381,6 @@ export class AgentTeamRuntimeService {
    * but the aggregate counts need a query contract before 联调.
    */
   async getProjectTeamPanel(projectId: string): Promise<ProjectTeamPanel | null> {
-    if (MOCK) {
-      await delay(120);
-      if (projectId !== "fbeebd0f-c512-406d-bafd-a762765b0da1") return null;
-      return {
-        projectId,
-        projectName: "取经",
-        teamId: "team_delivery",
-        teamName: "Delivery Team",
-        workflowName: "软件交付流程",
-        workflowVersion: 3,
-        activeAgentCount: 3,
-        waitingDecisionCount: 1,
-      };
-    }
     try {
       return await expertsRequest((headers) =>
         expertsHttp.get(`/api/v1/projects/${projectId}/agent-team-panel`, { headers }).then((r) => r.data)
@@ -756,44 +394,10 @@ export class AgentTeamRuntimeService {
    * Runtime summary for one Plane work item (design §12.3 Task Runtime
    * panel). Assumed endpoint — §9 freezes task-dimension reads only; the
    * issueId → taskBinding resolution lives in the Runtime projection and
-   * needs a query contract before 联调.
+   * needs a query contract before 联调. Unbound/not-governed → null (the
+   * panel renders its quiet unbound state).
    */
   async getWorkItemRuntimeSummary(issueId: string): Promise<WorkItemRuntimeSummary | null> {
-    if (MOCK) {
-      await delay(120);
-      // Only the demo issue is runtime-managed; unbound work items get null.
-      if (issueId !== "56e0c28c-a53a-494e-91e4-30da44f55d72") return null;
-      // Derived from the shared workflow-node state, so answering here or in
-      // the inbox updates both views.
-      const awaiting = mockWorkflowNode.status === "waiting_approval";
-      return {
-        issueId,
-        taskBindingId: "tb_1",
-        taskName: "批量导入功能需求",
-        teamId: "team_delivery",
-        teamName: "Delivery Team",
-        currentMemberName: "BA Agent",
-        workflowStep: "review",
-        workflowRunId: "wfr_1",
-        controlStatus: mockWorkflowNode.status === "cancelled" ? "cancelled" : awaiting ? "waiting_human" : "running",
-        durationSeconds: 720,
-        costUsd: 0.46,
-        artifacts: [{ id: "art_1", name: "需求文档", version: 3 }],
-        pendingApproval: awaiting
-          ? {
-              scope: "workflow",
-              requestId: mockWorkflowNode.id,
-              tenantId: "tenant_default",
-              taskBindingId: mockWorkflowNode.taskBindingId,
-              projectId: "fbeebd0f-c512-406d-bafd-a762765b0da1",
-              assignedIdentityId: mockWorkflowNode.assignedIdentityId,
-              title: mockWorkflowNode.title,
-              status: mockWorkflowNode.status,
-              createdAt: mockWorkflowNode.createdAt,
-            }
-          : null,
-      };
-    }
     try {
       return await expertsRequest((headers) =>
         expertsHttp.get(`/api/v1/runtime/work-items/${issueId}/summary`, { headers }).then((r) => r.data)
@@ -818,37 +422,6 @@ export class AgentTeamRuntimeService {
 
   /** Execution timeline for the work item panel (design §12.3). */
   async getWorkItemTimeline(issueId: string): Promise<WorkItemTimelineEntry[]> {
-    if (MOCK) {
-      await delay(120);
-      if (issueId !== "56e0c28c-a53a-494e-91e4-30da44f55d72") return [];
-      const entries: WorkItemTimelineEntry[] = [
-        {
-          id: "te_1",
-          kind: "task.bound",
-          summary: "任务绑定 Delivery Team，工作流启动",
-          createdAt: "2026-08-31T09:00:00Z",
-        },
-        { id: "h_1", kind: "handoff", summary: "交接至 BA Agent（requirements）", createdAt: "2026-08-31T09:00:00Z" },
-        {
-          id: "ar_1",
-          kind: "agent_run",
-          summary: "BA Agent 完成 requirements（产出 需求文档 v3）",
-          createdAt: "2026-08-31T09:05:00Z",
-        },
-        { id: "h_2", kind: "handoff", summary: "交接至 review 节点", createdAt: "2026-08-31T10:12:00Z" },
-      ];
-      if (mockWorkflowNode.status === "waiting_approval") {
-        entries.push({
-          id: "wn_1",
-          kind: "human_task",
-          summary: "等待人工审批：需求评审",
-          createdAt: "2026-08-31T10:12:00Z",
-        });
-      } else {
-        entries.push({ id: "wn_1", kind: "human_task", summary: "人工审批已通过", createdAt: "2026-08-31T11:00:00Z" });
-      }
-      return entries;
-    }
     try {
       return await expertsRequest((headers) =>
         expertsHttp.get(`/api/v1/runtime/work-items/${issueId}/timeline`, { headers }).then((r) => r.data)
@@ -865,36 +438,66 @@ export class AgentTeamRuntimeService {
    * Pause has no contract — deliberately not offered.
    */
   async cancelWorkItemRun(workflowRunId: string): Promise<void> {
-    if (MOCK) {
-      await delay(180);
-      if (mockWorkflowNode.status === "waiting_approval") {
-        mockWorkflowNode = { ...mockWorkflowNode, status: "cancelled" };
-      }
-      return;
-    }
     await expertsRequest((headers) =>
       expertsHttp.post(`/api/v1/workflow-runs/${workflowRunId}/cancel`, {}, { headers })
     );
   }
 
+  /**
+   * Retry a terminal (failed/cancelled) run of a runtime-managed work item
+   * (design §12.6.4 command; implementation plan §8 retry contract): a fresh
+   * controlled start on the same task — new run + new binding linked to the
+   * terminal one via retryOfBindingId; the terminal binding is never revived.
+   */
+  async retryWorkItemTask(taskId: string, retryOfBindingId: string): Promise<void> {
+    await expertsRequest((headers) =>
+      expertsHttp.post(
+        `/api/v1/runtime/tasks/${taskId}/start`,
+        {
+          idempotencyKey: `plane-retry:${retryOfBindingId}:${Date.now()}`,
+          origin: "auto",
+          retryOfBindingId,
+        },
+        { headers, timeout: 180_000 }
+      )
+    );
+  }
+
   /** GET /api/v1/runtime/projects/{project_id}/overview — project-dimension
-   * aggregate (design §12.2 backing query). Real-only: the dev token channel
-   * serves it directly, and it has no mock-era contract to mirror. */
+   * aggregate (design §12.2 backing query). The fork only holds the Plane
+   * project UUID; the backend resolves it through the Work Management project
+   * mapping (Q9-⑥ addressing). */
   async getProjectRuntimeOverview(projectId: string): Promise<ProjectRuntimeOverview> {
     return expertsRequest((headers) =>
       expertsHttp
         .get(`/api/v1/runtime/projects/${projectId}/overview`, {
           headers,
-          // The fork only holds the Plane project UUID; the backend resolves
-          // it through the Work Management project mapping (Q9-⑥ addressing).
           params: { idKind: "external" },
         })
         .then((r) => r.data)
     );
   }
-}
 
-export const getCurrentRuntimeIdentityId = () => (MOCK ? MOCK_CURRENT_IDENTITY_ID : "");
+  /**
+   * The current user's Runtime identity id (§12.6.7): /auth/me carries the
+   * user id, the identity directory maps userId → identity. Empty string
+   * when no identity maps to this user (no team membership) — "assigned to
+   * me" filters then simply match nothing.
+   */
+  async getCurrentRuntimeIdentityId(): Promise<string> {
+    try {
+      const [me, identities] = await Promise.all([
+        expertsRequest((headers) =>
+          expertsHttp.get<{ id?: string }>("/api/v1/auth/me", { headers }).then((r) => r.data)
+        ),
+        this.listIdentities(),
+      ]);
+      return identities.find((identity) => identity.userId && identity.userId === me.id)?.id ?? "";
+    } catch {
+      return "";
+    }
+  }
+}
 
 const runtimeService = new AgentTeamRuntimeService();
 

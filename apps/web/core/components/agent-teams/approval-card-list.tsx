@@ -61,8 +61,14 @@ export const AgentApprovalCardList = observer(function AgentApprovalCardList({
           <Row
             key={`${item.scope}:${item.requestId}`}
             className={cn(
-              "group relative flex cursor-pointer items-center gap-2 border-b border-subtle py-4 transition-all hover:bg-layer-1/30",
-              { "bg-layer-1/30": isSelected }
+              "group relative flex cursor-pointer items-center gap-2 border-b border-subtle py-4 transition-all",
+              // Selected: accent wash + left rail, NO hover override (hover
+              // must not repaint a selected row). Unselected rows get a
+              // clearly visible hover wash instead of layer-1 (same tone as
+              // the surface — invisible).
+              isSelected
+                ? "bg-accent-primary/10 shadow-[inset_2px_0_0_0] shadow-accent-primary"
+                : "hover:bg-layer-3"
             )}
             onClick={() => setSelected(item)}
           >

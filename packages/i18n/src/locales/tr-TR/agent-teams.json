@@ -144,5 +144,15 @@
   "run_unknown": "ran",
   "agent_teams_project_new_item": "Yeni iş öğesi",
   "agent_teams_panel_artifact_open": "Çıktıyı aç",
-  "agent_teams_panel_elapsed": "{count} dk geçti"
+  "agent_teams_panel_elapsed": "{count} dk geçti",
+  "agent_teams_artifact_preview_failed": "Önizleme yüklenemedi, lütfen tekrar deneyin",
+  "agent_teams_artifact_unsupported": "Bu dosya türü önizlenemez, indirin",
+  "agent_teams_artifact_copy": "Kopyala",
+  "agent_teams_artifact_copied": "Kopyalandı",
+  "agent_teams_artifact_download": "İndir",
+  "agent_teams_artifact_retry": "Tekrar dene",
+  "agent_teams_panel_retry": "Yeniden çalıştır",
+  "agent_teams_panel_retrying": "Başlatılıyor…",
+  "agent_teams_panel_retry_confirm": "Bu görev yeniden çalıştırılsın mı? Yeni bir yürütme başlar; geçmiş korunur.",
+  "agent_teams_panel_retry_unavailable": "Şu anda yeniden başlatılamıyor — yenileyip tekrar deneyin"
 }
