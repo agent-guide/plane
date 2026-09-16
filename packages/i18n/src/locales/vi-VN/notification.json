@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "Tất cả",
-      "mentions": "Đề cập"
+      "mentions": "Đề cập",
+      "team_approvals": "Team approvals"
     },
     "filter": {
       "assigned": "Được giao cho tôi",

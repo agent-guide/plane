@@ -5,7 +5,6 @@
  */
 
 import { Combobox } from "@headlessui/react";
-import React, { Fragment } from "react";
 // helper
 import { cn } from "../../utils";
 import type { IMultiSelectDropdownButton, ISingleSelectDropdownButton } from "../dropdown";
@@ -22,22 +21,22 @@ export function DropdownButton(props: IMultiSelectDropdownButton | ISingleSelect
     disabled,
   } = props;
   return (
-    <Combobox.Button as={Fragment}>
-      <button
-        ref={setReferenceElement}
-        type="button"
-        className={cn(
-          "clickable block h-full max-w-full outline-none",
-          {
-            "cursor-not-allowed text-secondary": disabled,
-            "cursor-pointer": !disabled,
-          },
-          buttonContainerClassName
-        )}
-        onClick={handleOnClick}
-      >
-        {buttonContent ? <>{buttonContent(isOpen, value)}</> : <span className={cn("", buttonClassName)}>{value}</span>}
-      </button>
+    // headlessui v2 removed `as={Fragment}` passthrough; render the button
+    // element directly with props merged by Combobox.Button.
+    <Combobox.Button
+      ref={setReferenceElement}
+      type="button"
+      className={cn(
+        "clickable block h-full max-w-full outline-none",
+        {
+          "cursor-not-allowed text-secondary": disabled,
+          "cursor-pointer": !disabled,
+        },
+        buttonContainerClassName
+      )}
+      onClick={handleOnClick}
+    >
+      {buttonContent ? <>{buttonContent(isOpen, value)}</> : <span className={cn("", buttonClassName)}>{value}</span>}
     </Combobox.Button>
   );
 }

@@ -56,9 +56,11 @@ export const UserMenuRoot = observer(function UserMenuRoot() {
   return (
     <CustomMenu
       className="flex items-center"
+      // span variant: CustomMenu renders this inside Menu.Button — a
+      // nested <button> is invalid HTML (React 19 hydration error).
       customButton={
         <AppSidebarItem
-          variant="button"
+          variant="span"
           item={{
             icon: (
               <Avatar

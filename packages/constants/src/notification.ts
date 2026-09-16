@@ -9,6 +9,9 @@ import type { TUnreadNotificationsCount } from "@plane/types";
 export enum ENotificationTab {
   ALL = "all",
   MENTIONS = "mentions",
+  // agent teams extension (design §12.6.4): waiting human decisions surface as
+  // a third inbox tab instead of a separate page entry.
+  TEAM_APPROVALS = "team-approvals",
 }
 
 export enum ENotificationFilterType {
@@ -31,7 +34,7 @@ export enum ENotificationQueryParamType {
   NEXT = "next",
 }
 
-export type TNotificationTab = ENotificationTab.ALL | ENotificationTab.MENTIONS;
+export type TNotificationTab = ENotificationTab.ALL | ENotificationTab.MENTIONS | ENotificationTab.TEAM_APPROVALS;
 
 export const NOTIFICATION_TABS = [
   {

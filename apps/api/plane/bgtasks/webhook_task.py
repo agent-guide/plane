@@ -2,10 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-import hashlib
-import hmac
 import json
 import logging
+import time
 import uuid
 
 import requests
@@ -52,6 +51,10 @@ from plane.db.models import (
 from plane.license.utils.instance_value import get_email_configuration
 from plane.utils.email import generate_plain_text_from_html
 from plane.utils.exception_logger import log_exception
+from plane.bgtasks.webhook_protocol import (
+    SIGNATURE_VERSION,
+    sign_delivery,
+)
 from plane.utils.url_security import pinned_fetch
 
 
@@ -248,6 +251,7 @@ def webhook_send_task(
     action: str,
     current_site: str,
     activity: Optional[Dict[str, Any]],
+    delivery_id: Optional[str] = None,
 ) -> None:
     """
     Send webhook notifications to configured endpoints.
@@ -260,18 +264,20 @@ def webhook_send_task(
         action (str): HTTP method/action
         current_site (str): Current site URL
         activity (Optional[Dict[str, Any]]): Activity data
+        delivery_id (Optional[str]): Stable event ID for this occurrence. Passed
+            in by webhook_activity so celery retries of this task reuse the same
+            ID — the Agent Team Runtime receiver deduplicates on it (fork
+            protocol, replaces the per-attempt uuid that could not be a replay
+            boundary).
     """
     try:
         webhook = Webhook.objects.get(id=webhook_id, workspace__slug=slug)
 
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Autopilot",
-            "X-Plane-Delivery": str(uuid.uuid4()),
-            "X-Plane-Event": event,
-        }
+        if not delivery_id:
+            # Legacy caller: best-effort stable-per-attempt id. Contract: new
+            # callers always pass delivery_id from webhook_activity.
+            delivery_id = str(uuid.uuid4())
 
-        # # Your secret key
         event_data = json.loads(json.dumps(event_data, cls=DjangoJSONEncoder)) if event_data is not None else None
 
         activity = json.loads(json.dumps(activity, cls=DjangoJSONEncoder)) if activity is not None else None
@@ -293,15 +299,30 @@ def webhook_send_task(
             "activity": activity,
         }
 
-        # Use HMAC for generating signature
+        # Serialize ONCE: these exact bytes are both the request body and the
+        # signed material — json= would re-serialize and break the signature.
+        raw_body = json.dumps(payload, cls=DjangoJSONEncoder).encode("utf-8")
+
+        timestamp = str(int(time.time()))
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Autopilot",
+            "X-Plane-Delivery": delivery_id,
+            "X-Plane-Event": event,
+            # Fork protocol v1 (Agent Team Runtime contract): unambiguous
+            # length-prefixed signing of version|timestamp|event_id|raw_body.
+            "X-Plane-Signature-Version": SIGNATURE_VERSION,
+            "X-Plane-Timestamp": timestamp,
+        }
+
         if webhook.secret_key:
-            hmac_signature = hmac.new(
-                webhook.secret_key.encode("utf-8"),
-                json.dumps(payload).encode("utf-8"),
-                hashlib.sha256,
+            headers["X-Plane-Signature"] = sign_delivery(
+                secret_key=webhook.secret_key,
+                version=SIGNATURE_VERSION,
+                timestamp=timestamp,
+                event_id=delivery_id,
+                raw_body=raw_body,
             )
-            signature = hmac_signature.hexdigest()
-            headers["X-Plane-Signature"] = signature
     except Exception as e:
         log_exception(e)
         logger.error(f"Failed to send webhook: {e}")
@@ -320,7 +341,7 @@ def webhook_send_task(
             allowed_ips=settings.WEBHOOK_ALLOWED_IPS,
             allowed_hosts=settings.WEBHOOK_ALLOWED_HOSTS,
             headers=headers,
-            json=payload,
+            data=raw_body,
             timeout=30,
         )
 
@@ -447,6 +468,9 @@ def webhook_activity(
         if event == "issue_comment":
             webhooks = webhooks.filter(issue_comment=True)
 
+        # One stable delivery id per event occurrence, shared by every webhook
+        # target and every celery retry — the dedup boundary on the receiver.
+        delivery_id = str(uuid.uuid4())
         for webhook in webhooks:
             webhook_send_task.delay(
                 webhook_id=webhook.id,
@@ -463,6 +487,7 @@ def webhook_activity(
                     "old_identifier": old_identifier,
                     "new_identifier": new_identifier,
                 },
+                delivery_id=delivery_id,
             )
         return
     except Exception as e:

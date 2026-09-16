@@ -30,6 +30,7 @@ import { useAppRouter } from "@/hooks/use-app-router";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // local imports
 import { CoverImage } from "@/components/common/cover-image";
+import { ProjectTeamBadge } from "@/components/agent-teams/project-team-badge";
 import { DeleteProjectModal } from "./delete-project-modal";
 import { JoinProjectModal } from "./join-project-modal";
 import { ArchiveRestoreProjectModal } from "./archive-restore-modal";
@@ -111,7 +112,8 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
     });
   };
 
-  const projectLink = `${workspaceSlug}/projects/${project.id}/issues`;
+  // Agent Teams fork: project cards land on the Overview page (§12.2).
+  const projectLink = `${workspaceSlug}/projects/${project.id}/overview`;
   const handleCopyText = () =>
     copyUrlToClipboard(projectLink).then(() =>
       setToast({
@@ -196,7 +198,7 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
       )}
       <Link
         ref={projectCardRef}
-        href={`/${workspaceSlug}/projects/${project.id}/issues`}
+        href={`/${workspaceSlug}/projects/${project.id}/overview`}
         onClick={(e) => {
           if (!isMemberOfProject || isArchived) {
             e.preventDefault();
@@ -276,6 +278,8 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
               ? project.description
               : `Created on ${renderFormattedDate(project.created_at)}`}
           </p>
+          {/* Agent Teams extension slot (design §12.2 project team panel, list-level line) */}
+          <ProjectTeamBadge projectId={project.id} />
           <div className="item-center flex justify-between">
             <div className="flex items-center justify-center gap-2">
               <Tooltip
@@ -307,8 +311,9 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
             {isArchived ? (
               hasAdminRole && (
                 <div className="flex items-center justify-center gap-2">
-                  <div
-                    className="flex items-center justify-center text-11 font-medium text-placeholder hover:text-secondary"
+                  <button
+                    type="button"
+                    className="flex cursor-pointer items-center justify-center text-11 font-medium text-placeholder hover:text-secondary"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -319,9 +324,10 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
                       <ArchiveRestoreIcon className="h-3.5 w-3.5" />
                       Restore
                     </div>
-                  </div>
-                  <div
-                    className="flex items-center justify-center text-11 font-medium text-placeholder hover:text-secondary"
+                  </button>
+                  <button
+                    type="button"
+                    className="flex cursor-pointer items-center justify-center text-11 font-medium text-placeholder hover:text-secondary"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -329,7 +335,7 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
                     }}
                   >
                     <TrashIcon className="h-3.5 w-3.5" />
-                  </div>
+                  </button>
                 </div>
               )
             ) : (

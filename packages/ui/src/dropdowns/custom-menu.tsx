@@ -246,56 +246,57 @@ function CustomMenu(props: ICustomMenuDropdownProps) {
     >
       {({ open }) => (
         <>
+          {/* Local fork fix: headlessui v2 dropped the `as={Fragment}`
+              prop-passthrough that v1 relied on. With `as={React.Fragment}` the
+              button props (including `open`) are merged onto the Fragment, which
+              React 19 reports as an invalid prop on every render — the React
+              Router dev server then serializes the whole fiber tree per warning
+              and balloons web.log. Render the button element directly and let
+              Menu.Button merge its props, as dropdown/common/button.tsx does. */}
           {customButton ? (
-            <Menu.Button as={React.Fragment}>
-              <button
-                ref={setReferenceElement}
-                type="button"
-                onClick={handleMenuButtonClick}
-                className={customButtonClassName}
-                tabIndex={customButtonTabIndex}
-                disabled={disabled}
-                aria-label={ariaLabel}
-              >
-                {customButton}
-              </button>
+            <Menu.Button
+              ref={setReferenceElement}
+              type="button"
+              onClick={handleMenuButtonClick}
+              className={customButtonClassName}
+              tabIndex={customButtonTabIndex}
+              disabled={disabled}
+              aria-label={ariaLabel}
+            >
+              {customButton}
             </Menu.Button>
           ) : (
             <>
               {ellipsis || verticalEllipsis ? (
-                <Menu.Button as={React.Fragment}>
-                  <button
-                    ref={setReferenceElement}
-                    type="button"
-                    onClick={handleMenuButtonClick}
-                    disabled={disabled}
-                    className={`relative grid place-items-center rounded-sm p-1 text-secondary outline-none hover:text-primary ${
-                      disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-layer-transparent-hover"
-                    } ${buttonClassName}`}
-                    tabIndex={customButtonTabIndex}
-                    aria-label={ariaLabel}
-                  >
-                    <MoreHorizontal className={`h-3.5 w-3.5 ${verticalEllipsis ? "rotate-90" : ""}`} />
-                  </button>
+                <Menu.Button
+                  ref={setReferenceElement}
+                  type="button"
+                  onClick={handleMenuButtonClick}
+                  disabled={disabled}
+                  className={`relative grid place-items-center rounded-sm p-1 text-secondary outline-none hover:text-primary ${
+                    disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-layer-transparent-hover"
+                  } ${buttonClassName}`}
+                  tabIndex={customButtonTabIndex}
+                  aria-label={ariaLabel}
+                >
+                  <MoreHorizontal className={`h-3.5 w-3.5 ${verticalEllipsis ? "rotate-90" : ""}`} />
                 </Menu.Button>
               ) : (
-                <Menu.Button as={React.Fragment}>
-                  <button
-                    ref={setReferenceElement}
-                    type="button"
-                    className={`flex items-center justify-between gap-1 rounded-md px-2.5 py-1 text-11 whitespace-nowrap duration-300 ${
-                      open ? "text-primary" : "text-secondary"
-                    } ${noBorder ? "" : "shadow-sm border border-strong focus:outline-none"} ${
-                      disabled ? "cursor-not-allowed text-secondary" : "cursor-pointer hover:bg-layer-transparent-hover"
-                    } ${buttonClassName}`}
-                    onClick={handleMenuButtonClick}
-                    tabIndex={customButtonTabIndex}
-                    disabled={disabled}
-                    aria-label={ariaLabel}
-                  >
-                    {label}
-                    {!noChevron && <ChevronDownIcon className="h-3.5 w-3.5" />}
-                  </button>
+                <Menu.Button
+                  ref={setReferenceElement}
+                  type="button"
+                  className={`flex items-center justify-between gap-1 rounded-md px-2.5 py-1 text-11 whitespace-nowrap duration-300 ${
+                    open ? "text-primary" : "text-secondary"
+                  } ${noBorder ? "" : "shadow-sm border border-strong focus:outline-none"} ${
+                    disabled ? "cursor-not-allowed text-secondary" : "cursor-pointer hover:bg-layer-transparent-hover"
+                  } ${buttonClassName}`}
+                  onClick={handleMenuButtonClick}
+                  tabIndex={customButtonTabIndex}
+                  disabled={disabled}
+                  aria-label={ariaLabel}
+                >
+                  {label}
+                  {!noChevron && <ChevronDownIcon className="h-3.5 w-3.5" />}
                 </Menu.Button>
               )}
             </>

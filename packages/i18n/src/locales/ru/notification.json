@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "Все",
-      "mentions": "Упоминания"
+      "mentions": "Упоминания",
+      "team_approvals": "Team approvals"
     },
     "filter": {
       "assigned": "Назначенные мне",

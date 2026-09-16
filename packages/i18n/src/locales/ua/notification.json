@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "Усе",
-      "mentions": "Згадки"
+      "mentions": "Згадки",
+      "team_approvals": "Team approvals"
     },
     "filter": {
       "assigned": "Призначені мені",

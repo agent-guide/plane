@@ -22,7 +22,7 @@ interface AppSidebarItemData {
 }
 
 interface AppSidebarItemProps {
-  variant?: "link" | "button";
+  variant?: "link" | "button" | "span";
   item?: AppSidebarItemData;
 }
 
@@ -140,6 +140,13 @@ function AppSidebarItem({ variant = "link", item }: AppSidebarItemProps) {
 
   if (variant === "link") {
     return <AppSidebarLinkItem href={href}>{commonItems}</AppSidebarLinkItem>;
+  }
+
+  if (variant === "span") {
+    // For embedding inside another interactive element (e.g. CustomMenu's
+    // customButton renders inside headlessui's Menu.Button) — a nested
+    // <button> is invalid HTML and breaks React 19 hydration.
+    return <span className={styles.base}>{commonItems}</span>;
   }
 
   return (

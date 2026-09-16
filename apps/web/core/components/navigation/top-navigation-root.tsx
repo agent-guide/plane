@@ -17,6 +17,8 @@ import { Tooltip } from "@plane/propel/tooltip";
 import { AppSidebarItem } from "@/components/sidebar/sidebar-item";
 import { InboxIcon } from "@plane/propel/icons";
 import useSWR from "swr";
+// agent teams extension (§12.6.4 inbox badge)
+import { usePendingApprovals } from "@/services/agent-teams/runtime-swr";
 import { useWorkspaceNotifications } from "@/hooks/store/notifications";
 // local imports
 import { StarUsOnGitHubLink } from "@/app/(all)/[workspaceSlug]/(projects)/star-us-link";
@@ -43,6 +45,9 @@ export const TopNavigationRoot = observer(function TopNavigationRoot() {
   const totalNotifications = isMentionsEnabled
     ? unreadNotificationsCount.mention_unread_notifications_count
     : unreadNotificationsCount.total_unread_notifications_count;
+  // Agent teams approvals (§12.6.4) light the same dot — same SWR key as the
+  // notifications-inbox tab, so the count costs no extra request.
+  const { count: pendingApprovals } = usePendingApprovals(workspaceSlug?.toString());
 
   return (
     <div
@@ -68,7 +73,7 @@ export const TopNavigationRoot = observer(function TopNavigationRoot() {
               icon: (
                 <div className="relative">
                   <InboxIcon className="size-5" />
-                  {totalNotifications > 0 && (
+                  {(totalNotifications > 0 || pendingApprovals > 0) && (
                     <span className="absolute top-0 right-0 size-2 rounded-full bg-danger-primary" />
                   )}
                 </div>

@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "すべて",
-      "mentions": "メンション"
+      "mentions": "メンション",
+      "team_approvals": "Team approvals"
     },
     "filter": {
       "assigned": "自分に割り当て",

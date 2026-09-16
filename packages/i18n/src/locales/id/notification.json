@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "Semua",
-      "mentions": "Sebut"
+      "mentions": "Sebut",
+      "team_approvals": "Team approvals"
     },
     "filter": {
       "assigned": "Ditugaskan untuk saya",

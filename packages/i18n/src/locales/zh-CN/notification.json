@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "全部",
-      "mentions": "提及"
+      "mentions": "提及",
+      "team_approvals": "团队审批"
     },
     "filter": {
       "assigned": "分配给我",

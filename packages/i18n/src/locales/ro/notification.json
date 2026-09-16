@@ -39,7 +39,8 @@
     },
     "tabs": {
       "all": "Toate",
-      "mentions": "Mențiuni"
+      "mentions": "Mențiuni",
+      "team_approvals": "Team approvals"
     },
     "filter": {
       "assigned": "Atribuite mie",

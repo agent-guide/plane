@@ -29,6 +29,8 @@
     "epics": "Epice",
     "upgrade_plan": "Actualizare plan",
     "plane_pro": "Plane Pro",
-    "business": "Business"
+    "business": "Business",
+    "agent_teams": "Echipe",
+    "project_overview": "Overview"
   }
 }

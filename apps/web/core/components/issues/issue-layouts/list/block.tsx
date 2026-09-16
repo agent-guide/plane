@@ -19,10 +19,13 @@ import { EIssueServiceType } from "@plane/types";
 // ui
 import { Spinner, ControlLink, Row } from "@plane/ui";
 import { cn, generateWorkItemLink } from "@plane/utils";
+// i18n
+import { useTranslation } from "@plane/i18n";
 // components
 import { MultipleSelectEntityAction } from "@/components/core/multiple-select";
 import { IssueProperties } from "@/components/issues/issue-layouts/properties";
 import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
+import { connectingIssueIds } from "@/services/agent-teams/created-item-catchup";
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
@@ -70,6 +73,7 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
     canDrag,
     isEpic = false,
   } = props;
+  const { t } = useTranslation();
   // ref
   const issueRef = useRef<HTMLDivElement | null>(null);
   // router
@@ -297,6 +301,15 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
         <div className="flex flex-shrink-0 items-center gap-2">
           {!issue?.tempId ? (
             <>
+              {/* Agent Teams catch-up (§6/§12.6.1): while the create→bind
+                  chain settles this row, show a connecting state instead of
+                  a raw backlog/unassigned row. */}
+              {connectingIssueIds.has(issueId) ? (
+                <div className="flex items-center gap-2 text-caption-sm-regular text-tertiary">
+                  <Spinner className="size-3.5" />
+                  {t("agent_teams_panel_connecting")}
+                </div>
+              ) : (
               <IssueProperties
                 className={`relative flex flex-wrap ${isSidebarCollapsed ? "md:flex-shrink-0 md:flex-grow" : "lg:flex-shrink-0 lg:flex-grow"} items-center gap-2 whitespace-nowrap`}
                 issue={issue}
@@ -306,6 +319,7 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
                 activeLayout="List"
                 isEpic={isEpic}
               />
+              )}
               {/* oxlint-disable-next-line jsx_a11y/click-events-have-key-events oxlint-disable-next-line jsx_a11y/no-static-element-interactions */}
               <div
                 className={cn("hidden", {

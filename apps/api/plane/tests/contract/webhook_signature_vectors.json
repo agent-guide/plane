@@ -1,0 +1,42 @@
+{
+  "$comment": "Shared cross-repo golden vectors for the Agent Team Runtime webhook fork protocol v1 (implementation plan 7.1). This file has a byte-identical twin in experts-backend tests/contracts/ — change both or neither. Dummy secrets only.",
+  "$source_of_truth": "plane/apps/api/plane/bgtasks/webhook_protocol.py sign_delivery",
+  "cases": [
+    {
+      "name": "ascii-minimal",
+      "secret": "whsec_contract_shared",
+      "version": "1",
+      "timestamp": "1788900000",
+      "event_id": "evt-contract-1",
+      "raw_body": "{\"event\":\"issue\",\"action\":\"created\",\"data\":{\"id\":\"i-1\"}}",
+      "expected_signature": "1be3089b61373b7823e8b63502384baa0e480f22f7b5b53e8aafafcca018f998"
+    },
+    {
+      "name": "unicode-body",
+      "secret": "whsec_contract_shared",
+      "version": "1",
+      "timestamp": "1788900042",
+      "event_id": "evt-契约-2",
+      "raw_body": "{\"event\":\"issue\",\"action\":\"updated\",\"data\":{\"name\":\"首卡-验证\"}}",
+      "expected_signature": "6c1d84e4f21c10c4935444596ebf902324e0669029b70d23c01c7b6ed529f066"
+    },
+    {
+      "name": "length-prefix-ambiguity-guard",
+      "secret": "whsec_contract_shared",
+      "version": "1",
+      "timestamp": "1788900100",
+      "event_id": "evt-3:evil",
+      "raw_body": "{\"event\":\"issue\",\"action\":\"updated\",\"data\":{\"x\":\"1:2\"}}",
+      "expected_signature": "4f099f684e0ba094932e0fc52fe87fefbb5474274274998d0b647d8e7d6c5550"
+    },
+    {
+      "name": "long-body",
+      "secret": "whsec_contract_shared",
+      "version": "1",
+      "timestamp": "1788900200",
+      "event_id": "evt-contract-4",
+      "raw_body": "{\"event\":\"issue\",\"action\":\"updated\",\"data\":{\"description\":\"节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。节点执行摘要。\"}}",
+      "expected_signature": "50024530c3ec4d228143f07078e280e2f5cfbb2a179c09501b2029b8cc4a8af5"
+    }
+  ]
+}

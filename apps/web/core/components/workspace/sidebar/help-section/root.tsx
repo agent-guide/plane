@@ -31,9 +31,11 @@ export const HelpMenuRoot = observer(function HelpMenuRoot() {
       <ProductUpdatesModal isOpen={isProductUpdatesModalOpen} handleClose={() => setProductUpdatesModalOpen(false)} />
 
       <CustomMenu
+        // span variant: CustomMenu renders this inside Menu.Button — a
+        // nested <button> is invalid HTML (React 19 hydration error).
         customButton={
           <AppSidebarItem
-            variant="button"
+            variant="span"
             item={{
               icon: <HelpCircle className="size-5" />,
               isActive: isNeedHelpOpen,
