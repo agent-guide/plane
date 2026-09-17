@@ -127,19 +127,17 @@ export type AgentTeamProject = {
 };
 
 export type AgentTeamActiveTask = {
+  // The list endpoint returns full rows; the read-only surface reads this
+  // subset (binding `id` doubles as taskBindingId).
   taskBindingId: string;
+  id?: string;
   taskName: string;
+  projectName?: string | null;
   controlStatus: "queued" | "running" | "waiting_human" | "blocked" | "failed" | "completed" | "cancelled";
   activeMemberName?: string | null;
-};
-
-export type AgentTeamRunSummary = {
-  id: string;
-  taskName: string;
-  agentName: string;
-  nodeKey?: string | null;
-  status: "accepted" | "running" | "completed" | "failed" | "cancelled" | "timed_out" | "unknown";
-  startedAt?: string;
+  externalItemId?: string | null;
+  externalProjectId?: string | null;
+  updatedAt?: string | null;
 };
 
 export type ProjectRuntimeBinding = {
@@ -177,15 +175,6 @@ export type ProjectRuntimeOverview = {
   counts: { activeTasks: number; waitingHuman: number; runningAgents: number };
   tasks: ProjectRuntimeTask[];
   recentRuns: ProjectRuntimeRun[];
-};
-
-export type AgentTeamArtifactSummary = {
-  id: string;
-  artifactKey: string;
-  name: string;
-  version: number;
-  producedBy?: string | null;
-  createdAt?: string;
 };
 
 export type WorkItemRuntimeSummary = {
@@ -333,43 +322,40 @@ export class AgentTeamRuntimeService {
   }
 
   /** GET /api/v1/agent-teams/{team_id}/projects */
-  async listTeamProjects(teamId: string): Promise<AgentTeamProject[]> {
+  async listTeamProjects(
+    teamId: string,
+    page = 1,
+    pageSize = 10
+  ): Promise<{ items: AgentTeamProject[]; total: number }> {
+    // Paged {items, total} — the team detail page renders pages incrementally
+    // (Plane-native load-more), appending until total is reached.
     const payload = await expertsRequest((headers) =>
-      expertsHttp.get(`/api/v1/agent-teams/${teamId}/projects`, { headers }).then((r) => r.data)
+      expertsHttp
+        .get(`/api/v1/agent-teams/${teamId}/projects`, { params: { page, page_size: pageSize }, headers })
+        .then((r) => r.data)
     );
-    return (payload as { items?: AgentTeamProject[] })?.items ?? (Array.isArray(payload) ? payload : []);
+    if (Array.isArray(payload)) return { items: payload, total: payload.length };
+    const paged = payload as { items?: AgentTeamProject[]; total?: number };
+    return { items: paged?.items ?? [], total: paged?.total ?? paged?.items?.length ?? 0 };
   }
 
-  // Assumed endpoints — §9 freezes task-dimension reads only; team-dimension
-  // task/run/artifact summaries are the Plane Team page's own aggregate
-  // (design §12.1) and need a query contract before 联调.
+  // Team-dimension list endpoints (Q9): active-tasks is unpaged and returns
+  // in-flight work items only — the team detail page's active work-items
+  // section. Runs/artifacts lists are admin-console surfaces; per-item
+  // progress and deliverables live on the work-item panel.
 
   async listTeamActiveTasks(teamId: string): Promise<AgentTeamActiveTask[]> {
-    // Assumed endpoint — degrade to empty until the contract lands (§Q9-①).
     try {
-      return await expertsRequest((headers) =>
+      const payload = await expertsRequest((headers) =>
         expertsHttp.get(`/api/v1/agent-teams/${teamId}/active-tasks`, { headers }).then((r) => r.data)
       );
-    } catch {
-      return [];
-    }
-  }
-
-  async listTeamRuns(teamId: string): Promise<AgentTeamRunSummary[]> {
-    try {
-      return await expertsRequest((headers) =>
-        expertsHttp.get(`/api/v1/agent-teams/${teamId}/runs`, { headers }).then((r) => r.data)
-      );
-    } catch {
-      return [];
-    }
-  }
-
-  async listTeamArtifacts(teamId: string): Promise<AgentTeamArtifactSummary[]> {
-    try {
-      return await expertsRequest((headers) =>
-        expertsHttp.get(`/api/v1/agent-teams/${teamId}/artifacts`, { headers }).then((r) => r.data)
-      );
+      const items = (Array.isArray(payload)
+        ? payload
+        : (payload as { items?: Array<AgentTeamActiveTask & { taskId?: string }> })?.items ?? []) as Array<
+        AgentTeamActiveTask & { taskId?: string }
+      >;
+      // Normalize: the user-facing row keys on `id` (task binding id).
+      return items.map((item) => ({ ...item, taskBindingId: item.taskBindingId ?? item.id ?? "" }));
     } catch {
       return [];
     }
