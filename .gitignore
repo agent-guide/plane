@@ -109,7 +109,8 @@ build/
 build/
 .react-router/
 temp/
-scripts/
+scripts/*
+!scripts/build-server.sh
 !packages/i18n/scripts/
 
 # i18n auto-generated types (regenerated on every build)
