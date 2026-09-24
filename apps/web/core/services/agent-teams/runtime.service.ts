@@ -134,6 +134,9 @@ export type AgentTeamActiveTask = {
   taskName: string;
   projectName?: string | null;
   controlStatus: "queued" | "running" | "waiting_human" | "blocked" | "failed" | "completed" | "cancelled";
+  // 状态视图（后端按项目打标状态解析）：显示跟着数据走，优先于翻译词表。
+  stateName?: string | null;
+  stateColor?: string | null;
   activeMemberName?: string | null;
   externalItemId?: string | null;
   externalProjectId?: string | null;
@@ -147,7 +150,6 @@ export type ProjectRuntimeBinding = {
   workflowName?: string | null;
   workflowVersion?: number | null;
   engineName?: string | null;
-  mappingStatus: "valid" | "needs_revalidation" | "invalid";
   updatedAt: string;
 };
 
@@ -156,6 +158,9 @@ export type ProjectRuntimeTask = {
   title: string;
   externalItemId?: string | null;
   controlStatus: "queued" | "running" | "waiting_human" | "blocked" | "failed" | "completed" | "cancelled";
+  // 状态视图（后端按项目打标状态解析）：显示跟着数据走，优先于翻译词表。
+  stateName?: string | null;
+  stateColor?: string | null;
   currentMemberName?: string | null;
   updatedAt: string;
 };
@@ -188,6 +193,9 @@ export type WorkItemRuntimeSummary = {
   currentMemberName?: string | null;
   workflowStep?: string | null;
   controlStatus: "queued" | "running" | "waiting_human" | "blocked" | "failed" | "completed" | "cancelled";
+  // 状态视图（后端按项目打标状态解析）：显示跟着数据走，优先于翻译词表。
+  stateName?: string | null;
+  stateColor?: string | null;
   // Active workflow run — cancel target and View-full-run deep link.
   workflowRunId?: string | null;
   // Accumulated execution metrics (design §12.3).
@@ -362,18 +370,17 @@ export class AgentTeamRuntimeService {
   }
 
   /**
-   * Project → responsible team panel (design §12.2). Assumed endpoint — the
-   * project binding read exists in §9 (/projects/{id}/agent-team-binding)
-   * but the aggregate counts need a query contract before 联调.
+   * Project → responsible team panel (design §12.2)。已联调：
+   * GET /api/v1/projects/{externalId}/agent-team-panel（backend overview 聚合）。
+   * 契约：未绑定是正常态（200 + panel:null），404 只代表接口不存在——
+   * 业务空态不得占用错误码；此处 404 不再吞，作为真故障浮出。
    */
   async getProjectTeamPanel(projectId: string): Promise<ProjectTeamPanel | null> {
-    try {
-      return await expertsRequest((headers) =>
-        expertsHttp.get(`/api/v1/projects/${projectId}/agent-team-panel`, { headers }).then((r) => r.data)
-      );
-    } catch {
-      return null;
-    }
+    return expertsRequest((headers) =>
+      expertsHttp
+        .get(`/api/v1/projects/${projectId}/agent-team-panel`, { headers })
+        .then((r) => (r.data as { panel: ProjectTeamPanel | null }).panel)
+    );
   }
 
   /**

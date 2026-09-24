@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { observer } from "mobx-react";
 // i18n
 import { useTranslation } from "@plane/i18n";
+import { controlStateLabel, controlStateStyle } from "@/services/agent-teams/state-view";
 // plane imports
 import { Button } from "@plane/propel/button";
 import { EModalWidth, ModalCore } from "@plane/ui";
@@ -310,17 +311,10 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               ) : (
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-6">
                   <span
-                    className={`inline-flex items-center rounded px-2 py-0.5 text-caption-sm-medium ${
-                      summary.controlStatus === "waiting_human"
-                        ? "bg-accent-subtle text-accent-primary"
-                        : summary.controlStatus === "failed"
-                          ? "bg-danger-subtle text-danger-primary"
-                          : summary.controlStatus === "completed"
-                            ? "bg-success-subtle text-success-primary"
-                            : "bg-layer-3 text-secondary"
-                    }`}
+                    className="inline-flex items-center rounded px-2 py-0.5 text-caption-sm-medium bg-layer-3 text-secondary"
+                    style={controlStateStyle(summary)}
                   >
-                    {t(`agent_teams_status_${summary.controlStatus}`)}
+                    {controlStateLabel(summary, t)}
                   </span>
                   {summary.currentMemberName && (
                     <span className="inline-flex items-center gap-1 text-caption-sm-regular text-secondary">

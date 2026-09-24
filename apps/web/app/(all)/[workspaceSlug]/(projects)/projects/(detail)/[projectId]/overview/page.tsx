@@ -18,6 +18,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 // plane imports
 import { useTranslation } from "@plane/i18n";
+import { controlStateLabel, controlStateStyle } from "@/services/agent-teams/state-view";
 import { EIssuesStoreType } from "@plane/types";
 import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
 import { Bot, ExternalLink, ListTodo, Plus, RefreshCw, Users } from "lucide-react";
@@ -37,16 +38,6 @@ import type { TIssue } from "@plane/types";
 
 const RECENT_ITEMS = 8;
 const issueService = new IssueService();
-
-const CONTROL_STATUS_STYLES: Record<string, string> = {
-  queued: "bg-layer-3 text-secondary",
-  running: "bg-accent-subtle text-accent-primary",
-  waiting_human: "bg-accent-subtle text-accent-primary",
-  blocked: "bg-warning-subtle text-warning-primary",
-  failed: "bg-danger-subtle text-danger-primary",
-  completed: "bg-success-subtle text-success-primary",
-  cancelled: "bg-layer-3 text-tertiary",
-};
 
 const RUN_RESULT_PAST: Record<string, string> = {
   success: "run_completed",
@@ -75,7 +66,7 @@ function ProjectOverviewPage() {
   const { t, currentLocale: locale } = useTranslation();
   const { currentWorkspace } = useWorkspace();
   const { currentProjectDetails: project } = useProject();
-  const { toggleCreateIssueModal } = useCommandPalette();
+  const commandPalette = useCommandPalette();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
 
   // SWR-backed (runtime-swr): the runtime aggregate polls only while the
@@ -117,10 +108,20 @@ function ProjectOverviewPage() {
     loadIssues();
   }, [loadIssues]);
 
+  // 新建工作项后刷新最近列表：创建弹窗关闭（成功或取消）即重拉，
+  // 否则空态里「新建工作项」保存成功列表不更新（09-23 验收发现）。
+  const createModalOpen = commandPalette.isCreateIssueModalOpen;
+  useEffect(() => {
+    if (!createModalOpen) return;
+    // open→closed 的 cleanup 触发一次刷新（取消时多拉一次无害）。
+    return () => {
+      loadIssues();
+    };
+  }, [createModalOpen, loadIssues]);
+
   const consoleBaseUrl = import.meta.env.VITE_RUNTIME_CONSOLE_BASE_URL as string | undefined;
   const binding = overview?.binding ?? null;
   const loading = runtimeLoading && !overview && !issues;
-  const statusLabel = (key: string) => t(`agent_teams_status_${key}`);
 
   // Native progress: work items grouped by state group.
   const progress = useMemo(() => {
@@ -141,11 +142,21 @@ function ProjectOverviewPage() {
   );
   const recentIssues = useMemo(
     () =>
-      (issues ?? []).slice(0, RECENT_ITEMS).map((issue) => ({
-        ...issue,
-        isTeamExecuted: controlledExternalIds.has(issue.id),
-        controlStatus: overview?.tasks.find((task) => task.externalItemId === issue.id)?.controlStatus ?? null,
-      })),
+      (issues ?? []).slice(0, RECENT_ITEMS).map((issue) => {
+        // 就地补运行时标记（避免逐行展开拷贝）：控制态显示走状态视图。
+        const row = issue as typeof issue & {
+          isTeamExecuted?: boolean;
+          controlStatus?: string | null;
+          stateName?: string | null;
+          stateColor?: string | null;
+        };
+        row.isTeamExecuted = controlledExternalIds.has(issue.id);
+        const task = overview?.tasks.find((item) => item.externalItemId === issue.id);
+        row.controlStatus = task?.controlStatus ?? null;
+        row.stateName = task?.stateName ?? null;
+        row.stateColor = task?.stateColor ?? null;
+        return row;
+      }),
     [issues, controlledExternalIds, overview]
   );
 
@@ -313,13 +324,14 @@ function ProjectOverviewPage() {
                         >
                           {issue.name}
                         </Link>
-                        {issue.isTeamExecuted && (
+                        {issue.isTeamExecuted && issue.controlStatus && issue.stateName && (
                           <span
                             title={t("agent_teams_project_team_executed")}
-                            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-caption-sm-medium ${CONTROL_STATUS_STYLES[issue.controlStatus ?? "queued"] ?? "bg-layer-3 text-secondary"}`}
+                            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-caption-sm-medium bg-layer-3 text-secondary"
+                            style={controlStateStyle({ ...issue, controlStatus: issue.controlStatus })}
                           >
                             <Bot className="size-3" aria-hidden />
-                            {issue.controlStatus ? statusLabel(issue.controlStatus) : ""}
+                            {controlStateLabel({ ...issue, controlStatus: issue.controlStatus }, t)}
                           </span>
                         )}
                         <span className="ml-auto text-caption-sm-regular text-tertiary">
@@ -333,7 +345,7 @@ function ProjectOverviewPage() {
                     <p className="text-body-sm-regular text-tertiary">{t("agent_teams_project_no_items")}</p>
                     <button
                       type="button"
-                      onClick={() => toggleCreateIssueModal(true, EIssuesStoreType.PROJECT, [projectId])}
+                      onClick={() => commandPalette.toggleCreateIssueModal(true, EIssuesStoreType.PROJECT, [projectId])}
                       className="flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-caption-sm-medium text-on-color hover:bg-accent-primary-hover"
                     >
                       <Plus className="size-3.5" aria-hidden />

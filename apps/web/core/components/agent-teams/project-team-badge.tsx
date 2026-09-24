@@ -35,7 +35,10 @@ export const ProjectTeamBadge = observer(function ProjectTeamBadge({ projectId }
   const load = useCallback(async () => {
     try {
       setPanel(await runtimeService.getProjectTeamPanel(projectId));
-    } catch {
+    } catch (error) {
+      // 未绑定是 200+null 的正常态（service 直取 panel）；这里仅捕获传输故障，
+      // 并保留控制台痕迹——不再静默吞错（assumed-endpoint 404 数周未察觉的教训）。
+      console.error("agent-team-panel load failed", error);
       setPanel(null);
     }
   }, [projectId]);

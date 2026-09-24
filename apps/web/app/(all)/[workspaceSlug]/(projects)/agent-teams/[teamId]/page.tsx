@@ -14,6 +14,7 @@ import { observer } from "mobx-react";
 // plane imports
 import { useParams } from "react-router";
 import { useTranslation } from "@plane/i18n";
+import { controlStateLabel } from "@/services/agent-teams/state-view";
 import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
 import { calculateTimeAgo } from "@plane/utils";
 // icons
@@ -369,7 +370,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                                   }`}
                                   aria-hidden
                                 />
-                                {statusLabel(task.controlStatus)}
+                                {controlStateLabel(task, t)}
                               </span>
                               <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 text-caption-sm-regular text-tertiary sm:w-auto">
                                 {task.projectName && <span className="truncate">{task.projectName}</span>}

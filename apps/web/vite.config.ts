@@ -33,6 +33,18 @@ export default defineConfig(() => ({
   },
   server: {
     host: "127.0.0.1",
+    // Vite 8 turns on browser-console forwarding automatically when it detects
+    // an AI agent driving the dev server (see resolveForwardConsoleOptions in
+    // vite). The client serializes each forwarded argument with a plain
+    // JSON.stringify walk, so a warning that passes a DOM element or React
+    // fiber expands to megabytes — a single @atlaskit auto-scroll `console.warn`
+    // (dev-only, benign, it passes { element }) wrote ~9 MB. A handful of them
+    // grows web.log into the gigabytes and takes the dev server with it.
+    // Keep error-level (React's own dumps are bounded) and drop warn-level,
+    // which is where the unbounded payloads live.
+    forwardConsole: {
+      logLevels: ["error"],
+    },
   },
   // No SSR-specific overrides needed; alias resolves to ESM build
 }));
