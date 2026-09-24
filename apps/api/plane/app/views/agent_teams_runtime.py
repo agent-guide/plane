@@ -28,7 +28,29 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 # Module imports
+import re
+
 from plane.app.views.base import BaseAPIView
+from plane.db.models import Webhook
+
+# Runtime ingest callback URLs carry the connection id:
+# .../work-management/plane/{connection_id}/webhooks — the authoritative link
+# between a workspace and its Runtime connection (registered at setup time).
+_CONNECTION_ID_IN_URL = re.compile(
+    r"/work-management/plane/(work_management_connection_[0-9a-f]+)/webhooks"
+)
+
+
+def _runtime_webhook_for_workspace(slug):
+    """Resolve (connection_id, secret) from the workspace's registered
+    webhook (single source of truth — connection id and signing key both come
+    from the authoritative webhook record; no deployment env copy to go
+    stale). Multiple connected workspaces each map through their own webhook."""
+    for webhook in Webhook.objects.filter(workspace__slug=slug, is_active=True):
+        match = _CONNECTION_ID_IN_URL.search(webhook.url or "")
+        if match:
+            return match.group(1), webhook.secret_key
+    return None, None
 
 logger = logging.getLogger("plane.app")
 
@@ -44,16 +66,27 @@ class AgentTeamsRuntimeTokenEndpoint(BaseAPIView):
 
     def post(self, request, slug):
         base_url = _setting("EXPERTS_RUNTIME_BASE_URL").rstrip("/")
-        secret = _setting("RUNTIME_EXCHANGE_SECRET")
-        connection_id = _setting("RUNTIME_CONNECTION_ID")
-        if not base_url or not secret or not connection_id:
+        if not base_url:
             logger.error(
                 "agent-teams runtime-token called without deployment env "
-                "(EXPERTS_RUNTIME_BASE_URL/RUNTIME_EXCHANGE_SECRET/RUNTIME_CONNECTION_ID)"
+                "(EXPERTS_RUNTIME_BASE_URL)"
             )
             return Response(
                 {"error": "Runtime exchange is not configured"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        # Connection id AND signing key come from the registered webhook
+        # (see _runtime_webhook_for_workspace) — a missing webhook means the
+        # workspace genuinely has no Runtime connection; surface that
+        # instead of falling back to a possibly-stale configured value.
+        connection_id, secret = _runtime_webhook_for_workspace(slug)
+        if not connection_id or not secret:
+            logger.warning(
+                "agent-teams runtime-token: workspace %s has no active runtime webhook", slug
+            )
+            return Response(
+                {"error": "This workspace is not connected to the runtime"},
+                status=status.HTTP_409_CONFLICT,
             )
 
         now = int(time.time())

@@ -6,8 +6,9 @@ Django==5.2.15
 djangorestframework==3.17.1
 # postgres
 psycopg==3.3.4
+# fork deviation：psycopg-binary 与 psycopg-c 二选一（官方文档口径），本部署取
+# binary（CentOS 7 有 wheel 即装即用）；上游同列的 psycopg-c 无 wheel 须源码编译，删。
 psycopg-binary==3.3.4
-psycopg-c==3.3.4
 dj-database-url==3.0.1
 # redis
 redis==5.0.4

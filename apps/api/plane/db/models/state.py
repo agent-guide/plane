@@ -20,7 +20,14 @@ class StateGroup(models.TextChoices):
     TRIAGE = "triage", "Triage"
 
 
-# Default states
+# Default states（英文规范词表——状态名是项目数据、多语言通用基线，两端显示
+# 都跟着它走；用户可改名成任何语言，不影响 runtime 寻址，见 external_id
+# 标签说明）. States tagged with
+# external_source="experts-runtime" carry external_id = the Runtime control
+# status (queued/running/waiting_human/blocked/failed/completed/cancelled):
+# the runtime's outbound projection addresses the target state by this tag.
+# Todo (unstarted) stays untagged for manual human flow; the runtime never
+# writes it.
 DEFAULT_STATES = [
     {
         "name": "Backlog",
@@ -28,6 +35,7 @@ DEFAULT_STATES = [
         "sequence": 15000,
         "group": StateGroup.BACKLOG.value,
         "default": True,
+        "external_id": "queued",
     },
     {
         "name": "Todo",
@@ -40,18 +48,42 @@ DEFAULT_STATES = [
         "color": "#F59E0B",
         "sequence": 35000,
         "group": StateGroup.STARTED.value,
+        "external_id": "running",
+    },
+    {
+        "name": "Waiting Confirmation",
+        "color": "#A16207",
+        "sequence": 38000,
+        "group": StateGroup.STARTED.value,
+        "external_id": "waiting_human",
+    },
+    {
+        "name": "Blocked",
+        "color": "#9AA4BC",
+        "sequence": 41000,
+        "group": StateGroup.STARTED.value,
+        "external_id": "blocked",
     },
     {
         "name": "Done",
         "color": "#46A758",
         "sequence": 45000,
         "group": StateGroup.COMPLETED.value,
+        "external_id": "completed",
+    },
+    {
+        "name": "Failed",
+        "color": "#DC2626",
+        "sequence": 52000,
+        "group": StateGroup.CANCELLED.value,
+        "external_id": "failed",
     },
     {
         "name": "Cancelled",
         "color": "#9AA4BC",
         "sequence": 55000,
         "group": StateGroup.CANCELLED.value,
+        "external_id": "cancelled",
     },
     {
         "name": "Triage",
@@ -60,6 +92,8 @@ DEFAULT_STATES = [
         "group": StateGroup.TRIAGE.value,
     },
 ]
+
+EXTERNAL_STATE_SOURCE = "experts-runtime"
 
 
 class StateManager(SoftDeletionManager):

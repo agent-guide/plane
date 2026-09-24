@@ -36,6 +36,7 @@ from plane.db.models import (
     ProjectUserProperty,
     State,
     DEFAULT_STATES,
+    EXTERNAL_STATE_SOURCE,
     Workspace,
     WorkspaceMember,
 )
@@ -288,6 +289,10 @@ class ProjectViewSet(BaseViewSet):
                         workspace=serializer.instance.workspace,
                         group=state["group"],
                         default=state.get("default", False),
+                        external_source=(
+                            EXTERNAL_STATE_SOURCE if state.get("external_id") else None
+                        ),
+                        external_id=state.get("external_id"),
                         created_by=request.user,
                     )
                     for state in DEFAULT_STATES

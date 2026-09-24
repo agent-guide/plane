@@ -33,6 +33,9 @@ class UserLiteSerializer(BaseSerializer):
             "avatar",
             "avatar_url",
             "display_name",
-            "email",
+            # Agent Team Runtime: webhook actor payloads carry the bot flag so
+            # the receiver can distinguish service identities from humans
+            # (identity proposals) without an extra lookup round-trip.
+            "is_bot",
         ]
         read_only_fields = fields

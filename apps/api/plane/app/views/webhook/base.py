@@ -13,11 +13,19 @@ from rest_framework.response import Response
 from plane.db.models import Webhook, WebhookLog, Workspace
 from plane.db.models.webhook import generate_token
 from ..base import BaseAPIView
+from plane.api.middleware.api_authentication import APIKeyAuthentication
 from plane.app.permissions import allow_permission, ROLE
 from plane.app.serializers import WebhookSerializer, WebhookLogSerializer
 
 
 class WebhookEndpoint(BaseAPIView):
+    # Agent Team Runtime extension: accept personal access tokens so the
+    # runtime console can register/rotate webhooks on the operator's behalf
+    # (guided connection setup). Workspace-admin permission still applies.
+    authentication_classes = BaseAPIView.authentication_classes + [
+        APIKeyAuthentication
+    ]
+
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
     def post(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)
