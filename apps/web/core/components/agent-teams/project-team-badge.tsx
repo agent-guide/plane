@@ -54,7 +54,7 @@ export const ProjectTeamBadge = observer(function ProjectTeamBadge({ projectId }
     // left (truncates first when long), stats+action on the right
     // (shrink-0 — the waiting badge must never be squeezed out).
     <div className="flex w-full items-center justify-between gap-2">
-      <div className="flex min-w-0 items-baseline gap-1.5 text-caption-sm-regular text-tertiary">
+      <div className="flex min-w-0 items-baseline gap-1.5 text-13 text-tertiary">
         <Bot className="size-3.5 shrink-0 self-center text-accent-primary" aria-hidden />
         <button
           type="button"
@@ -64,16 +64,13 @@ export const ProjectTeamBadge = observer(function ProjectTeamBadge({ projectId }
             e.stopPropagation();
             router.push(agentTeamDetailPath(panel.teamId));
           }}
-          className="hover:text-accent-primary-hover shrink-0 cursor-pointer text-caption-sm-medium text-accent-primary hover:underline"
+          className="hover:text-accent-primary-hover shrink-0 cursor-pointer text-13 text-accent-primary hover:underline"
         >
           {panel.teamName}
         </button>
-        {panel.workflowName && (
-          <span className="truncate">
-            · {panel.workflowName}
-            {panel.workflowVersion != null ? ` v${panel.workflowVersion}` : ""} · Agent {panel.activeAgentCount ?? 0}
-          </span>
-        )}
+        {/* 卡片空间有限：只显示团队与在岗数（计划信息在团队详情看）；
+            在岗为 0 时不显示计数（避免无执行时的噪音）。 */}
+        {(panel.activeAgentCount ?? 0) > 0 && <span className="shrink-0">· Agent {panel.activeAgentCount}</span>}
       </div>
       {(panel.waitingDecisionCount ?? 0) > 0 && (
         <button
