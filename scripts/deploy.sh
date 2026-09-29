@@ -78,6 +78,30 @@ for key in "${!KEYS[@]}"; do
   fi
 done
 
+# 跳转基地址（登录回跳/链接生成）：nginx 4003 是唯一公网入口（静态 web +
+# /api /auth 同源反代）。四个键是上游多域名设计（web/admin/space 各一域），
+# 我们单入口部署取值相同，但代码各处跳转分别读取，缺一或错值就会跳
+# localhost/内网端口（09-29 登录回跳 localhost 实证，同族键必须一起改齐；
+# admin/space 的路径区分由 *_BASE_PATH 负责，与此处域名无关）。
+# 补发+纠偏双管：缺失补、错值改——全新服务器部署完即正确，不依赖手工。
+PUBLIC_ORIGIN="http://${SERVER}:4003"
+declare -A ORIGIN_KEYS=(
+  [WEB_URL]="$PUBLIC_ORIGIN"
+  [APP_BASE_URL]="$PUBLIC_ORIGIN"
+  [SPACE_BASE_URL]="$PUBLIC_ORIGIN"
+  [ADMIN_BASE_URL]="$PUBLIC_ORIGIN"
+)
+for key in "${!ORIGIN_KEYS[@]}"; do
+  want="$key=${ORIGIN_KEYS[$key]}"
+  if grep -q "^${want//./\\.}$" "$ENV_FILE" 2>/dev/null; then
+    continue
+  elif grep -q "^$key=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^$key=.*|$want|" "$ENV_FILE"; echo "± $key 已纠正为 $want"
+  else
+    echo "$want" >> "$ENV_FILE"; echo "＋ $key 已补发"
+  fi
+done
+
 # 安全重启（校验 /proc exe 再 kill；命令行含模式串会自杀）：
 # api 与 celery 都要重启——webhook 载荷序列化在 celery 进程内完成，
 # 只重启 api 会出现 serializer 改动不生效的假象。
