@@ -1,10 +1,10 @@
-# Copyright (c) 2023-present Plane Software, Inc. and contributors
+# Copyright © 2026 agent-guide contributors
 # SPDX-License-Identifier: AGPL-3.0-only
-# See the LICENSE file for details.
+# See the LICENSE file in the repository root for details.
 
 from django.urls import path
 
-from plane.api.views import UserEndpoint, UserWorkspacesEndpoint
+from plane.api.views import AgentBotListCreateEndpoint, UserEndpoint, UserWorkspacesEndpoint
 
 urlpatterns = [
     path(
@@ -18,5 +18,12 @@ urlpatterns = [
         "users/me/workspaces/",
         UserWorkspacesEndpoint.as_view(http_method_names=["get"]),
         name="user-workspaces",
+    ),
+    # Agent Team Runtime extension: idempotent agent-bot provisioning
+    # (assignee identity per agent member; ADR 0011 bot supply domain).
+    path(
+        "workspaces/<str:slug>/agent-bots/",
+        AgentBotListCreateEndpoint.as_view(http_method_names=["get", "post"]),
+        name="agent-bots",
     ),
 ]

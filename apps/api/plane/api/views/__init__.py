@@ -72,3 +72,4 @@ from .user import UserEndpoint, UserWorkspacesEndpoint
 from .invite import WorkspaceInvitationsViewset
 
 from .sticky import StickyViewSet
+from .agent_bots import AgentBotListCreateEndpoint
