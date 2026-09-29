@@ -134,7 +134,11 @@ class WorkSpaceViewSet(BaseViewSet):
                 data["total_members"] = total_members
                 data["role"] = 20
 
-                workspace_seed.delay(serializer.data["id"])
+                # fork deviation：禁用 Plane 原生的工作区种子任务（新建工作区
+                # 自动创建同名示例项目/工作项/页面）——本 fork 是配套 Runtime 的
+                # 私有化交付物，工作区应由用户接入平台后自建项目；示例数据在
+                # 演示与投影场景下是未经说明的噪音（09-28 定案）。
+                # workspace_seed.delay(serializer.data["id"])
 
                 return Response(data, status=status.HTTP_201_CREATED)
             return Response(
