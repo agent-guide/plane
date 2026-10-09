@@ -21,6 +21,8 @@ import { calculateTimeAgo } from "@plane/utils";
 import { Boxes, ListTodo, MessageSquare, User, Users } from "lucide-react";
 // components
 import { AppHeader } from "@/components/core/app-header";
+import { EmptyRow, RowList, Section } from "@/components/agent-teams/section";
+import { TeamWorkflowsSection } from "@/components/agent-teams/team-workflows-section";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
@@ -37,58 +39,7 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import type { Route } from "./+types/page";
 
-/** Quiet section label — the content below is the protagonist. */
-function Section({
-  label,
-  count,
-  description,
-  icon,
-  children,
-}: {
-  label: string;
-  count?: number;
-  description?: string;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-2.5">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="inline-flex items-center gap-1.5 text-caption-sm-medium text-secondary">
-          {icon}
-          {label}
-        </span>
-        {count !== undefined && <span className="text-caption-sm-regular text-tertiary">{count}</span>}
-        {description && (
-          <span className="text-caption-sm-regular text-tertiary">— {description}</span>
-        )}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function RowList({ children }: { children: React.ReactNode }) {
-  return <div className="overflow-hidden rounded-lg border border-subtle bg-layer-1">{children}</div>;
-}
-
-function EmptyRow({ label }: { label: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-subtle px-4 py-8 text-center text-body-sm-regular text-tertiary">
-      {label}
-    </div>
-  );
-}
-
-function StatTile({
-  icon,
-  value,
-  highlight,
-}: {
-  icon: React.ReactNode;
-  value: string;
-  highlight?: boolean;
-}) {
+function StatTile({ icon, value, highlight }: { icon: React.ReactNode; value: string; highlight?: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-lg bg-layer-2 px-3 py-2 text-body-sm-medium ${
@@ -100,6 +51,13 @@ function StatTile({
     </span>
   );
 }
+
+const placeholder = (label: string) => (
+  <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-subtle px-6 py-14 text-center">
+    <Users className="size-7 text-tertiary" aria-hidden />
+    <p className="m-0 text-body-sm-regular text-tertiary">{label}</p>
+  </div>
+);
 
 type TTeamDetailData = {
   team: AgentTeam;
@@ -162,6 +120,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
       .then((res) => {
         setProjects((prev) => [...prev, ...res.items]);
         setProjectTotal(res.total);
+        return res;
       })
       .catch(() => {
         // keep the current pages; the sentinel stays so the user can retry
@@ -183,13 +142,6 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
 
   const statusLabel = (key: string) => t(`agent_teams_status_${key}`);
   const emptyLabel = t("agent_teams_empty_section");
-
-  const placeholder = (label: string) => (
-    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-subtle px-6 py-14 text-center">
-      <Users className="size-7 text-tertiary" aria-hidden />
-      <p className="m-0 text-body-sm-regular text-tertiary">{label}</p>
-    </div>
-  );
 
   return (
     <>
@@ -227,7 +179,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                     everything below stays caption/body-sm so it reads first. */}
                 <header className="flex flex-col gap-4">
                   <div className="flex items-center gap-3.5">
-                    <span className="flex size-10 flex-shrink-0 items-center justify-center rounded-xl bg-accent-subtle text-body-lg-medium text-accent-primary">
+                    <span className="text-body-lg-medium flex size-10 flex-shrink-0 items-center justify-center rounded-xl bg-accent-subtle text-accent-primary">
                       {data.team.name.slice(0, 1).toUpperCase()}
                     </span>
                     <div className="flex min-w-0 flex-col gap-0.5">
@@ -283,9 +235,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                                 member.kind === "agent" ? "bg-accent-primary" : "bg-secondary"
                               }`}
                               title={
-                                member.kind === "agent"
-                                  ? t("agent_teams_kind_agent")
-                                  : t("agent_teams_kind_human")
+                                member.kind === "agent" ? t("agent_teams_kind_agent") : t("agent_teams_kind_human")
                               }
                               aria-hidden
                             />
@@ -324,6 +274,10 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                       </RowList>
                     )}
                   </Section>
+
+                  {/* Workflows — 设计修订 2026-10-08 阶段 3：团队流程库，
+                      编排/发布/元数据编辑在本页完成（原管理端工作流库退役）。 */}
+                  <TeamWorkflowsSection teamId={teamId} />
 
                   {/* Active work items — in-flight only; finished/failed history
                       lives in the projects (retry/review on the card, §12.3 panel). */}
