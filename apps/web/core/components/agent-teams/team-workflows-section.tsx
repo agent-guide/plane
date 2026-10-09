@@ -10,7 +10,7 @@
  * 交互与发布轮询复用管理端已验证的模式：创建走「单 Agent 完成」预设后进
  * 画布；发布 202 → 轮询 2s/最长 300s 到终态。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "@plane/i18n";
 import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
 import { GitBranch, Pencil, Plus, Rocket, Trash2 } from "lucide-react";
@@ -89,7 +89,9 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
 
   const [workflows, setWorkflows] = useState<TeamWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // 存 i18n key 而非译文——避免把 t 放进回调依赖（t 每渲染新引用会触发
+  // effect 重跑 → loading 反复置位 → 区块闪烁）。
+  const [errorKey, setErrorKey] = useState("");
 
   // 目录（弹层打开时取一次——与管理端模型清单同一节奏）
   const [experts, setExperts] = useState<PublishedExpert[]>([]);
@@ -106,17 +108,22 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
 
   const canvasPath = (workflowId: string) => `/${workspaceSlug}/agent-teams/${teamId}/workflows/${workflowId}`;
 
+  const loadedOnce = useRef(false);
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+    // 只有首帧（无数据）展示加载骨架；发布/删除后的刷新静默换数据，不闪骨架。
+    if (!loadedOnce.current) setLoading(true);
     try {
-      setWorkflows(await workflowService.listTeamWorkflows(teamId));
+      const items = await workflowService.listTeamWorkflows(teamId);
+      setWorkflows(items);
+      setErrorKey("");
+      loadedOnce.current = true;
     } catch {
-      setError(t("agent_teams_workflows_load_failed"));
+      setErrorKey("agent_teams_workflows_load_failed");
     } finally {
+      loadedOnce.current = true;
       setLoading(false);
     }
-  }, [teamId, t]);
+  }, [teamId]);
 
   useEffect(() => {
     void load();
@@ -281,7 +288,7 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
           {t("agent_teams_inbox_loading")}
         </div>
       ) : error ? (
-        <EmptyRow label={error} />
+        <EmptyRow label={t(errorKey)} />
       ) : workflows.length === 0 ? (
         <EmptyRow label={t("agent_teams_workflows_empty")} />
       ) : (
