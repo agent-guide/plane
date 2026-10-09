@@ -287,7 +287,7 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
         <div className="rounded-lg border border-subtle px-4 py-6 text-center text-body-sm-regular text-tertiary">
           {t("agent_teams_inbox_loading")}
         </div>
-      ) : error ? (
+      ) : errorKey ? (
         <EmptyRow label={t(errorKey)} />
       ) : workflows.length === 0 ? (
         <EmptyRow label={t("agent_teams_workflows_empty")} />
