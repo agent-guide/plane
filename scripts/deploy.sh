@@ -48,9 +48,10 @@ scp -q -P "$SSH_PORT" /tmp/plane-api-pkg.tar.gz "$REMOTE_USER@$SERVER:$PLATFORM/
 [ "$SKIP_WEB" -eq 0 ] && scp -q -P "$SSH_PORT" /tmp/plane-web-build.tar.gz /tmp/plane-godmode.tar.gz "$REMOTE_USER@$SERVER:/tmp/"
 
 echo "==== [4/4] 服务器更新 ===="
-ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" PLATFORM="$PLATFORM" 'bash -s' <<'REMOTE'
+ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" PLATFORM="$PLATFORM" SERVER="$SERVER" 'bash -s' <<'REMOTE'
 set -uo pipefail
 PLATFORM="${PLATFORM:?}"
+SERVER="${SERVER:?}"
 API_DIR="$PLATFORM/plane/apps/api"
 
 # --- api：换码（保留 .venv/.env/scripts）+ 配置补发 + 安全重启 ---
