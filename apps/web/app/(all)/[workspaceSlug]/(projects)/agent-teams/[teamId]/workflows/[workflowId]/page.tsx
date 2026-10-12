@@ -9,9 +9,14 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router";
-import Link from "next/link";
-import { ArrowLeft, Rocket, Save, Settings } from "lucide-react";
+import { Breadcrumbs } from "@plane/ui";
+import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
+import { Button } from "@plane/propel/button";
+import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
+import { Input, TextArea } from "@plane/ui";
+import { Rocket, Users } from "lucide-react";
 // services
+import runtimeService from "@/services/agent-teams/runtime.service";
 import workflowService, {
   type WorkflowGraph,
   type TeamWorkflow,
@@ -47,7 +52,7 @@ const CANVAS_LABELS_ZH: WorkflowCanvasEditorLabels = {
   addNode: "添加节点",
   fieldPrompt: "本节点工作要求",
   fieldPromptHint: "员工能力由所绑成员自动注入，此处只写该节点要完成的具体工作（如：拉取数据 / 分级 / 撰写报告…）",
-  fieldPromptPlaceholder: "例如：拉取禅道中指派的 Bug，并按优先级分级",
+  fieldPromptPlaceholder: "描述该节点要完成的工作、输入与期望产出",
   fieldToolName: "工具 *",
   fieldConnection: "连接（凭证名）",
   noConnection: "（不使用连接）",
@@ -88,6 +93,7 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
   const { teamId, workflowId } = params;
 
   const [workflow, setWorkflow] = useState<TeamWorkflow | null>(null);
+  const [teamName, setTeamName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -122,6 +128,10 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
   useEffect(() => {
     if (!teamId || !workflowId) return;
     void reload();
+    runtimeService
+      .getTeam(teamId)
+      .then((team) => setTeamName(team.name))
+      .catch(() => undefined);
   }, [reload, teamId, workflowId]);
 
   // 目录懒加载：进画布才取，失败静默降级为手填 id（与管理端同策略）。
@@ -224,49 +234,10 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
   const backPath = `/${workspaceSlug}/agent-teams/${teamId}`;
 
   return (
-    <div className="bg-custom-background-100 flex h-screen w-full flex-col">
-      <header className="border-custom-border-100 flex items-center gap-3 border-b px-4 py-2.5">
-        <Link
-          href={backPath}
-          className="text-sm text-custom-text-200 hover:bg-custom-background-80 hover:text-custom-text-100 inline-flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          {zh ? "返回团队" : "Back to team"}
-        </Link>
-        <span className="text-sm text-custom-text-100 font-medium">
-          {workflow?.name ?? (zh ? "流程画布" : "Workflow canvas")}
-        </span>
-        {workflow?.status === "published" && workflow.currentVersion != null ? (
-          <span className="bg-green-500/15 text-green-600 rounded-full px-2 py-0.5 text-[11px]">
-            v{workflow.currentVersion}
-          </span>
-        ) : null}
-        <div className="ml-auto flex items-center gap-2">
-          {actionMessage ? <span className="text-xs text-custom-text-300">{actionMessage}</span> : null}
-          {actionError ? <span className="text-xs text-red-500">{actionError}</span> : null}
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            title={zh ? "基本信息" : "Settings"}
-            className="border-custom-border-200 text-sm text-custom-text-200 hover:bg-custom-background-80 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5"
-          >
-            <Settings className="size-4" aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={() => void publish()}
-            disabled={publishing || loading}
-            className="bg-custom-primary-100 text-sm hover:bg-custom-primary-90 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium text-white disabled:opacity-60"
-          >
-            <Rocket className="size-4" aria-hidden />
-            {publishing ? (zh ? "发布中…" : "Publishing…") : zh ? "发布" : "Publish"}
-          </button>
-        </div>
-      </header>
-
+    <div className="flex h-full w-full flex-col bg-canvas">
       <div className="relative min-h-0 flex-1">
         {loading ? (
-          <div className="text-sm text-custom-text-300 grid h-full place-items-center">
+          <div className="grid h-full place-items-center text-13 text-tertiary">
             {zh ? "正在加载流程…" : "Loading workflow…"}
           </div>
         ) : loadError ? (
@@ -274,6 +245,40 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
         ) : workflow ? (
           <WorkflowCanvasEditor
             initialGraph={workflow.graph ?? null}
+            headerLeft={
+              <>
+                <Breadcrumbs>
+                  <Breadcrumbs.Item
+                    component={
+                      <BreadcrumbLink
+                        label={teamName ?? teamId}
+                        href={backPath}
+                        icon={<Users className="size-4 text-tertiary" />}
+                      />
+                    }
+                  />
+                  <Breadcrumbs.Item component={<BreadcrumbLink label={workflow.name} disableTooltip />} />
+                </Breadcrumbs>
+                {workflow.status === "published" && workflow.currentVersion != null ? (
+                  <span className="bg-green-500/15 text-green-600 rounded-full px-2 py-0.5 text-11">
+                    v{workflow.currentVersion}
+                  </span>
+                ) : null}
+              </>
+            }
+            headerRight={
+              <>
+                {actionMessage ? <span className="text-12 text-tertiary">{actionMessage}</span> : null}
+                {actionError ? <span className="text-12 text-danger-primary">{actionError}</span> : null}
+                <Button variant="secondary" size="lg" onClick={() => setSettingsOpen(true)}>
+                  {zh ? "基本信息" : "Settings"}
+                </Button>
+                <Button variant="primary" size="lg" onClick={() => void publish()} loading={publishing || loading}>
+                  <Rocket className="size-4" aria-hidden />
+                  {publishing ? (zh ? "发布中…" : "Publishing…") : zh ? "发布" : "Publish"}
+                </Button>
+              </>
+            }
             toolCatalog={tools.map((tool) => ({
               tool_name: tool.name,
               description: tool.description ?? "",
@@ -288,73 +293,49 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
         ) : null}
 
         {/* 元数据抽屉：与画布同层，背板关闭 */}
-        {settingsOpen ? (
-          <div
-            role="presentation"
-            className="bg-custom-backdrop fixed inset-0 z-50 flex justify-end"
-            onClick={() => setSettingsOpen(false)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") setSettingsOpen(false);
-            }}
-          >
-            <section
-              role="dialog"
-              aria-modal="true"
-              className="bg-custom-background-100 shadow-xl flex h-full w-[440px] max-w-full flex-col"
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              <header className="border-custom-border-100 flex items-center justify-between border-b px-5 py-4">
-                <h2 className="text-sm text-custom-text-100 font-medium">
-                  {zh ? "流程基本信息" : "Workflow settings"}
-                </h2>
-                <button
-                  type="button"
-                  className="text-2xl text-custom-text-300 hover:text-custom-text-100 leading-none"
-                  onClick={() => setSettingsOpen(false)}
-                >
-                  ×
-                </button>
-              </header>
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-                <label className="text-sm text-custom-text-200 grid gap-1">
-                  <span>{zh ? "名称" : "Name"}</span>
-                  <input
-                    value={form.name}
-                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                    className="border-custom-border-200 text-sm text-custom-text-100 focus:border-custom-primary-100 rounded-lg border bg-transparent px-3 py-2 outline-none"
-                  />
-                </label>
-                <label className="text-sm text-custom-text-200 grid gap-1">
-                  <span>{zh ? "描述" : "Description"}</span>
-                  <textarea
-                    value={form.description}
-                    onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                    className="border-custom-border-200 text-sm text-custom-text-100 focus:border-custom-primary-100 min-h-[72px] resize-y rounded-lg border bg-transparent px-3 py-2 outline-none"
-                  />
-                </label>
+        <ModalCore
+          isOpen={settingsOpen}
+          handleClose={() => setSettingsOpen(false)}
+          position={EModalPosition.TOP}
+          width={EModalWidth.XXL}
+        >
+          {/* 与新建流程弹层同规范（cycles 表单解剖）：p-5/space-y-5、text-18 标题、
+              占位符即标签、text-11 错误、border-t-[0.5px] 通栏页脚。 */}
+          <div className="space-y-5 p-5">
+            <h3 className="text-18 font-medium text-secondary">{zh ? "流程基本信息" : "Workflow settings"}</h3>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Input
+                  mode="primary"
+                  inputSize="sm"
+                  className="w-full"
+                  value={form.name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder={zh ? "名称" : "Name"}
+                />
               </div>
-              <footer className="border-custom-border-100 flex justify-end gap-2 border-t px-5 py-4">
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen(false)}
-                  className="border-custom-border-200 text-sm text-custom-text-200 hover:bg-custom-background-80 rounded-lg border px-4 py-2"
-                >
-                  {zh ? "取消" : "Cancel"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void saveInfo()}
-                  disabled={savingInfo}
-                  className="bg-custom-primary-100 text-sm hover:bg-custom-primary-90 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 font-medium text-white disabled:opacity-60"
-                >
-                  <Save className="size-4" aria-hidden />
-                  {savingInfo ? (zh ? "保存中…" : "Saving…") : zh ? "保存" : "Save"}
-                </button>
-              </footer>
-            </section>
+              <div className="space-y-1">
+                <TextArea
+                  mode="primary"
+                  textAreaSize="sm"
+                  className="font-normal min-h-20 w-full resize-none text-13"
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder={zh ? "描述" : "Description"}
+                />
+              </div>
+            </div>
           </div>
-        ) : null}
+          <div className="flex items-center justify-end gap-2 border-t-[0.5px] border-subtle px-5 py-4">
+            <Button variant="secondary" size="lg" onClick={() => setSettingsOpen(false)}>
+              {zh ? "取消" : "Cancel"}
+            </Button>
+            <Button variant="primary" size="lg" onClick={() => void saveInfo()} loading={savingInfo}>
+              {savingInfo ? (zh ? "保存中…" : "Saving…") : zh ? "保存" : "Save"}
+            </Button>
+          </div>
+        </ModalCore>
       </div>
     </div>
   );

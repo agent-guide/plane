@@ -165,7 +165,6 @@
   "agent_teams_workflows_publish_failed": "Publish failed",
   "agent_teams_workflows_publish_timeout": "Publish timed out — refresh later to see the result",
   "agent_teams_workflows_delete": "Delete",
-  "agent_teams_workflows_delete_confirm": "Delete this workflow? Execution history is preserved.",
   "agent_teams_workflows_delete_failed": "Failed to delete, please retry",
   "agent_teams_workflows_status_draft": "Draft",
   "agent_teams_workflows_status_published": "Published",
@@ -182,5 +181,19 @@
   "agent_teams_wf_prompt_hint": "Extend with more nodes on the canvas after creation; this fills the first agent node's work.",
   "agent_teams_wf_form_incomplete": "Name and owner member are required",
   "agent_teams_wf_save_failed": "Save failed",
-  "agent_teams_wf_saving": "Saving…"
+  "agent_teams_wf_saving": "Saving…",
+  "agent_teams_workflows_history": "Version history",
+  "agent_teams_workflows_history_title": "{name} · Version history",
+  "agent_teams_workflows_history_empty": "No versions yet",
+  "agent_teams_workflows_status_failed": "Failed",
+  "agent_teams_workflows_status_publishing": "Publishing",
+  "agent_teams_wf_col_version": "Version",
+  "agent_teams_wf_col_status": "Status",
+  "agent_teams_wf_col_published_at": "Published at",
+  "agent_teams_wf_col_hash": "Definition hash",
+  "agent_teams_wf_latest": "Latest",
+  "agent_teams_wf_col_created_by": "Created by",
+  "agent_teams_workflows_delete_confirm_prefix": "Are you sure you want to delete workflow",
+  "agent_teams_workflows_delete_confirm_suffix": "? Execution history is preserved.",
+  "agent_teams_workflows_deleting": "Deleting…"
 }

@@ -16,18 +16,19 @@ import { layout, route } from "@react-router/dev/routes";
 export const extendedRoutes: RouteConfigEntry[] = [
   layout("./(all)/layout.tsx", [
     layout("./(all)/[workspaceSlug]/layout.tsx", [
+      // Team workflow canvas（设计修订 2026-10-08 阶段 3）：画布独占视口——
+      // 不进 (projects) 布局（其项目侧边栏+圆角容器会挤压画布、叠加头部线），
+      // 直接挂在工作区布局下，保留鉴权与全屏内容区。
+      route(
+        ":workspaceSlug/agent-teams/:teamId/workflows/:workflowId",
+        "./(all)/[workspaceSlug]/(projects)/agent-teams/[teamId]/workflows/[workflowId]/page.tsx"
+      ),
       layout("./(all)/[workspaceSlug]/(projects)/layout.tsx", [
         route(":workspaceSlug/agent-teams", "./(all)/[workspaceSlug]/(projects)/agent-teams/page.tsx"),
         // Static segments "inbox"/"chat" rank above the dynamic :teamId below.
         route(":workspaceSlug/agent-teams/inbox", "./(all)/[workspaceSlug]/(projects)/agent-teams/inbox/page.tsx"),
         route(":workspaceSlug/agent-teams/chat", "./(all)/[workspaceSlug]/(projects)/agent-teams/chat/page.tsx"),
         route(":workspaceSlug/agent-teams/:teamId", "./(all)/[workspaceSlug]/(projects)/agent-teams/[teamId]/page.tsx"),
-        // Team workflow canvas (设计修订 2026-10-08 阶段 3)：画布独占视口，
-        // 仍挂在 (projects) 布局链下以复用工作区鉴权。
-        route(
-          ":workspaceSlug/agent-teams/:teamId/workflows/:workflowId",
-          "./(all)/[workspaceSlug]/(projects)/agent-teams/[teamId]/workflows/[workflowId]/page.tsx"
-        ),
         // Project Overview page (design §12.2, Linear-style): the project's
         // landing view hosting the responsible-team panel, counts, controlled
         // tasks and recent runs. Mirrors the core project detail layout chain

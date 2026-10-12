@@ -15,12 +15,15 @@ export function Section({
   count,
   description,
   icon,
+  action,
   children,
 }: {
   label: string;
   count?: number;
   description?: string;
   icon?: React.ReactNode;
+  /** 区块头右侧动作位（如「新建」按钮），与标签同行右对齐。 */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -32,6 +35,7 @@ export function Section({
         </span>
         {count !== undefined && <span className="text-caption-sm-regular text-tertiary">{count}</span>}
         {description && <span className="text-caption-sm-regular text-tertiary">— {description}</span>}
+        {action ? <span className="ml-auto self-center">{action}</span> : null}
       </div>
       {children}
     </section>

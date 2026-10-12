@@ -52,6 +52,9 @@ export type TeamWorkflowVersion = {
   version: number;
   status: string;
   publishError?: string | null;
+  definitionHash?: string;
+  createdBy?: string | null;
+  createdByName?: string | null;
   createdAt?: string;
   publishedAt?: string | null;
 };

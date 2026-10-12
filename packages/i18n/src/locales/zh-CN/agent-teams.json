@@ -165,7 +165,6 @@
   "agent_teams_workflows_publish_failed": "发布失败",
   "agent_teams_workflows_publish_timeout": "发布超时，请稍后刷新查看结果",
   "agent_teams_workflows_delete": "删除",
-  "agent_teams_workflows_delete_confirm": "确定删除该流程？历史执行记录会保留。",
   "agent_teams_workflows_delete_failed": "删除失败，请重试",
   "agent_teams_workflows_status_draft": "草稿",
   "agent_teams_workflows_status_published": "已发布",
@@ -182,5 +181,19 @@
   "agent_teams_wf_prompt_hint": "创建后可在画布扩展多节点流程；此处填写首个 Agent 节点要完成的工作。",
   "agent_teams_wf_form_incomplete": "请填写名称并选择负责成员",
   "agent_teams_wf_save_failed": "保存失败",
-  "agent_teams_wf_saving": "保存中…"
+  "agent_teams_wf_saving": "保存中…",
+  "agent_teams_workflows_history": "版本历史",
+  "agent_teams_workflows_history_title": "{name} · 版本历史",
+  "agent_teams_workflows_history_empty": "暂无版本",
+  "agent_teams_workflows_status_failed": "失败",
+  "agent_teams_workflows_status_publishing": "发布中",
+  "agent_teams_wf_col_version": "版本",
+  "agent_teams_wf_col_status": "状态",
+  "agent_teams_wf_col_published_at": "发布时间",
+  "agent_teams_wf_col_hash": "定义摘要",
+  "agent_teams_wf_latest": "最新",
+  "agent_teams_wf_col_created_by": "创建人",
+  "agent_teams_workflows_delete_confirm_prefix": "确定删除流程",
+  "agent_teams_workflows_delete_confirm_suffix": "？执行历史会保留。",
+  "agent_teams_workflows_deleting": "删除中…"
 }

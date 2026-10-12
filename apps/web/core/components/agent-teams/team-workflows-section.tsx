@@ -7,13 +7,16 @@
  * 阶段 3)：工作流归属团队，编排/发布/元数据编辑都在团队详情完成。数据权威
  * 在 Agent Team Runtime（§17 红线），经 runtime-token 通道调用。
  *
- * 交互与发布轮询复用管理端已验证的模式：创建走「单 Agent 完成」预设后进
- * 画布；发布 202 → 轮询 2s/最长 300s 到终态。
+ * UI 词汇严格取自 Plane 端既有形态：行样式/状态点沿用团队列表页，动作收纳
+ * 进 ⋯ 菜单（CustomMenu + IconButton），弹层用 ModalCore + Input/TextArea/Button，
+ * 主操作用 Button。发布轮询复用管理端验证过的模式（202 → 2s/最长 300s）。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "@plane/i18n";
-import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
-import { GitBranch, Pencil, Plus, Rocket, Trash2 } from "lucide-react";
+import { Button as PropelButton } from "@plane/propel/button";
+
+import { AlertModalCore, CustomMenu, EModalPosition, EModalWidth, Input, ModalCore, Table, TextArea } from "@plane/ui";
+import { GitBranch, History, MoreHorizontal, Pencil, Plus, Rocket, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "react-router";
 // services
@@ -21,9 +24,11 @@ import workflowService, {
   type EngineConnectionOption,
   type PublishedExpert,
   type TeamWorkflow,
+  type TeamWorkflowVersion,
 } from "@/services/agent-teams/workflow.service";
 // components
 import { EmptyRow, RowList, Section } from "./section";
+import { FormSelect } from "./form-select";
 
 type WorkflowForm = {
   name: string;
@@ -39,11 +44,6 @@ const EMPTY_FORM: WorkflowForm = {
   ownerExpertId: "",
   engineConnectionId: "",
   singleAgentPrompt: "",
-};
-
-const STATUS_STYLES: Record<string, string> = {
-  published: "rounded-full bg-green-500/15 px-2 py-0.5 text-[11px] text-green-600",
-  draft: "rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-600",
 };
 
 // 串行间隔轮询（2s/最长 300s）用 then 链表达：无循环 await，链上每步有返回值。
@@ -83,6 +83,22 @@ function pollPublish(
   return tick();
 }
 
+/** 状态点：与团队列表页同款（quiet dot + 着色文案），不做实心徽章。 */
+function WorkflowStatus({ status }: { status: string }) {
+  const { t } = useTranslation();
+  const active = status === "published";
+  return (
+    <span
+      className={`inline-flex flex-shrink-0 items-center gap-1 text-caption-sm-regular ${
+        active ? "text-accent-primary" : "text-tertiary"
+      }`}
+    >
+      <span className={`size-1.5 rounded-full ${active ? "bg-accent-primary" : "bg-tertiary"}`} aria-hidden />
+      {active ? t("agent_teams_workflows_status_published") : t("agent_teams_workflows_status_draft")}
+    </span>
+  );
+}
+
 export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
   const { t } = useTranslation();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
@@ -90,7 +106,7 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
   const [workflows, setWorkflows] = useState<TeamWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
   // 存 i18n key 而非译文——避免把 t 放进回调依赖（t 每渲染新引用会触发
-  // effect 重跑 → loading 反复置位 → 区块闪烁）。
+  // effect 重跑 → loading 反复置位 → 区块闪烁，10-09 实证修复）。
   const [errorKey, setErrorKey] = useState("");
 
   // 目录（弹层打开时取一次——与管理端模型清单同一节奏）
@@ -102,15 +118,76 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
   const [form, setForm] = useState<WorkflowForm>(EMPTY_FORM);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [pendingId, setPendingId] = useState("");
   const [publishingId, setPublishingId] = useState("");
   const [message, setMessage] = useState("");
+  // 版本历史（管理端工作流库同能力迁移）：选中流程的版本列表弹层。
+  const [historyFor, setHistoryFor] = useState<TeamWorkflow | null>(null);
+  // 关闭时先让弹层收起再清数据——直接置 null 会让收起动画期间标题闪成「· 版本历史」。
+  const closeHistory = useCallback(() => {
+    setHistoryOpen(false);
+    setTimeout(() => setHistoryFor(null), 200);
+  }, []);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyVersions, setHistoryVersions] = useState<TeamWorkflowVersion[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const canvasPath = (workflowId: string) => `/${workspaceSlug}/agent-teams/${teamId}/workflows/${workflowId}`;
 
+  // 版本历史列：版本[最新标]/状态[失败⚠]/发布时间/创建人（定义摘要是审计用
+  // 内容指纹，对用户无消费价值，不展示）。
+  const historyColumns = useMemo(
+    () => [
+      {
+        key: "version",
+        content: t("agent_teams_wf_col_version"),
+        tdRender: (row: TeamWorkflowVersion) => (
+          <span className="text-13 text-primary">
+            v{row.version}
+            {historyVersions[0]?.id === row.id ? (
+              <span className="ml-2 rounded-full bg-accent-subtle px-2 py-0.5 text-11 text-accent-primary">
+                {t("agent_teams_wf_latest")}
+              </span>
+            ) : null}
+          </span>
+        ),
+      },
+      {
+        key: "status",
+        content: t("agent_teams_wf_col_status"),
+        tdRender: (row: TeamWorkflowVersion) => (
+          <span>
+            <WorkflowStatus status={row.status} />
+            {row.publishError ? (
+              <span className="ml-1 text-11 text-danger-primary" title={row.publishError}>
+                ⚠
+              </span>
+            ) : null}
+          </span>
+        ),
+      },
+      {
+        key: "publishedAt",
+        content: t("agent_teams_wf_col_published_at"),
+        tdRender: (row: TeamWorkflowVersion) => (
+          <span className="text-12 text-secondary">
+            {row.publishedAt ? new Date(row.publishedAt).toLocaleString() : "-"}
+          </span>
+        ),
+      },
+      {
+        key: "createdBy",
+        content: t("agent_teams_wf_col_created_by"),
+        tdRender: (row: TeamWorkflowVersion) => (
+          <span className="text-12 text-secondary">{row.createdByName ?? row.createdBy ?? "-"}</span>
+        ),
+      },
+    ],
+    [t, historyVersions]
+  );
+
   const loadedOnce = useRef(false);
   const load = useCallback(async () => {
-    // 只有首帧（无数据）展示加载骨架；发布/删除后的刷新静默换数据，不闪骨架。
+    // 只有首帧（无数据）展示加载态；发布/删除后的刷新静默换数据，不闪。
     if (!loadedOnce.current) setLoading(true);
     try {
       const items = await workflowService.listTeamWorkflows(teamId);
@@ -120,7 +197,6 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
     } catch {
       setErrorKey("agent_teams_workflows_load_failed");
     } finally {
-      loadedOnce.current = true;
       setLoading(false);
     }
   }, [teamId]);
@@ -129,7 +205,7 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
     void load();
   }, [load]);
 
-  // 弹窗 Esc/背板关闭与目录懒加载：ModalCore 承担交互，这里只备数据。
+  // 弹层打开时懒加载目录（负责成员/引擎清单），失败静默降级为手填。
   useEffect(() => {
     if (!isModalOpen) return;
     let ignore = false;
@@ -137,7 +213,7 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
       workflowService.listPublishedExperts().catch(() => [] as PublishedExpert[]),
       workflowService.listEngineConnections().catch(() => [] as EngineConnectionOption[]),
     ]).then(([expertItems, engineItems]) => {
-      if (ignore) return;
+      if (ignore) return null;
       setExperts(expertItems);
       setEngines(engineItems);
       return null;
@@ -146,6 +222,18 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
       ignore = true;
     };
   }, [isModalOpen]);
+
+  function openHistory(workflow: TeamWorkflow) {
+    setHistoryFor(workflow);
+    setHistoryOpen(true);
+    setHistoryVersions([]);
+    setHistoryLoading(true);
+    workflowService
+      .listTeamWorkflowVersions(teamId, workflow.id)
+      .then((items) => setHistoryVersions(items))
+      .catch(() => setHistoryVersions([]))
+      .finally(() => setHistoryLoading(false));
+  }
 
   function openCreate() {
     setEditing(null);
@@ -177,7 +265,7 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
     setSubmitting(true);
     try {
       if (editing) {
-        // 元数据编辑（阶段 3 补齐的入口）：名称/描述/负责成员/引擎。
+        // 元数据编辑：名称/描述/负责成员/引擎（阶段 3 补齐的入口）。
         await workflowService.updateTeamWorkflow(teamId, editing.id, {
           name,
           description: form.description.trim() || undefined,
@@ -215,10 +303,8 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
         window.location.assign(canvasPath(created.id));
       }
     } catch (err) {
-      setFormError(
-        t("agent_teams_wf_save_failed") +
-          ((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "")
-      );
+      const detail = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setFormError(t("agent_teams_wf_save_failed") + (detail ? `：${detail}` : ""));
     } finally {
       setSubmitting(false);
     }
@@ -241,48 +327,50 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
       });
     } catch (err) {
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
-      if (code === "WORKFLOW_DRAFT_NOT_FOUND") {
-        setMessage(t("agent_teams_workflows_publish_no_draft"));
-      } else {
-        setMessage(t("agent_teams_workflows_publish_failed"));
-      }
+      setMessage(
+        code === "WORKFLOW_DRAFT_NOT_FOUND"
+          ? t("agent_teams_workflows_publish_no_draft")
+          : t("agent_teams_workflows_publish_failed")
+      );
     } finally {
       setPublishingId("");
     }
   }
 
-  async function handleDelete(workflow: TeamWorkflow) {
-    if (!window.confirm(t("agent_teams_workflows_delete_confirm"))) return;
-    setPendingId(workflow.id);
+  // 删除确认走 AlertModalCore（Plane 标准确认弹层，cycles/delete-modal 同款），
+  // 不用原生 window.confirm。
+  const [deleteFor, setDeleteFor] = useState<TeamWorkflow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!deleteFor) return;
+    setDeleting(true);
     try {
-      await workflowService.deleteTeamWorkflow(teamId, workflow.id);
+      await workflowService.deleteTeamWorkflow(teamId, deleteFor.id);
+      setDeleteFor(null);
       await load();
     } catch {
       setMessage(t("agent_teams_workflows_delete_failed"));
     } finally {
-      setPendingId("");
+      setDeleting(false);
     }
   }
 
-  const busy = submitting || publishingId !== "" || pendingId !== "";
+  const busy = submitting || publishingId !== "";
 
   return (
     <Section
       label={t("agent_teams_workflows_title")}
       count={workflows.length}
       icon={<GitBranch className="size-3.5" aria-hidden />}
-    >
-      <div className="flex items-center justify-between gap-2">
-        {message ? <span className="text-caption-sm-regular text-tertiary">{message}</span> : <span />}
-        <button
-          type="button"
-          onClick={openCreate}
-          className="hover:bg-custom-background-80 inline-flex items-center gap-1.5 rounded-lg border border-subtle bg-layer-2 px-3 py-1.5 text-caption-sm-medium text-primary transition-colors"
-        >
+      action={
+        <PropelButton variant="secondary" size="lg" onClick={openCreate}>
           <Plus className="size-3.5" aria-hidden />
           {t("agent_teams_workflows_create")}
-        </button>
-      </div>
+        </PropelButton>
+      }
+    >
+      {message ? <span className="text-caption-sm-regular text-tertiary">{message}</span> : null}
       {loading ? (
         <div className="rounded-lg border border-subtle px-4 py-6 text-center text-body-sm-regular text-tertiary">
           {t("agent_teams_inbox_loading")}
@@ -296,7 +384,7 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
           {workflows.map((workflow, index) => (
             <div
               key={workflow.id}
-              className={`flex flex-wrap items-center gap-2 px-4 py-3 ${index > 0 ? "border-t border-subtle" : ""}`}
+              className={`flex items-center gap-3 px-4 py-3 ${index > 0 ? "border-t border-subtle" : ""}`}
             >
               <Link
                 href={canvasPath(workflow.id)}
@@ -304,50 +392,52 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
               >
                 {workflow.name}
               </Link>
-              <span className={STATUS_STYLES[workflow.status] ?? STATUS_STYLES.draft}>
-                {workflow.status === "published"
-                  ? t("agent_teams_workflows_status_published")
-                  : t("agent_teams_workflows_status_draft")}
-              </span>
-              {workflow.currentVersion != null && (
+              <WorkflowStatus status={workflow.status} />
+              {workflow.currentVersion != null ? (
                 <span className="text-caption-sm-regular text-tertiary">v{workflow.currentVersion}</span>
-              )}
-              <span className="ml-auto flex shrink-0 items-center gap-1">
-                <Link
-                  href={canvasPath(workflow.id)}
-                  className="rounded-md px-2 py-1 text-caption-sm-regular text-accent-primary hover:underline"
+              ) : null}
+              {publishingId === workflow.id ? (
+                <span className="text-caption-sm-regular text-accent-primary">
+                  {t("agent_teams_workflows_publishing")}
+                </span>
+              ) : null}
+              <span className="ml-auto" />
+              <CustomMenu
+                customButton={<MoreHorizontal className="size-4 text-tertiary hover:text-primary" aria-hidden />}
+                placement="bottom-end"
+                closeOnSelect
+              >
+                <CustomMenu.MenuItem
+                  onClick={() => window.open(canvasPath(workflow.id), "_self")}
+                  className="flex items-center gap-2"
                 >
+                  <GitBranch className="size-3.5" aria-hidden />
                   {t("agent_teams_workflows_open_canvas")}
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => openEdit(workflow)}
-                  disabled={busy}
-                  title={t("agent_teams_workflows_edit")}
-                  className="rounded-md p-1.5 text-tertiary transition-colors hover:bg-layer-2 hover:text-primary disabled:opacity-50"
-                >
+                </CustomMenu.MenuItem>
+                <CustomMenu.MenuItem onClick={() => openHistory(workflow)} className="flex items-center gap-2">
+                  <History className="size-3.5" aria-hidden />
+                  {t("agent_teams_workflows_history")}
+                </CustomMenu.MenuItem>
+                <CustomMenu.MenuItem onClick={() => openEdit(workflow)} className="flex items-center gap-2">
                   <Pencil className="size-3.5" aria-hidden />
-                </button>
-                <button
-                  type="button"
+                  {t("agent_teams_workflows_edit")}
+                </CustomMenu.MenuItem>
+                <CustomMenu.MenuItem
                   onClick={() => void handlePublish(workflow)}
                   disabled={busy}
-                  title={t("agent_teams_workflows_publish")}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-caption-sm-regular text-accent-primary transition-colors hover:bg-layer-2 disabled:opacity-50"
+                  className="flex items-center gap-2"
                 >
                   <Rocket className="size-3.5" aria-hidden />
-                  {publishingId === workflow.id ? t("agent_teams_workflows_publishing") : ""}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete(workflow)}
-                  disabled={busy}
-                  title={t("agent_teams_workflows_delete")}
-                  className="hover:text-red-500 rounded-md p-1.5 text-tertiary transition-colors hover:bg-layer-2 disabled:opacity-50"
+                  {t("agent_teams_workflows_publish")}
+                </CustomMenu.MenuItem>
+                <CustomMenu.MenuItem
+                  onClick={() => setDeleteFor(workflow)}
+                  className="text-red-500 flex items-center gap-2"
                 >
                   <Trash2 className="size-3.5" aria-hidden />
-                </button>
-              </span>
+                  {t("agent_teams_workflows_delete")}
+                </CustomMenu.MenuItem>
+              </CustomMenu>
             </div>
           ))}
         </RowList>
@@ -356,97 +446,138 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
       <ModalCore
         isOpen={isModalOpen}
         handleClose={() => setIsModalOpen(false)}
-        position={EModalPosition.CENTER}
+        position={EModalPosition.TOP}
         width={EModalWidth.XXL}
       >
-        <div className="flex flex-col gap-4 p-6">
-          <h3 className="text-base text-custom-text-100 font-medium">
+        {/* 逐字对齐 Plane 周期创建表单（cycles/form.tsx）的结构与规格：
+            p-5/space-y-5 外层、text-18 标题、竖排 space-y-3 字段、
+            Input md + text-14、错误 text-11 红字、
+            border-t-[0.5px] 页脚 + propel Button secondary/primary size lg。 */}
+        <div className="space-y-5 p-5">
+          <h3 className="text-18 font-medium text-secondary">
             {editing ? t("agent_teams_wf_modal_edit_title") : t("agent_teams_wf_modal_create_title")}
           </h3>
-          {formError ? (
-            <div className="border-red-500/30 bg-red-500/10 text-sm text-red-500 rounded-lg border px-3 py-2">
-              {formError}
-            </div>
-          ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-sm text-custom-text-200 grid gap-1">
-              <span>{t("agent_teams_wf_field_name")} *</span>
-              <input
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Input
+                name="name"
+                type="text"
+                inputSize="sm"
+                className="w-full"
+                placeholder={`${t("agent_teams_wf_field_name")} *`}
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                className="border-custom-border-200 text-sm text-custom-text-100 focus:border-custom-primary-100 rounded-lg border bg-transparent px-3 py-2 outline-none"
+                hasError={Boolean(formError)}
               />
-            </label>
-            <label className="text-sm text-custom-text-200 grid gap-1">
-              <span>{t("agent_teams_wf_field_owner")} *</span>
-              <select
+              {formError ? <span className="text-11 text-danger-primary">{formError}</span> : null}
+            </div>
+            <div className="space-y-1">
+              <FormSelect
                 value={form.ownerExpertId}
-                onChange={(e) => setForm((prev) => ({ ...prev, ownerExpertId: e.target.value }))}
-                className="border-custom-border-200 text-sm text-custom-text-100 focus:border-custom-primary-100 rounded-lg border bg-transparent px-3 py-2 outline-none"
-              >
-                <option value="">{t("agent_teams_wf_owner_placeholder")}</option>
-                {experts.map((expert) => (
-                  <option key={expert.id} value={expert.id}>
-                    {expert.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm text-custom-text-200 grid gap-1 md:col-span-2">
-              <span>{t("agent_teams_wf_field_desc")}</span>
-              <input
+                placeholder={`${t("agent_teams_wf_field_owner")} *`}
+                options={experts.map((e) => ({ id: e.id, name: e.name }))}
+                onChange={(v) => setForm((prev) => ({ ...prev, ownerExpertId: v }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <TextArea
+                name="description"
+                mode="primary"
+                textAreaSize="sm"
+                className="font-normal min-h-16 w-full resize-none text-13"
+                placeholder={t("agent_teams_wf_field_desc")}
                 value={form.description}
                 onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="border-custom-border-200 text-sm text-custom-text-100 focus:border-custom-primary-100 rounded-lg border bg-transparent px-3 py-2 outline-none"
               />
-            </label>
-            <label className="text-sm text-custom-text-200 grid gap-1">
-              <span>{t("agent_teams_wf_field_engine")}</span>
-              <select
+            </div>
+            <div className="space-y-1">
+              <FormSelect
                 value={form.engineConnectionId}
-                onChange={(e) => setForm((prev) => ({ ...prev, engineConnectionId: e.target.value }))}
-                className="border-custom-border-200 text-sm text-custom-text-100 focus:border-custom-primary-100 rounded-lg border bg-transparent px-3 py-2 outline-none"
-              >
-                <option value="">{t("agent_teams_wf_engine_auto")}</option>
-                {engines.map((engine) => (
-                  <option key={engine.id} value={engine.id}>
-                    {engine.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                placeholder={t("agent_teams_wf_engine_auto")}
+                options={engines.map((e) => ({ id: e.id, name: e.name }))}
+                onChange={(v) => setForm((prev) => ({ ...prev, engineConnectionId: v }))}
+              />
+              <span className="text-11 text-tertiary">{t("agent_teams_wf_engine_auto")}</span>
+            </div>
             {!editing ? (
-              <label className="text-sm text-custom-text-200 grid gap-1 md:col-span-2">
-                <span>{t("agent_teams_wf_field_prompt")}</span>
-                <textarea
+              <div className="space-y-1">
+                <TextArea
+                  name="singleAgentPrompt"
+                  mode="primary"
+                  textAreaSize="sm"
+                  className="font-normal min-h-24 w-full resize-none text-13"
+                  placeholder={t("agent_teams_wf_field_prompt")}
                   value={form.singleAgentPrompt}
                   onChange={(e) => setForm((prev) => ({ ...prev, singleAgentPrompt: e.target.value }))}
-                  rows={4}
-                  className="border-custom-border-200 text-sm text-custom-text-100 focus:border-custom-primary-100 resize-y rounded-lg border bg-transparent px-3 py-2 outline-none"
                 />
-                <span className="text-xs text-custom-text-300">{t("agent_teams_wf_prompt_hint")}</span>
-              </label>
+                <span className="text-11 text-tertiary">{t("agent_teams_wf_prompt_hint")}</span>
+              </div>
             ) : null}
           </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="border-custom-border-200 text-sm text-custom-text-200 hover:bg-custom-background-80 rounded-lg border px-4 py-2"
-            >
-              {t("common.cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleSubmit()}
-              disabled={submitting}
-              className="bg-custom-primary-100 text-sm hover:bg-custom-primary-90 rounded-lg px-4 py-2 font-medium text-white disabled:opacity-60"
-            >
-              {submitting ? t("agent_teams_wf_saving") : t("common.save")}
-            </button>
-          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t-[0.5px] border-subtle px-5 py-4">
+          <PropelButton variant="secondary" size="lg" onClick={() => setIsModalOpen(false)}>
+            {t("cancel")}
+          </PropelButton>
+          <PropelButton variant="primary" size="lg" onClick={() => void handleSubmit()} loading={submitting}>
+            {submitting ? t("agent_teams_wf_saving") : t("save")}
+          </PropelButton>
         </div>
       </ModalCore>
+
+      {/* 版本历史：管理端同内容（版本[最新]/状态[失败⚠]/发布时间/发布人/定义摘要），
+          Plane 弹层与表格样式。 */}
+      <ModalCore isOpen={historyOpen} handleClose={closeHistory} position={EModalPosition.TOP} width={EModalWidth.XXL}>
+        <div className="space-y-4 p-5">
+          <h3 className="text-18 font-medium text-secondary">
+            {t("agent_teams_workflows_history_title", { name: historyFor?.name ?? "" })}
+          </h3>
+          {historyLoading ? (
+            <div className="py-8 text-center text-13 text-tertiary">{t("agent_teams_inbox_loading")}</div>
+          ) : historyVersions.length === 0 ? (
+            <EmptyRow label={t("agent_teams_workflows_history_empty")} />
+          ) : (
+            <Table
+              columns={historyColumns}
+              data={historyVersions}
+              keyExtractor={(row) => row.id}
+              tHeadClassName="border-b border-subtle"
+              thClassName="text-left font-medium divide-x-0 text-placeholder"
+              tBodyClassName="divide-y-0"
+              tBodyTrClassName="divide-x-0 h-[40px] text-secondary"
+              tHeadTrClassName="divide-x-0"
+            />
+          )}
+        </div>
+        <div className="flex items-center justify-end border-t-[0.5px] border-subtle px-5 py-4">
+          <PropelButton variant="secondary" size="lg" onClick={closeHistory}>
+            {t("close")}
+          </PropelButton>
+        </div>
+      </ModalCore>
+
+      {/* 删除确认：AlertModalCore（Plane 标准形态）。 */}
+      <AlertModalCore
+        handleClose={() => setDeleteFor(null)}
+        handleSubmit={() => void handleDelete()}
+        isSubmitting={deleting}
+        isOpen={!!deleteFor}
+        title={t("agent_teams_workflows_delete")}
+        primaryButtonText={{
+          loading: t("agent_teams_workflows_deleting"),
+          default: t("agent_teams_workflows_delete"),
+        }}
+        secondaryButtonText={t("cancel")}
+        content={
+          <>
+            {t("agent_teams_workflows_delete_confirm_prefix")}
+            {' "'}
+            <span className="font-medium break-words text-primary">{deleteFor?.name}</span>
+            {'"'}
+            {t("agent_teams_workflows_delete_confirm_suffix")}
+          </>
+        }
+      />
     </Section>
   );
 }

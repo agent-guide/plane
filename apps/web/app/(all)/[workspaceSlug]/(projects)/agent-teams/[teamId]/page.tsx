@@ -384,7 +384,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                             className="cursor-pointer border-t border-subtle px-4 py-3 text-center text-caption-sm-medium text-accent-primary hover:underline"
                             onClick={loadMoreProjects}
                           >
-                            {t("common.load_more")} &darr;
+                            {t("load_more")} &darr;
                           </div>
                         ) : null}
                       </RowList>

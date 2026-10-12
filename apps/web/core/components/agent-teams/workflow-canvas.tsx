@@ -8,7 +8,7 @@
 // Node types (§5): agent (autonomous LLM work), tool (deterministic MCP call,
 // connection-resolved credentials), human_confirm (pauses the run for a person).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -32,17 +32,13 @@ import {
 // oxlint-disable-next-line import/no-unassigned-import
 import "@xyflow/react/dist/style.css";
 import type { WorkflowGraph, WorkflowGraphNode } from "@/services/agent-teams/workflow.service";
-// 表单样式常量内联自管理端 ui-fields（画布编辑器整体沿用其成熟视觉，
-// 页面外壳才使用 Plane 组件体系——专用编辑面与页面 chrome 分层）。
-const FIELD_LABEL_CLASS = "mt-5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9a948a]";
-const FIELD_HINT_CLASS = "mt-1 block text-[12px] font-normal leading-[1.6] text-[#9a948a]";
-const FIELD_INPUT_CLASS =
-  "mt-1.5 w-full rounded-[10px] border border-[#e6e2da] bg-white px-3 py-2 text-[13px] font-normal text-[#1f242d] outline-none transition-colors hover:border-[#d8d2c8] focus:border-[#4a5260]";
-const FIELD_TEXTAREA_CLASS = `${FIELD_INPUT_CLASS} resize-y leading-[1.7]`;
-const FIELD_MONO_TEXTAREA_CLASS =
-  "mt-1.5 w-full resize-y rounded-[10px] border border-[#e6e2da] bg-white px-3 py-2 font-mono text-[12px] font-normal leading-[1.6] text-[#1f242d] outline-none transition-colors hover:border-[#d8d2c8] focus:border-[#4a5260]";
-const FIELD_ROW_INPUT_CLASS =
-  "min-w-0 flex-1 rounded-[8px] border border-[#e6e2da] bg-white px-2.5 py-1.5 text-[13px] font-normal text-[#1f242d] outline-none focus:border-[#4a5260]";
+import { FormSelect } from "./form-select";
+import { Button } from "@plane/propel/button";
+import { Checkbox, CustomMenu, Input, TextArea } from "@plane/ui";
+import { MousePointerClick, Plus } from "lucide-react";
+// 面板小节标签/提示样式（其余控件均为 @plane/ui 组件）。
+const FIELD_LABEL_CLASS = "block text-12 font-normal text-secondary";
+const FIELD_HINT_CLASS = "block text-11 font-normal leading-relaxed text-tertiary";
 
 export const NODE_TYPES = ["agent", "tool", "human_confirm", "condition"] as const;
 export type GraphNodeType = (typeof NODE_TYPES)[number];
@@ -122,7 +118,7 @@ function ConditionBranchLine({ nodeId }: { nodeId: string }) {
   const edges = useEdges();
   const nodes = useNodes() as FlowNode[];
   const summary = branchSummary(nodeId, edges, nodes);
-  return <p className="mt-1 truncate text-[11px] leading-[1.6] text-[#a16207]">{summary || "（拉出连线定义分支）"}</p>;
+  return <p className="text-amber-600 mt-1 truncate text-11 leading-relaxed">{summary || "（拉出连线定义分支）"}</p>;
 }
 
 function branchSummary(nodeId: string, edges: Edge[], nodes: FlowNode[]): string {
@@ -137,66 +133,51 @@ function branchSummary(nodeId: string, edges: Edge[], nodes: FlowNode[]): string
     .join("  ");
 }
 
-function PlusIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
 // Type-coded accent (n8n/Dify pattern): one quiet color dot per node class so
 // a populated canvas reads by shape of color before any label. Canvas-local
 // coding — agent ink, tool neutral, confirm amber (needs a human), condition
 // green (routes onward).
 const TYPE_ACCENTS: Record<string, string> = {
-  agent: "#232f3e",
-  tool: "#6f7783",
-  human_confirm: "#a16207",
-  condition: "#3ba272",
+  agent: "#6366f1",
+  tool: "#64748b",
+  human_confirm: "#f59e0b",
+  condition: "#22c55e",
 };
 
 export function GraphNodeCard({ data, selected, type, id }: NodeProps<FlowNode>) {
-  const accent = TYPE_ACCENTS[type] ?? "#6f7783";
+  const accent = TYPE_ACCENTS[type] ?? "#64748b";
   return (
     <div
-      className={`w-[220px] rounded-[14px] border bg-gradient-to-b from-white to-[#fbfaf8] px-3.5 py-3 ring-1 transition-all duration-150 ${
+      className={`w-[220px] rounded-lg border bg-layer-1 px-3.5 py-3 transition-all duration-150 ${
         selected
-          ? "border-[#232f3e] shadow-[0_8px_24px_rgba(20,26,36,0.16)] ring-[#232f3e]"
-          : "border-[#e6e2da] shadow-[0_1px_2px_rgba(20,26,36,0.04)] ring-transparent hover:border-[#d8d2c8] hover:shadow-[0_4px_14px_rgba(20,26,36,0.09)]"
+          ? "border-accent-strong shadow-[0_8px_24px_rgba(20,26,36,0.16)]"
+          : "border-subtle shadow-[0_1px_2px_rgba(20,26,36,0.04)] hover:border-strong hover:shadow-[0_4px_14px_rgba(20,26,36,0.09)]"
       }`}
     >
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-[9px] !w-[9px] !border-2 !border-white !bg-[#c8c2b6] shadow-[0_0_0_1px_rgba(20,26,36,0.08)]"
+        className="!bg-strong !h-[9px] !w-[9px] !border-2 !border-white shadow-[0_0_0_1px_rgba(20,26,36,0.08)]"
       />
       {/* Icon anchor (n8n pattern): the type-colored square alone carries the
           node class — no text type label, it only competed with the title. */}
       <div className="flex items-center gap-2.5">
         <span
-          className="grid h-[20px] w-[20px] shrink-0 place-items-center rounded-[6px] text-[10px] font-semibold text-white"
+          className="grid h-[20px] w-[20px] shrink-0 place-items-center rounded-sm text-[10px] font-semibold text-white"
           style={{ backgroundColor: accent }}
           title={TYPE_LABELS[type] ?? type}
           aria-hidden
         >
           {(TYPE_LABELS[type] ?? "N").slice(0, 1)}
         </span>
-        <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-[#1f242d]">{data.name || "—"}</p>
+        <p className="min-w-0 flex-1 truncate text-13 font-medium text-primary">{data.name || "—"}</p>
       </div>
-      <p className="mt-1.5 line-clamp-2 text-[12px] leading-[1.55] text-[#6f6a61]">{nodeSummary(data) || "—"}</p>
+      <p className="mt-1.5 line-clamp-2 text-12 leading-relaxed text-secondary">{nodeSummary(data) || "—"}</p>
       {type === "condition" ? <ConditionBranchLine nodeId={id} /> : null}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!h-[9px] !w-[9px] !border-2 !border-white !bg-[#c8c2b6] shadow-[0_0_0_1px_rgba(20,26,36,0.08)]"
+        className="!bg-strong !h-[9px] !w-[9px] !border-2 !border-white shadow-[0_0_0_1px_rgba(20,26,36,0.08)]"
       />
     </div>
   );
@@ -230,12 +211,12 @@ export function graphToFlow(graph: WorkflowGraph | null | undefined): {
       target: e.target,
       // Branch label rides on the edge (n8n/Dify pattern).
       label: e.label || undefined,
-      labelStyle: { fill: "#a16207", fontSize: 10, fontWeight: 600 },
-      labelBgStyle: { fill: "#fffdf8", stroke: "#f1dec1", strokeWidth: 1 },
+      labelStyle: { fill: "#d97706", fontSize: 10, fontWeight: 600 },
+      labelBgStyle: { fill: "#fffbeb", stroke: "#fde68a", strokeWidth: 1 },
       labelBgPadding: [5, 2],
       labelBgBorderRadius: 5,
-      markerEnd: { type: MarkerType.Arrow, color: "#a39d91", width: 14, height: 14 },
-      style: { stroke: "#c8c2b6", strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.Arrow, color: "#94a3b8", width: 14, height: 14 },
+      style: { stroke: "#cbd5e1", strokeWidth: 1.5 },
     })),
   };
 }
@@ -393,6 +374,8 @@ export function WorkflowCanvasEditor({
   connections = [],
   employees = [],
   users = [],
+  headerLeft,
+  headerRight,
 }: {
   initialGraph: WorkflowGraph | null | undefined;
   onSave: (graph: WorkflowGraph) => Promise<void>;
@@ -401,20 +384,14 @@ export function WorkflowCanvasEditor({
   connections?: ConnectionEntry[];
   employees?: EmployeeEntry[];
   users?: UserEntry[];
+  /** 单行头部左区（返回/标题等）；缺省渲染添加节点菜单。 */
+  headerLeft?: React.ReactNode;
+  /** 单行头部右区（发布/设置等），渲染在保存按钮左侧。 */
+  headerRight?: React.ReactNode;
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>(graphToFlow(initialGraph).nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graphToFlow(initialGraph).edges);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const addMenuRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!addMenuOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!addMenuRef.current?.contains(event.target as Element)) setAddMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [addMenuOpen]);
   const ADD_LABELS: Record<string, string> = {
     agent: labels.addAgent,
     tool: labels.addTool,
@@ -433,12 +410,12 @@ export function WorkflowCanvasEditor({
         addEdge(
           {
             ...connection,
-            labelStyle: { fill: "#a16207", fontSize: 10, fontWeight: 600 },
-            labelBgStyle: { fill: "#fffdf8", stroke: "#f1dec1", strokeWidth: 1 },
+            labelStyle: { fill: "#d97706", fontSize: 10, fontWeight: 600 },
+            labelBgStyle: { fill: "#fffbeb", stroke: "#fde68a", strokeWidth: 1 },
             labelBgPadding: [5, 2],
             labelBgBorderRadius: 5,
-            markerEnd: { type: MarkerType.Arrow, color: "#a39d91", width: 14, height: 14 },
-            style: { stroke: "#c8c2b6", strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.Arrow, color: "#94a3b8", width: 14, height: 14 },
+            style: { stroke: "#cbd5e1", strokeWidth: 1.5 },
           },
           eds
         )
@@ -529,55 +506,41 @@ export function WorkflowCanvasEditor({
       {/* Toolbar — ONE row, grouped (n8n pattern): add-node dropdown left,
           feedback + save right. The four per-type buttons crammed beside save
           read as noise; one quiet menu carries the catalog. */}
-      <header className="flex items-center gap-3 border-b border-[#ece8e2] px-4 py-2.5">
-        <div className="relative" ref={addMenuRef}>
-          <button
-            type="button"
-            onClick={() => setAddMenuOpen((open) => !open)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[#e6e2da] bg-white px-3.5 py-2 text-[13px] font-medium text-[#1f242d] transition-colors hover:border-[#d8d2c8] hover:bg-[#faf9f7]"
-          >
-            <PlusIcon className="h-[15px] w-[15px]" />
-            {labels.addNode}
-          </button>
-          {addMenuOpen ? (
-            <div className="absolute top-11 left-0 z-30 w-[184px] overflow-hidden rounded-[12px] border border-[#e0dcd4] bg-white py-1 shadow-[0_12px_34px_rgba(20,26,36,0.16)]">
-              {(["agent", "tool", "human_confirm", "condition"] as const).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => {
-                    addNode(type);
-                    setAddMenuOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[#222832] hover:bg-[#f6f4f0]"
-                >
-                  <span
-                    className="h-[7px] w-[7px] shrink-0 rounded-full"
-                    style={{ backgroundColor: TYPE_ACCENTS[type] }}
-                    aria-hidden
-                  />
-                  {ADD_LABELS[type]}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <span className="flex-1" />
-        {error ? <span className="text-[13px] text-[#b42318]">{error}</span> : null}
-        {message ? <span className="text-[13px] text-[#047857]">{message}</span> : null}
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving}
-          className="rounded-xl bg-[#232f3e] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#2c3a4d] disabled:opacity-50"
+      <header className="flex items-center gap-2.5 border-b border-subtle px-4 py-2">
+        {headerLeft}
+        <CustomMenu
+          customButton={
+            <Button variant="secondary" size="lg">
+              <Plus className="size-3.5" aria-hidden />
+              {labels.addNode}
+            </Button>
+          }
+          placement="bottom-start"
+          closeOnSelect
         >
+          {(["agent", "tool", "human_confirm", "condition"] as const).map((type) => (
+            <CustomMenu.MenuItem key={type} onClick={() => addNode(type)} className="flex items-center gap-2.5">
+              <span
+                className="size-[7px] shrink-0 rounded-full"
+                style={{ backgroundColor: TYPE_ACCENTS[type] }}
+                aria-hidden
+              />
+              {ADD_LABELS[type]}
+            </CustomMenu.MenuItem>
+          ))}
+        </CustomMenu>
+        <span className="flex-1" />
+        {error ? <span className="text-12 text-danger-primary">{error}</span> : null}
+        {message ? <span className="text-emerald-600 text-12">{message}</span> : null}
+        {headerRight}
+        <Button variant="primary" size="lg" onClick={() => void save()} loading={saving}>
           {saving ? labels.saving : labels.save}
-        </button>
+        </Button>
       </header>
 
       <div className="flex min-h-0 flex-1">
         {/* Canvas */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 bg-canvas">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -602,148 +565,156 @@ export function WorkflowCanvasEditor({
             defaultEdgeOptions={{ type: "smoothstep" }}
             proOptions={{ hideAttribution: true }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} color="#ece8e0" />
+            <Background variant={BackgroundVariant.Dots} gap={20} color="#cbd5e1" />
             <Controls position="bottom-left" showInteractive={false} showFitView />
-            <MiniMap position="bottom-right" pannable zoomable nodeColor="#d5cfc3" maskColor="rgba(250,249,247,0.7)" />
+            <MiniMap position="bottom-right" pannable zoomable nodeColor="#cbd5e1" maskColor="rgba(250,250,251,0.75)" />
           </ReactFlow>
         </div>
 
         {/* Property panel */}
-        <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-[#ece8e2] bg-[#faf9f7] px-5 py-4">
+        <aside className="w-[340px] shrink-0 overflow-y-auto border-l border-subtle bg-surface-1">
           {selectedNode ? (
-            <div className="flex min-h-full flex-col">
-              <p className="tracking-widest text-[11px] font-medium text-[#9a948a] uppercase">
-                {TYPE_LABELS[selectedNode.type] ?? selectedNode.type} · {labels.nodePanelTitle}
-              </p>
-              <label className={FIELD_LABEL_CLASS}>
-                {labels.fieldName}
-                <input
+            <div className="flex min-h-full flex-col gap-5 p-4">
+              <div className="flex items-center gap-2 border-b border-subtle pb-3">
+                <span
+                  className="grid size-5 shrink-0 place-items-center rounded-md text-[10px] font-semibold text-white"
+                  style={{ backgroundColor: TYPE_ACCENTS[selectedNode.type] ?? "#64748b" }}
+                  aria-hidden
+                >
+                  {(TYPE_LABELS[selectedNode.type] ?? "N").slice(0, 1)}
+                </span>
+                <span className="text-13 font-medium text-primary">
+                  {TYPE_LABELS[selectedNode.type] ?? selectedNode.type}
+                </span>
+                <span className="text-12 text-tertiary">{labels.nodePanelTitle}</span>
+              </div>
+              <div className="grid gap-1.5">
+                <span className={FIELD_LABEL_CLASS}>{labels.fieldName}</span>
+                <Input
+                  mode="primary"
+                  inputSize="sm"
+                  className="w-full"
                   value={selectedNode.data.name}
                   onChange={(e) => patchSelected({ name: e.target.value })}
-                  className={FIELD_INPUT_CLASS}
                 />
-              </label>
+              </div>
               {selectedNode.type === "agent" ? (
                 <>
-                  <label className={FIELD_LABEL_CLASS}>
-                    {labels.fieldEmployee}
+                  <div className="grid gap-1.5">
+                    <span className={FIELD_LABEL_CLASS}>{labels.fieldEmployee}</span>
                     {employees.length > 0 ? (
-                      <select
-                        value={selectedNode.data.expertId ?? ""}
-                        onChange={(e) => patchSelected({ expertId: e.target.value })}
-                        className={FIELD_INPUT_CLASS}
-                      >
-                        <option value="">{labels.genericAgent}</option>
-                        {employees.map((emp) => (
-                          <option key={emp.id} value={emp.id}>
-                            {emp.name}
-                            {emp.categoryName ? `（${emp.categoryName}）` : ""}
-                          </option>
-                        ))}
-                      </select>
+                      <span className="block">
+                        <FormSelect
+                          value={selectedNode.data.expertId ?? ""}
+                          placeholder={labels.genericAgent}
+                          options={employees.map((emp) => ({
+                            id: emp.id,
+                            name: emp.categoryName ? `${emp.name}（${emp.categoryName}）` : emp.name,
+                          }))}
+                          onChange={(v) => patchSelected({ expertId: v })}
+                        />
+                      </span>
                     ) : (
-                      <input
+                      <Input
+                        mode="primary"
+                        inputSize="sm"
+                        className="w-full"
                         value={selectedNode.data.expertId ?? ""}
                         onChange={(e) => patchSelected({ expertId: e.target.value })}
                         placeholder="expert_…"
-                        className={FIELD_INPUT_CLASS}
                       />
                     )}
                     {(() => {
                       const bound = employees.find((emp) => emp.id === selectedNode.data.expertId);
                       return bound ? (
-                        <span className="font-normal mt-1 block text-[12px] leading-[1.6] text-[#a16207]">
-                          {bound.name} · {labels.employeePersonaInjected}
-                        </span>
+                        <span className={FIELD_HINT_CLASS}>· {labels.employeePersonaInjected}</span>
                       ) : null;
                     })()}
-                  </label>
-                  <label className={FIELD_LABEL_CLASS}>
-                    {labels.fieldPrompt}
-                    <span className={FIELD_HINT_CLASS}>{labels.fieldPromptHint}</span>
-                    <textarea
+                  </div>
+                  <div className="grid gap-1.5">
+                    <span className={FIELD_LABEL_CLASS}>{labels.fieldPrompt}</span>
+                    <TextArea
+                      mode="primary"
+                      textAreaSize="sm"
+                      className="font-normal min-h-28 w-full resize-y text-13"
                       value={selectedNode.data.prompt ?? ""}
                       onChange={(e) => patchSelected({ prompt: e.target.value })}
-                      rows={10}
                       placeholder={labels.fieldPromptPlaceholder}
-                      className={FIELD_TEXTAREA_CLASS}
                     />
-                  </label>
+                    <span className={FIELD_HINT_CLASS}>{labels.fieldPromptHint}</span>
+                  </div>
                 </>
               ) : null}
               {selectedNode.type === "tool" ? (
                 <>
-                  <label className={FIELD_LABEL_CLASS}>
-                    {labels.fieldToolName}
+                  <div className="grid gap-1.5">
+                    <span className={FIELD_LABEL_CLASS}>{labels.fieldToolName}</span>
                     {toolCatalog.length > 0 ? (
-                      <select
-                        value={selectedNode.data.tool_name ?? ""}
-                        onChange={(e) => patchSelected({ tool_name: e.target.value })}
-                        className={FIELD_INPUT_CLASS}
-                      >
-                        {toolCatalog.map((t) => (
-                          <option key={t.tool_name} value={t.tool_name}>
-                            {t.tool_name} — {t.description}
-                          </option>
-                        ))}
-                      </select>
+                      <span className="block">
+                        <FormSelect
+                          value={selectedNode.data.tool_name ?? ""}
+                          placeholder={labels.fieldToolName}
+                          options={toolCatalog.map((t) => ({ id: t.tool_name, name: t.tool_name }))}
+                          onChange={(v) => patchSelected({ tool_name: v })}
+                        />
+                      </span>
                     ) : (
-                      <input
+                      <Input
+                        mode="primary"
+                        inputSize="sm"
+                        className="w-full"
                         value={selectedNode.data.tool_name ?? ""}
                         onChange={(e) => patchSelected({ tool_name: e.target.value })}
                         placeholder="demo_pm.login"
-                        className={FIELD_INPUT_CLASS}
                       />
                     )}
-                  </label>
-                  <label className={FIELD_LABEL_CLASS}>
-                    {labels.fieldConnection}
+                  </div>
+                  <div className="grid gap-1.5">
+                    <span className={FIELD_LABEL_CLASS}>{labels.fieldConnection}</span>
                     {(() => {
                       const toolType = toolCatalog.find(
                         (t) => t.tool_name === selectedNode.data.tool_name
                       )?.connection_type;
                       const options = toolType ? connections.filter((c) => c.type === toolType) : connections;
                       return options.length > 0 ? (
-                        <select
-                          value={selectedNode.data.connection ?? ""}
-                          onChange={(e) => patchSelected({ connection: e.target.value })}
-                          className={FIELD_INPUT_CLASS}
-                        >
-                          <option value="">{labels.noConnection}</option>
-                          {options.map((c) => (
-                            <option key={c.name} value={c.name}>
-                              {c.name}（{c.type}）
-                            </option>
-                          ))}
-                        </select>
+                        <span className="block">
+                          <FormSelect
+                            value={selectedNode.data.connection ?? ""}
+                            placeholder={labels.noConnection}
+                            options={options.map((c) => ({ id: c.name, name: `${c.name}（${c.type}）` }))}
+                            onChange={(v) => patchSelected({ connection: v })}
+                          />
+                        </span>
                       ) : (
-                        <input
+                        <Input
+                          mode="primary"
+                          inputSize="sm"
+                          className="w-full"
                           value={selectedNode.data.connection ?? ""}
                           onChange={(e) => patchSelected({ connection: e.target.value })}
                           placeholder={labels.connectionPlaceholder}
-                          className={FIELD_INPUT_CLASS}
                         />
                       );
                     })()}
-                  </label>
-                  <label className={FIELD_LABEL_CLASS}>
-                    {labels.fieldParams}
-                    <textarea
+                  </div>
+                  <div className="grid gap-1.5">
+                    <span className={FIELD_LABEL_CLASS}>{labels.fieldParams}</span>
+                    <TextArea
+                      mode="primary"
+                      textAreaSize="sm"
+                      className="font-mono font-normal w-full resize-y text-12"
+                      rows={6}
                       value={selectedNode.data.params ?? ""}
                       onChange={(e) => patchSelected({ params: e.target.value })}
-                      rows={6}
                       placeholder='{"severity": "P1"}'
-                      className={FIELD_MONO_TEXTAREA_CLASS}
                     />
-                  </label>
+                  </div>
                 </>
               ) : null}
               {selectedNode.type === "condition" ? (
                 <div className="mt-4">
-                  <p className="text-[11px] font-semibold tracking-[0.12em] text-[#9a948a] uppercase">
-                    {labels.fieldBranches}
-                  </p>
-                  <p className="mt-1 text-[12px] leading-[1.6] text-[#9a948a]">{labels.fieldBranchesHint}</p>
+                  <p className="text-12 font-medium text-secondary">{labels.fieldBranches}</p>
+                  <p className={FIELD_HINT_CLASS}>{labels.fieldBranchesHint}</p>
                   <div className="mt-2 space-y-2">
                     {edges
                       .filter((e) => e.source === selectedNode.id)
@@ -751,100 +722,96 @@ export function WorkflowCanvasEditor({
                         const target = nodes.find((n) => n.id === edge.target);
                         return (
                           <div key={edge.id} className="flex items-center gap-2">
-                            <input
-                              value={(edge as Edge & { label?: string }).label ?? ""}
+                            <Input
+                              mode="primary"
                               placeholder={`${labels.branchLabel}${edges.filter((x) => x.source === selectedNode.id).indexOf(edge) + 1}（留空自动命名）`}
                               onChange={(e) =>
                                 setEdges((current) =>
                                   current.map((x) => (x.id === edge.id ? ({ ...x, label: e.target.value } as Edge) : x))
                                 )
                               }
-                              className={FIELD_ROW_INPUT_CLASS}
+                              className="w-full"
+                              inputSize="xs"
                             />
-                            <span className="shrink-0 truncate text-[12px] text-[#9a948a]">
+                            <span className="shrink-0 truncate text-12 text-tertiary">
                               → {target?.data.name || target?.id.slice(0, 8) || "?"}
                             </span>
                           </div>
                         );
                       })}
                     {edges.filter((e) => e.source === selectedNode.id).length === 0 ? (
-                      <p className="text-[12px] text-[#b3b9c4]">{labels.noBranches}</p>
+                      <p className="text-12 text-tertiary">{labels.noBranches}</p>
                     ) : null}
                   </div>
                 </div>
               ) : null}
               {selectedNode.type === "human_confirm" ? (
                 <>
-                  <label className={FIELD_LABEL_CLASS}>
-                    {labels.fieldMessage}
-                    <textarea
+                  <div className="grid gap-1.5">
+                    <span className={FIELD_LABEL_CLASS}>{labels.fieldMessage}</span>
+                    <TextArea
+                      mode="primary"
+                      textAreaSize="sm"
+                      className="font-normal w-full resize-y text-13"
+                      rows={4}
                       value={selectedNode.data.message ?? ""}
                       onChange={(e) => patchSelected({ message: e.target.value })}
-                      rows={4}
-                      className={FIELD_TEXTAREA_CLASS}
                     />
-                  </label>
-                  <label className={FIELD_LABEL_CLASS}>
-                    {labels.fieldApprover}
-                    <select
-                      value={selectedNode.data.approverUserId ?? ""}
-                      onChange={(e) => patchSelected({ approverUserId: e.target.value })}
-                      className={FIELD_ROW_INPUT_CLASS}
-                    >
-                      <option value="">{labels.fieldApproverPlaceholder}</option>
-                      {users.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[#9a948a]">
-                    <input
-                      type="checkbox"
+                  </div>
+                  <div className="grid gap-1.5">
+                    <span className={FIELD_LABEL_CLASS}>{labels.fieldApprover}</span>
+                    <span className="block">
+                      <FormSelect
+                        value={selectedNode.data.approverUserId ?? ""}
+                        placeholder={labels.fieldApproverPlaceholder}
+                        options={users.map((u) => ({ id: u.id, name: u.name }))}
+                        onChange={(v) => patchSelected({ approverUserId: v })}
+                      />
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-12 text-secondary">
+                    <Checkbox
                       checked={selectedNode.data.freeText === true}
                       onChange={(e) => patchSelected({ freeText: e.target.checked })}
-                      className="h-4 w-4 accent-[#232f3e]"
                     />
                     {labels.fieldFreeText}
-                  </label>
-                  <div className="mt-4">
-                    <p className="text-[11px] font-semibold tracking-[0.12em] text-[#9a948a] uppercase">
-                      {labels.fieldOptions}
-                    </p>
-                    <p className="mt-1 text-[12px] leading-[1.6] text-[#9a948a]">{labels.fieldOptionsHint}</p>
-                    <div className="mt-2 space-y-2">
+                  </div>
+                  <div className="grid gap-2.5 rounded-md border-[0.5px] border-subtle-1 bg-layer-1 p-3.5">
+                    <div className="grid gap-0.5">
+                      <p className="text-12 font-medium text-secondary">{labels.fieldOptions}</p>
+                      <p className={FIELD_HINT_CLASS}>{labels.fieldOptionsHint}</p>
+                    </div>
+                    <div className="space-y-2">
                       {editableOptions(selectedNode.data.options).map((option, index, all) => (
                         // 选项为草稿行集合（可空 label、无稳定 id），key 用行号占位是
                         // 刻意选择：重排不发生（仅追加/删除尾行）。
                         // oxlint-disable-next-line react/no-array-index-key
                         <div key={index} className="flex items-center gap-2">
-                          <input
-                            value={option.label}
+                          <Input
+                            mode="primary"
                             placeholder={labels.optionLabel}
                             onChange={(e) => {
                               const next = [...all];
                               next[index] = { ...option, label: e.target.value };
                               patchSelected({ options: next });
                             }}
-                            className={FIELD_ROW_INPUT_CLASS}
+                            className="w-full"
+                            inputSize="xs"
                           />
-                          <label
-                            className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[12px] text-[#4a5260]"
+                          <div
+                            className="flex shrink-0 cursor-pointer items-center gap-1.5 text-12 text-secondary"
                             title={labels.terminateHint}
                           >
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={option.terminate === true}
                               onChange={(e) => {
                                 const next = [...all];
                                 next[index] = { ...option, terminate: e.target.checked };
                                 patchSelected({ options: next });
                               }}
-                              className="h-3.5 w-3.5 accent-[#b42318]"
                             />
                             {labels.terminate}
-                          </label>
+                          </div>
                           <button
                             type="button"
                             onClick={() =>
@@ -852,7 +819,7 @@ export function WorkflowCanvasEditor({
                                 options: all.filter((_, i) => i !== index),
                               })
                             }
-                            className="shrink-0 rounded-[6px] border border-[#f1b0b7] px-2 py-1 text-[12px] text-[#b42318] hover:bg-[#fff1f1]"
+                            className="shrink-0 rounded-sm border border-danger-strong px-2 py-1 text-12 text-danger-primary hover:bg-danger-subtle"
                           >
                             ×
                           </button>
@@ -865,7 +832,7 @@ export function WorkflowCanvasEditor({
                             options: [...editableOptions(selectedNode.data.options), { label: "", value: "" }],
                           })
                         }
-                        className="w-full rounded-[8px] border border-dashed border-[#d8d2c8] px-3 py-1.5 text-[12px] text-[#232f3e] hover:border-[#232f3e] hover:bg-[#faf9f7]"
+                        className="text-custom-primary-100 w-full rounded-md border border-dashed border-strong px-3 py-1.5 text-12 hover:border-accent-strong hover:bg-layer-2-hover"
                       >
                         + {labels.addOption}
                       </button>
@@ -874,16 +841,19 @@ export function WorkflowCanvasEditor({
                 </>
               ) : null}
               <span className="flex-1" />
-              <button
-                type="button"
-                onClick={deleteSelected}
-                className="mt-4 rounded-[8px] border border-[#fcd7d7] bg-[#fff8f8] px-3 py-2 text-[13px] font-medium text-[#b42318] transition-colors hover:bg-[#fff1f1]"
-              >
-                {labels.deleteNode}
-              </button>
+              <div className="flex justify-end border-t border-subtle pt-3">
+                <Button variant="error-outline" size="lg" onClick={deleteSelected}>
+                  {labels.deleteNode}
+                </Button>
+              </div>
             </div>
           ) : (
-            <p className="px-1 py-6 text-[13px] leading-[1.8] text-[#9a948a]">{labels.selectNodeHint}</p>
+            <div className="grid place-items-center p-4 pt-10">
+              <MousePointerClick className="size-5 text-tertiary" aria-hidden />
+              <p className="mt-3 max-w-[240px] text-center text-12 leading-relaxed text-tertiary">
+                {labels.selectNodeHint}
+              </p>
+            </div>
           )}
         </aside>
       </div>
