@@ -17,11 +17,15 @@ import ProjectCreateHeader from "@/components/project/create/header";
 import ProjectCreateButtons from "@/components/project/create/project-create-buttons";
 // hooks
 import { getCoverImageType, uploadCoverImage } from "@/helpers/cover-image.helper";
+import { ProjectService } from "@/services/project/project.service";
 import { useProject } from "@/hooks/store/use-project";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web types
 import type { TProject } from "@plane/types";
 import { ProjectAttributes } from "./attributes";
+// Agent Teams extension：建项目即绑定（阶段 4）。
+import type { ExecutionSelection } from "@/components/agent-teams/project-execution-fields";
+import workflowService from "@/services/agent-teams/workflow.service";
 import { getProjectFormValues } from "./utils";
 
 export type TCreateProjectFormProps = {
@@ -41,6 +45,9 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
   const { addProjectToFavorites, createProject, updateProject } = useProject();
   // states
   const [shouldAutoSyncIdentifier, setShouldAutoSyncIdentifier] = useState(true);
+  // 补偿删除走 service 直连：补偿场景无需 store 增量同步（失败路径表单不关）。
+  const projectService = new ProjectService();
+  const [execution, setExecution] = useState<ExecutionSelection>(null);
   // form info
   const methods = useForm<TProject>({
     defaultValues: { ...getProjectFormValues(), ...data },
@@ -60,7 +67,48 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
     });
   };
 
+  // Saga 补偿辅助（建项目即绑定）：绑定 409=已绑定视为成功（幂等重放）；
+  // 删除回滚幂等且带退避重试 x2（瞬时故障兜底，AWS/Stripe SDK 同款默认）。
+  const bindOrThrow = async (projectId: string, exec: NonNullable<ExecutionSelection>) => {
+    try {
+      await workflowService.createBindingForExternalProject(projectId, {
+        teamId: exec.teamId,
+        defaultWorkflowVersionId: exec.workflowVersionId,
+      });
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 409) return; // 幂等重放：项目已绑定为成功终态
+      throw error;
+    }
+  };
+
+  const rollbackProject = async (slug: string, projectId: string): Promise<boolean> => {
+    // 退避重试是刻意的串行循环（1s/2s），非可并行集合。
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        // oxlint-disable-next-line no-await-in-loop
+        await projectService.deleteProject(slug, projectId);
+        return true;
+      } catch {
+        if (attempt < 2) {
+          // oxlint-disable-next-line no-await-in-loop
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        }
+      }
+    }
+    return false;
+  };
+
   const onSubmit = async (formData: Partial<TProject>) => {
+    // 执行团队与流程必选（设计定案：每个项目必有绑定）
+    if (!execution?.teamId || !execution.workflowVersionId) {
+      setToast({
+        type: TOAST_TYPE.ERROR,
+        title: t("toast.error"),
+        message: t("agent_teams_exec_required"),
+      });
+      return;
+    }
     // Upper case identifier
     formData.identifier = formData.identifier?.toUpperCase();
     const coverImage = formData.cover_image_url;
@@ -109,6 +157,23 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
 
         if (setToFavorite) {
           handleAddToFavorites(res.id);
+        }
+        // 建项目即绑定（阶段 4，Saga 补偿）：绑定成功才算创建成功——失败时
+        // 删除刚建的项目回滚（幂等，退避重试 x2），表单停留并报错可重试；
+        // 补偿彻底失败则保留项目并显式提示（绝不静默）。
+        try {
+          await bindOrThrow(res.id, execution);
+        } catch (bindError) {
+          const compensated = await rollbackProject(workspaceSlug.toString(), res.id);
+          setToast({
+            type: TOAST_TYPE.ERROR,
+            title: t("toast.error"),
+            message: compensated
+              ? t("agent_teams_exec_bind_failed_rolled_back")
+              : t("agent_teams_exec_bind_failed_kept"),
+          });
+          if (!compensated) console.error("binding failed and rollback failed:", bindError);
+          return;
         }
         return handleNextStep(res.id);
       })
@@ -184,7 +249,7 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
             shouldAutoSyncIdentifier={shouldAutoSyncIdentifier}
             setShouldAutoSyncIdentifier={setShouldAutoSyncIdentifier}
           />
-          <ProjectAttributes isMobile={isMobile} />
+          <ProjectAttributes isMobile={isMobile} execution={execution} onExecutionChange={setExecution} />
         </div>
         <ProjectCreateButtons handleClose={handleClose} />
       </form>

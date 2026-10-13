@@ -42,7 +42,7 @@ function CustomSelect(props: ICustomSelectProps) {
   } = props;
   // states
   const [referenceElement, setReferenceElement] = useState<HTMLButtonElement | null>(null);
-  const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
+  const [popperElement, setPopperElement] = useState<HTMLElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   // refs
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +69,7 @@ function CustomSelect(props: ICustomSelectProps) {
     <DropdownContext.Provider value={closeDropdown}>
       <Combobox
         as="div"
+        role="listbox"
         ref={dropdownRef}
         tabIndex={tabIndex}
         value={value}
@@ -119,15 +120,24 @@ function CustomSelect(props: ICustomSelectProps) {
         </>
         {isOpen &&
           createPortal(
-            <Combobox.Options as="ul" data-prevent-outside-click>
+            // 9-14 下拉三连修同款（9a9d87f）：popper 定位必须挂在 Combobox.Options
+            // 本身（挂在内层 div 时 ul 缺测量导致弹层定位到视口左上角），
+            // 且 modal={false} 避免 HeadlessUI 把页面其余部分置 inert。
+            <Combobox.Options
+              as="ul"
+              data-prevent-outside-click
+              modal={false}
+              static
+              ref={setPopperElement}
+              className="z-30"
+              style={styles.popper}
+              {...attributes.popper}
+            >
               <div
                 className={cn(
                   "z-30 my-1 min-w-48 overflow-y-scroll rounded-md border-[0.5px] border-subtle-1 bg-surface-1 px-2 py-2.5 text-11 whitespace-nowrap focus:outline-none",
                   optionsClassName
                 )}
-                ref={setPopperElement}
-                style={styles.popper}
-                {...attributes.popper}
               >
                 <div
                   className={cn("space-y-1 overflow-y-scroll", {
@@ -162,6 +172,8 @@ function Option(props: ICustomSelectItemProps) {
   }, [closeDropdown]);
 
   return (
+    // 键盘导航（↑↓/Enter）由 HeadlessUI Combobox 容器承担，li 的点击是鼠标路径补充。
+    // oxlint-disable-next-line jsx_a11y/click-events-have-key-events
     <Combobox.Option
       as="li"
       value={value}

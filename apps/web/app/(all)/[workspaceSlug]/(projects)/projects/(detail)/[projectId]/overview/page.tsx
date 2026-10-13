@@ -24,6 +24,7 @@ import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
 import { Bot, ExternalLink, ListTodo, Plus, RefreshCw, Users } from "lucide-react";
 // components
 import { AppHeader } from "@/components/core/app-header";
+import { WorkflowSwitchModal } from "@/components/agent-teams/workflow-switch-modal";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
@@ -82,6 +83,8 @@ function ProjectOverviewPage() {
   // Manual retry in-flight flag: without it a retry against a still-down
   // backend leaves the error state visually unchanged — the click looks dead.
   const [retrying, setRetrying] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const { mutate: mutateRuntimeOverview } = useProjectRuntimeOverview(projectId);
 
   const loadIssues = useCallback(() => {
     issueService
@@ -99,8 +102,12 @@ function ProjectOverviewPage() {
             );
         flat.sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
         setIssues(flat);
+        return null;
       })
-      .catch(() => setIssues((prev) => prev));
+      .catch(() => {
+        setIssues((prev) => prev);
+        return null;
+      });
   }, [projectId, workspaceSlug]);
 
   useEffect(() => {
@@ -278,6 +285,14 @@ function ProjectOverviewPage() {
                       <span>
                         {t("agent_teams_project_workflow")}: {binding.workflowName ?? "-"}
                         {binding.workflowVersion != null ? ` v${binding.workflowVersion}` : ""}
+                        <button
+                          type="button"
+                          className="ml-1.5 inline-flex items-center gap-1 rounded-md border border-subtle bg-layer-2 px-2 py-0.5 text-caption-sm-medium text-secondary hover:bg-layer-3"
+                          onClick={() => setSwitchOpen(true)}
+                        >
+                          <RefreshCw className="size-3" aria-hidden />
+                          {t("agent_teams_wf_switch")}
+                        </button>
                       </span>
                       <span>
                         {t("agent_teams_project_count_agents")}: {overview?.counts.runningAgents ?? 0}
@@ -327,7 +342,7 @@ function ProjectOverviewPage() {
                         {issue.isTeamExecuted && issue.controlStatus && issue.stateName && (
                           <span
                             title={t("agent_teams_project_team_executed")}
-                            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-caption-sm-medium bg-layer-3 text-secondary"
+                            className="inline-flex items-center gap-1 rounded bg-layer-3 px-1.5 py-0.5 text-caption-sm-medium text-secondary"
                             style={controlStateStyle({ ...issue, controlStatus: issue.controlStatus })}
                           >
                             <Bot className="size-3" aria-hidden />
@@ -394,6 +409,15 @@ function ProjectOverviewPage() {
               )}
             </div>
           )}
+
+          <WorkflowSwitchModal
+            isOpen={switchOpen}
+            handleClose={() => setSwitchOpen(false)}
+            teamId={binding?.teamId ?? ""}
+            currentWorkflowVersionId={binding?.workflowVersionId ?? null}
+            externalProjectId={projectId}
+            onSwitched={() => void mutateRuntimeOverview()}
+          />
         </ContentWrapper>
       </div>
     </>

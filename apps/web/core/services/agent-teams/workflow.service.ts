@@ -139,6 +139,37 @@ class AgentTeamWorkflowService {
     return (payload as { items?: TeamWorkflowVersion[] })?.items ?? [];
   }
 
+  // ---- 建项目即绑定（阶段 4）----
+  /** 按团队列「可绑定」流程：已发布版本折叠为最新一条（表单联动下拉用）。 */
+  async listBindableWorkflows(teamId: string): Promise<TeamWorkflow[]> {
+    const all = await this.listTeamWorkflows(teamId);
+    return all.filter((w) => w.status === "published" && w.currentVersionId);
+  }
+
+  /** 建项目即绑定：projectId 传 Plane 项目 UUID（idKind=external 服务端解析）。 */
+  async createBindingForExternalProject(
+    externalProjectId: string,
+    input: { teamId: string; defaultWorkflowVersionId: string }
+  ): Promise<{ id: string }> {
+    return expertsRequest((headers) =>
+      expertsHttp
+        .post(`/api/v1/projects/${externalProjectId}/agent-team-binding?idKind=external`, input, { headers })
+        .then((r) => r.data)
+    );
+  }
+
+  /** 项目内切换流程：PATCH 绑定（idKind=external，改钉住的版本）。 */
+  async updateBindingForExternalProject(
+    externalProjectId: string,
+    patch: { defaultWorkflowVersionId: string }
+  ): Promise<unknown> {
+    return expertsRequest((headers) =>
+      expertsHttp
+        .patch(`/api/v1/projects/${externalProjectId}/agent-team-binding?idKind=external`, patch, { headers })
+        .then((r) => r.data)
+    );
+  }
+
   // ---- 画布目录（成员角色即可读：expert:read / task:manage） ----
   async listPublishedExperts(): Promise<PublishedExpert[]> {
     const payload = await expertsRequest((headers) =>

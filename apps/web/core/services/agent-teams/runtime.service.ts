@@ -149,6 +149,8 @@ export type ProjectRuntimeBinding = {
   teamName: string;
   workflowName?: string | null;
   workflowVersion?: number | null;
+  /** 当前钉住的 workflow_version id（项目内切换弹层高亮当前）。 */
+  workflowVersionId?: string | null;
   engineName?: string | null;
   updatedAt: string;
 };
@@ -357,13 +359,16 @@ export class AgentTeamRuntimeService {
       const payload = await expertsRequest((headers) =>
         expertsHttp.get(`/api/v1/agent-teams/${teamId}/active-tasks`, { headers }).then((r) => r.data)
       );
-      const items = (Array.isArray(payload)
-        ? payload
-        : (payload as { items?: Array<AgentTeamActiveTask & { taskId?: string }> })?.items ?? []) as Array<
-        AgentTeamActiveTask & { taskId?: string }
-      >;
+      const items = (
+        Array.isArray(payload)
+          ? payload
+          : ((payload as { items?: Array<AgentTeamActiveTask & { taskId?: string }> })?.items ?? [])
+      ) as Array<AgentTeamActiveTask & { taskId?: string }>;
       // Normalize: the user-facing row keys on `id` (task binding id).
-      return items.map((item) => ({ ...item, taskBindingId: item.taskBindingId ?? item.id ?? "" }));
+      return items.map((item) => {
+        const taskId = item.taskBindingId ?? item.id ?? "";
+        return Object.assign(item, { taskBindingId: taskId });
+      });
     } catch {
       return [];
     }

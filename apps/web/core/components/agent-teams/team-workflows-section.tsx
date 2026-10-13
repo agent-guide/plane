@@ -27,6 +27,7 @@ import workflowService, {
   type TeamWorkflowVersion,
 } from "@/services/agent-teams/workflow.service";
 // components
+import { renderFormattedDate } from "@plane/utils";
 import { EmptyRow, RowList, Section } from "./section";
 import { FormSelect } from "./form-select";
 
@@ -170,7 +171,7 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
         content: t("agent_teams_wf_col_published_at"),
         tdRender: (row: TeamWorkflowVersion) => (
           <span className="text-12 text-secondary">
-            {row.publishedAt ? new Date(row.publishedAt).toLocaleString() : "-"}
+            {row.publishedAt ? (renderFormattedDate(row.publishedAt, "yyyy-MM-dd HH:mm") ?? "-") : "-"}
           </span>
         ),
       },

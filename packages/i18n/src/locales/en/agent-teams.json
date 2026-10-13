@@ -195,5 +195,22 @@
   "agent_teams_wf_col_created_by": "Created by",
   "agent_teams_workflows_delete_confirm_prefix": "Are you sure you want to delete workflow",
   "agent_teams_workflows_delete_confirm_suffix": "? Execution history is preserved.",
-  "agent_teams_workflows_deleting": "Deleting…"
+  "agent_teams_workflows_deleting": "Deleting…",
+  "agent_teams_exec_label": "Execution team & workflow",
+  "agent_teams_exec_pick_team": "Team",
+  "agent_teams_exec_pick_flow": "Workflow",
+  "agent_teams_exec_no_teams": "No bindable teams yet",
+  "agent_teams_exec_team_no_flows": "No published workflows · orchestrate in team",
+  "agent_teams_exec_required": "Please select the execution team and workflow",
+  "agent_teams_exec_bind_failed": "Project created, but binding failed — retry from the team panel in project overview",
+  "agent_teams_exec_load_failed": "Failed to load execution teams",
+  "agent_teams_exec_retry": "Retry",
+  "agent_teams_exec_bind_failed_rolled_back": "Execution binding failed — the project was not created. Please retry.",
+  "agent_teams_exec_bind_failed_kept": "Execution binding failed and automatic cleanup did not fully succeed — the project exists but is unbound. Please retry binding from the project overview.",
+  "agent_teams_wf_switch": "Switch",
+  "agent_teams_wf_switch_title": "Switch execution workflow",
+  "agent_teams_wf_switch_confirm": "Confirm switch",
+  "agent_teams_wf_switch_semantics": "After switching: in-progress work items are not affected; new work items will use the new workflow.",
+  "agent_teams_wf_switch_failed": "Switch failed",
+  "agent_teams_wf_current": "Current"
 }

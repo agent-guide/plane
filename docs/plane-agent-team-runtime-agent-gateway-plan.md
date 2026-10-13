@@ -856,18 +856,17 @@ Plane / Agent Gateway / Artifact Bus
 /:workspaceSlug/agent-teams/:teamId
 ```
 
-Team 页面包含：
+Team 页面包含（实现状态 2026-09-17 核对）：
 
-- Overview
-- Human & Agent Members
-- Roles
-- Projects
-- Active Tasks
-- Runs
-- Artifacts
-- Workflow
-- Skills / Knowledge
-- Policy
+- Overview ✅（计数为信号级：成员 / 进行中 / 失败）
+- Human & Agent Members ✅（成员表含角色列）
+- Roles（未做独立页签，角色在成员表内）
+- Projects ✅
+- Work Items ✅（2026-09-17 定稿为「活跃工作项」：仅进行中（queued/running/waiting_human/blocked），点击进 Plane 卡片——重试/评论在卡片上的 Runtime 面板完成；当日先改为含失败的「工作项」后收敛回仅活跃：失败信号回归卡片侧（状态徽标 + §12.3 面板重试），团队页保持纯活跃视图。区块附说明文案）
+- ~~Runs~~ / ~~Artifacts~~（2026-09-17 移除：执行明细与工件归属工作项面板（12.3，工件预览/时间轴已有）与 admin 控制台完整档案；团队页只保留信号级计数，不再承载过程明细整列表——原列表无任务上下文、不可点击，违反渐进式披露。active-tasks 端点为活跃口径（不含 failed））
+- Workflow / Skills / Knowledge / Policy（未做于 Plane 团队页；对应能力已由 Runtime Console——admin 控制台——承载：工作流画布/发布/版本、专家与技能、知识库、权限治理，见 12.6.1 职责表。是否仍需在 Plane 侧补轻量视图待定）
+
+另已实现正文未列的页面：`/:workspaceSlug/agent-teams/chat`（成员对话式交互，SSE 流式）、`/:workspaceSlug/agent-teams/inbox`（审批收件箱独立页，主入口已被 §12.6.4 的通知页整合形态取代）。
 
 ### 12.2 Project Team 面板
 
@@ -878,6 +877,8 @@ Workflow: Software Delivery v3
 Active Agents: 3
 Waiting Human Decisions: 1
 ```
+
+实现状态（2026-09-14）：✅ 已落地为项目**概览页**（首 tab + 默认落地）——四板块（项目摘要+进度 / 负责团队 / 最近工作项 / 最近动态），数据来自 `GET /runtime/projects/{id}/overview?idKind=external` 聚合端点。
 
 ### 12.3 Task Runtime 面板
 
@@ -895,6 +896,8 @@ Approval Actions
 Execution Timeline
 ```
 
+实现状态（2026-09-14）：✅ 全量落地（work-item-runtime-panel）。数据层 SWR 化（活动才查、终态停）；新建工作项有「正在接入」窗口与列表行追赶；时间轴人工条目显示答复内容；工件点击弹窗页内预览（markdown prose 排版 + 复制/下载）。
+
 ### 12.4 Agent Activity
 
 Plane 评论只保留重要摘要，例如：
@@ -907,17 +910,19 @@ Plane 评论只保留重要摘要，例如：
 
 完整的 LLM Call、Tool Call、Trace 和中间输出保留在 Gateway/Observability 中，避免污染 Plane 活动流。
 
+实现状态（2026-09-14）：✅ 终态摘要评论（Bot 身份 + 结构化卡片：结果/原因/交付物可点开预览）。已知折中：摘要以固定 HTML 评论文本承载、前端解析还原；机器可读 `agent_meta` 契约待做。
+
 ### 12.5 最小 Plane Patch
 
-建议把 Plane 修改限制在：
+建议把 Plane 修改限制在（实现状态 2026-09-14 核对）：
 
-1. Webhook 使用稳定 Event ID 和签名时间戳。
-2. 为生产规模提供版本化的 Work Item 增量同步能力。
-3. 通过 `extendedRoutes` 注册 Agent Team 页面。
-4. Workspace 导航增加 `Agent Teams`。
-5. Work Item 详情增加 Extension Slot。
-6. Activity 增加 Agent Run 摘要渲染器。
-7. 增加生产级 Workflow Guard。
+1. Webhook 使用稳定 Event ID 和签名时间戳。✅（含契约测试与黄金向量）
+2. 为生产规模提供版本化的 Work Item 增量同步能力。（未做，生产规模前置）
+3. 通过 `extendedRoutes` 注册 Agent Team 页面。✅
+4. Workspace 导航增加 `Agent Teams`。✅
+5. Work Item 详情增加 Extension Slot。（未做通用插槽机制，Phase 3——当前 Runtime 面板为直接挂载）
+6. Activity 增加 Agent Run 摘要渲染器。✅
+7. 增加生产级 Workflow Guard。（未做，Phase 4）
 
 这些 UI 修改会进入 Plane 的 AGPL 覆盖范围；Agent Team Runtime、Agent Gateway、Workflow Engine 和 Artifact Bus 应继续作为独立进程和代码库。商业发布前需要基于最终代码与部署拓扑做许可证审查。
 
@@ -1024,6 +1029,8 @@ Artifacts
 [Pause] [Cancel] [View full run]
 ```
 
+命令按钮实现状态（2026-09-14）：Cancel ✅（面板非终态可用）；Pause 未做（后端 tier-3 契约未定，刻意不提供，见 backlog）；View full run 未做（与 Runtime Console run 详情深链合并考虑，见 backlog）。
+
 Human Approval 也应在 Plane 内完成，因为审批是工作协作的一部分：
 
 ```text
@@ -1036,6 +1043,8 @@ Use asynchronous declaration processing?
 ```
 
 这些按钮向 Runtime 提交 Command，由 Workflow Engine 决策，不能直接修改 Plane State。
+
+审批实现状态（2026-09-14）：✅ 双形态——工作项面板内联审批（§12.6.4）+ 通知页第三个「团队审批」Tab 主从交互（列表概要 + 右栏详情与答复，顶栏红点并入待审批数）；不写 Plane 通知表，runtime API 直连。
 
 #### 12.6.5 不推荐的 UI 方案
 
@@ -1090,6 +1099,8 @@ Plane Extension 只能依赖稳定的 Runtime HTTP API 和事件协议，不能�
 - Plane 页面调用 Runtime API 时使用短期用户令牌或 BFF，不在浏览器保存 Service Credential。
 - 从 Plane 跳转 Runtime Console 时携带不可伪造的 Task/Run 标识，不传递长期 Token。
 - Runtime 再次校验用户对 Workspace、Project、Team 和 Run 的访问权限。
+
+实现状态（2026-09-14）：✅ BFF 通道已落地——Plane 会话 → fork apps/api BFF → Runtime `POST /auth/exchange`（HMAC 断言 → 900s 短期用户令牌，按身份映射解析，未映射 403）；web 侧内存缓存、401 静默重换，已删 VITE token env/localStorage。
 
 #### 12.6.8 演进路线
 
