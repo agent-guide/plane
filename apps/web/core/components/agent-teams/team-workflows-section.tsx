@@ -27,7 +27,7 @@ import workflowService, {
   type TeamWorkflowVersion,
 } from "@/services/agent-teams/workflow.service";
 // components
-import { renderFormattedDate } from "@plane/utils";
+import { format, parseISO } from "date-fns";
 import { EmptyRow, RowList, Section } from "./section";
 import { FormSelect } from "./form-select";
 
@@ -171,7 +171,9 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
         content: t("agent_teams_wf_col_published_at"),
         tdRender: (row: TeamWorkflowVersion) => (
           <span className="text-12 text-secondary">
-            {row.publishedAt ? (renderFormattedDate(row.publishedAt, "yyyy-MM-dd HH:mm") ?? "-") : "-"}
+            {/* renderFormattedDate 只取日期串前 10 位（时间恒 00:00），精确到
+                分钟必须 date-fns 直接解析完整 ISO（10-13 实证）。 */}
+            {row.publishedAt ? format(parseISO(row.publishedAt), "yyyy-MM-dd HH:mm") : "-"}
           </span>
         ),
       },

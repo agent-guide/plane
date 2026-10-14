@@ -51,6 +51,8 @@ export type TeamWorkflowVersion = {
   workflowId: string;
   version: number;
   status: string;
+  /** 有效引擎（版本钉住 > 工作流显式）；空 = 历史未迁移版本，不可绑定。 */
+  engineConnectionId?: string | null;
   publishError?: string | null;
   definitionHash?: string;
   createdBy?: string | null;
@@ -140,10 +142,13 @@ class AgentTeamWorkflowService {
   }
 
   // ---- 建项目即绑定（阶段 4）----
-  /** 按团队列「可绑定」流程：已发布版本折叠为最新一条（表单联动下拉用）。 */
+  /** 按团队列「可绑定」流程：已发布版本折叠为最新一条（表单联动下拉用）。
+   *  引擎随版本（引擎前移）：未解析到引擎连接的已发布流程绑定时会
+   *  fail-closed（WORKFLOW_ENGINE_CONNECTION_UNRESOLVED，需重新发布），
+   *  从源头过滤掉，避免表单给出注定失败的选项。 */
   async listBindableWorkflows(teamId: string): Promise<TeamWorkflow[]> {
     const all = await this.listTeamWorkflows(teamId);
-    return all.filter((w) => w.status === "published" && w.currentVersionId);
+    return all.filter((w) => w.status === "published" && w.currentVersionId && w.engineConnectionId);
   }
 
   /** 建项目即绑定：projectId 传 Plane 项目 UUID（idKind=external 服务端解析）。 */

@@ -13,12 +13,15 @@ import { useTranslation } from "@plane/i18n";
 import { Button as PropelButton } from "@plane/propel/button";
 import { CheckIcon, ChevronDownIcon } from "@plane/propel/icons";
 import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
-import { cn, renderFormattedDate } from "@plane/utils";
+import { cn } from "@plane/utils";
+import { format, parseISO } from "date-fns";
 // services
 import workflowService, { type TeamWorkflow, type TeamWorkflowVersion } from "@/services/agent-teams/workflow.service";
 
 const publishedVersionsOf = (map: Record<string, TeamWorkflowVersion[]>, flowId: string) =>
-  (map[flowId] ?? []).filter((v) => v.status === "published");
+  // 有效引擎为空的已发布版本是历史未迁移数据：切换绑定会 fail-closed
+  // （WORKFLOW_ENGINE_CONNECTION_UNRESOLVED），从源头不给选项。
+  (map[flowId] ?? []).filter((v) => v.status === "published" && v.engineConnectionId);
 
 export function WorkflowSwitchModal({
   isOpen,
@@ -61,13 +64,18 @@ export function WorkflowSwitchModal({
             .map(async (f) => [f.id, await workflowService.listTeamWorkflowVersions(teamId, f.id)] as const)
         );
         if (ignore) return;
-        setWorkflows(flows.filter((f) => f.status === "published"));
-        setVersionsByFlow(Object.fromEntries(entries));
-        // 当前流程默认展开
-        const currentFlow = flows.find(
-          (f) => f.id && publishedVersionsOf(Object.fromEntries(entries), f.id).some((v) => v.id === currentWorkflowVersionId)
+        const versionsMap = Object.fromEntries(entries);
+        // 只保留有可绑定版本（已发布且有效引擎已解析）的流程
+        const bindableFlows = flows.filter(
+          (f) => f.status === "published" && publishedVersionsOf(versionsMap, f.id).length > 0
         );
-        setExpanded(currentFlow?.id ?? flows[0]?.id ?? null);
+        setWorkflows(bindableFlows);
+        setVersionsByFlow(versionsMap);
+        // 当前流程默认展开
+        const currentFlow = bindableFlows.find(
+          (f) => f.id && publishedVersionsOf(versionsMap, f.id).some((v) => v.id === currentWorkflowVersionId)
+        );
+        setExpanded(currentFlow?.id ?? bindableFlows[0]?.id ?? null);
         setSelected(currentWorkflowVersionId);
       } catch {
         if (!ignore) setErrorKey("agent_teams_workflows_load_failed");
@@ -79,8 +87,6 @@ export function WorkflowSwitchModal({
       ignore = true;
     };
   }, [isOpen, teamId, currentWorkflowVersionId]);
-
-
 
   const submit = async () => {
     if (!selected || selected === currentWorkflowVersionId) {
@@ -129,9 +135,7 @@ export function WorkflowSwitchModal({
                       aria-hidden
                     />
                     <span className="text-13 font-medium text-primary">{flow.name}</span>
-                    {versions[0] ? (
-                      <span className="text-12 text-tertiary">v{versions[0].version}</span>
-                    ) : null}
+                    {versions[0] ? <span className="text-12 text-tertiary">v{versions[0].version}</span> : null}
                     {currentWorkflowVersionId && versions.some((v) => v.id === currentWorkflowVersionId) ? (
                       <span className="ml-auto rounded-full bg-accent-subtle px-2 py-0.5 text-11 text-accent-primary">
                         {t("agent_teams_wf_current")}
@@ -157,7 +161,9 @@ export function WorkflowSwitchModal({
                             <span className="text-11 text-tertiary">（{t("agent_teams_wf_current")}）</span>
                           ) : null}
                           <span className="ml-auto text-11 text-tertiary">
-                            {version.publishedAt ? (renderFormattedDate(version.publishedAt, "yyyy-MM-dd HH:mm") ?? "") : ""}
+                            {/* renderFormattedDate 只取日期串前 10 位（时间恒
+                                00:00），精确到分钟用 date-fns 直接解析。 */}
+                            {version.publishedAt ? format(parseISO(version.publishedAt), "yyyy-MM-dd HH:mm") : ""}
                           </span>
                         </button>
                       ))}

@@ -67,7 +67,9 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
     });
   };
 
-  // Saga 补偿辅助（建项目即绑定）：绑定 409=已绑定视为成功（幂等重放）；
+  // Saga 补偿辅助（建项目即绑定）：仅 PROJECT_TEAM_BINDING_CONFLICT（项目已
+  // 绑定）视为成功终态（幂等重放）；后端其余 409（版本未发布/引擎未钉/团队
+  // 停用等 fail-closed 校验）必须走回滚报错，不能吞成"成功"。
   // 删除回滚幂等且带退避重试 x2（瞬时故障兜底，AWS/Stripe SDK 同款默认）。
   const bindOrThrow = async (projectId: string, exec: NonNullable<ExecutionSelection>) => {
     try {
@@ -76,8 +78,10 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
         defaultWorkflowVersionId: exec.workflowVersionId,
       });
     } catch (error) {
-      const status = (error as { response?: { status?: number } })?.response?.status;
-      if (status === 409) return; // 幂等重放：项目已绑定为成功终态
+      const response = (error as { response?: { status?: number; data?: { code?: string } } })?.response;
+      if (response?.status === 409 && response?.data?.code === "PROJECT_TEAM_BINDING_CONFLICT") {
+        return; // 幂等重放：项目已绑定为成功终态
+      }
       throw error;
     }
   };
@@ -165,12 +169,14 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
           await bindOrThrow(res.id, execution);
         } catch (bindError) {
           const compensated = await rollbackProject(workspaceSlug.toString(), res.id);
+          // 后端 fail-closed 详情（如"版本未钉引擎，请重新发布"）拼进提示，可定位。
+          const detail = (bindError as { response?: { data?: { message?: string } } })?.response?.data?.message;
           setToast({
             type: TOAST_TYPE.ERROR,
             title: t("toast.error"),
-            message: compensated
-              ? t("agent_teams_exec_bind_failed_rolled_back")
-              : t("agent_teams_exec_bind_failed_kept"),
+            message:
+              (compensated ? t("agent_teams_exec_bind_failed_rolled_back") : t("agent_teams_exec_bind_failed_kept")) +
+              (detail ? `：${detail}` : ""),
           });
           if (!compensated) console.error("binding failed and rollback failed:", bindError);
           return;
