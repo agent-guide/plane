@@ -147,6 +147,15 @@ class WorkSpaceMemberViewSet(BaseViewSet):
 
         workspace_member.is_active = False
         workspace_member.save()
+        # Runtime 工作区成员供给（设计 2026-10-14 §6）：管理员移出 → runtime
+        # 停用该工作区映射（仍属其他接入工作区则保留身份）。
+        from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+        enqueue_on_commit(
+            workspace_slug=str(slug),
+            user_id=workspace_member.member_id,
+            action="deactivate",
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @invalidate_cache(
@@ -202,6 +211,12 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         # # Deactivate the user
         workspace_member.is_active = False
         workspace_member.save()
+        # Runtime 工作区成员供给（设计 2026-10-14 §6）：自行退出同 deactivate。
+        from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+        enqueue_on_commit(
+            workspace_slug=str(slug), user_id=request.user.id, action="deactivate"
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

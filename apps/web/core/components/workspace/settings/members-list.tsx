@@ -8,7 +8,6 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
-import { Disclosure } from "@headlessui/react";
 // plane imports
 import { useTranslation } from "@plane/i18n";
 import { ChevronDownIcon } from "@plane/propel/icons";
@@ -64,7 +63,7 @@ export const WorkspaceMembersList = observer(function WorkspaceMembersList(props
   const searchedInvitationsIds = getSearchedWorkspaceInvitationIds(searchQuery);
   const memberDetails = searchedMemberIds
     ?.map((memberId) => getWorkspaceMemberDetails(memberId))
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       if (a?.is_active && !b?.is_active) return -1;
       if (!a?.is_active && b?.is_active) return 1;
       return 0;
@@ -96,13 +95,16 @@ export const WorkspaceMembersList = observer(function WorkspaceMembersList(props
             </div>
           }
         >
-          <Disclosure.Panel>
+          {/* Collapsible（@plane/ui）自带 Disclosure.Panel static 包装；此处再嵌
+              非 static Panel 会跟随 Collapsible 按钮切换的内部开合态，与受控的
+              showPendingInvites 打架——展开瞬间渲染后随即被隐藏（闪烁）。 */}
+          <div>
             <div className="ml-auto items-center gap-1.5 rounded-md bg-surface-1 py-1.5">
               {searchedInvitationsIds?.map((invitationId) => (
                 <WorkspaceInvitationsListItem key={invitationId} invitationId={invitationId} />
               ))}
             </div>
-          </Disclosure.Panel>
+          </div>
         </Collapsible>
       )}
     </>

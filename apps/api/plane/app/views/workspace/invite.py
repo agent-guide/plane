@@ -205,6 +205,15 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                     user.last_workspace_id = workspace_invite.workspace.id
                     user.save()
 
+                    # Runtime 工作区成员供给（设计 2026-10-14 §5.1）
+                    from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+                    enqueue_on_commit(
+                        workspace_slug=str(workspace_invite.workspace.slug),
+                        user_id=user.id,
+                        action="provision",
+                    )
+
                     # Delete the invitation
                     workspace_invite.delete()
 
@@ -276,6 +285,19 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
             ],
             ignore_conflicts=True,
         )
+
+        # Runtime 工作区成员供给（设计 2026-10-14 §5.1）：受邀入区（含
+        # 复活 is_active 分支）逐工作区通知，幂等供给。先取 slug 再删邀请，
+        # 删除后 queryset 再迭代为空。
+        from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+        joined_slugs = [
+            str(invitation.workspace.slug) for invitation in workspace_invitations
+        ]
+        for slug in joined_slugs:
+            enqueue_on_commit(
+                workspace_slug=slug, user_id=request.user.id, action="provision"
+            )
 
         # Delete joined workspace invites
         workspace_invitations.delete()

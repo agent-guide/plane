@@ -96,6 +96,14 @@ class InstanceWorkSpaceEndpoint(BaseAPIView):
                     role=20,
                     company_role=request.data.get("company_role", ""),
                 )
+                # Runtime 工作区成员供给（设计 2026-10-14 §5.1）
+                from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+                enqueue_on_commit(
+                    workspace_slug=str(serializer.instance.slug),
+                    user_id=request.user.id,
+                    action="provision",
+                )
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(
                 [serializer.errors[error][0] for error in serializer.errors],

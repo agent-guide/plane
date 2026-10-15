@@ -22,7 +22,6 @@ import workflowService, {
   type TeamWorkflow,
   type WorkflowToolCatalogEntry,
 } from "@/services/agent-teams/workflow.service";
-import { expertsAuthHeaders } from "@/services/agent-teams/experts-auth";
 // components
 import { WorkflowCanvasEditor } from "@/components/agent-teams/workflow-canvas";
 import type { WorkflowCanvasEditorLabels } from "@/components/agent-teams/workflow-canvas";
@@ -47,6 +46,7 @@ const CANVAS_LABELS_ZH: WorkflowCanvasEditorLabels = {
   nodePanelTitle: "节点属性",
   fieldName: "节点名称 *",
   fieldEmployee: "负责员工",
+  fieldEmployeeEmptyHint: "团队暂无在编数字员工，请先在团队详情添加成员",
   genericAgent: "通用 Agent（不绑定员工）",
   employeePersonaInjected: "能力介绍已自动注入",
   addNode: "添加节点",
@@ -61,6 +61,7 @@ const CANVAS_LABELS_ZH: WorkflowCanvasEditorLabels = {
   fieldMessage: "确认提示 *",
   fieldApprover: "审批人 *",
   fieldApproverPlaceholder: "选择审批人（租户用户）",
+  fieldApproverEmptyHint: "团队暂无人类成员，请先在团队详情添加成员",
   fieldFreeText: "自由文本答复（不提供选项，答复任意内容继续流程）",
   fieldOptions: "选项（自定义）",
   fieldOptionsHint: "留空 = 默认「通过并继续 / 驳回」。勾选「终止」的选项会结束流程，其余带着所选文案继续执行。",
@@ -138,9 +139,20 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
   useEffect(() => {
     if (!teamId) return;
     let ignore = false;
-    workflowService
-      .listPublishedExperts()
-      .then((items) => !ignore && setExperts(items))
+    // 负责员工候选 = 本团队在编数字员工（验收修正 2026-10-15）。不回退
+    // 全租户目录：下拉里出现的必须是真团队成员；团队未配数字员工时
+    // 保持空列表，由下拉空态文案引导去团队详情配置（错误选项比空更糟）。
+    runtimeService
+      .listTeamMembers(teamId)
+      .then((members) => {
+        if (ignore) return;
+        setExperts(
+          members
+            .filter((m) => m.kind === "agent" && m.expertId)
+            .map((m) => ({ id: m.expertId as string, name: m.displayName || m.role }))
+        );
+        return;
+      })
       .catch(() => undefined);
     workflowService
       .listWorkflowTools()
@@ -154,17 +166,20 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
           setConnections(items.filter((c) => c.status === "active").map((c) => ({ name: c.name, type: c.engineType })))
       )
       .catch(() => undefined);
-    // 审批人候选 = 租户成员：token 里带 tenantId，从交换头取。
-    expertsAuthHeaders()
-      .then((headers) => {
-        const tenantId = headers["X-Tenant-ID"] ?? headers["x-tenant-id"];
-        if (typeof tenantId !== "string" || !tenantId) return;
-        return workflowService
-          .listTenantMembers(tenantId)
-          .then(
-            (items) => !ignore && setUsers(items.map((m) => ({ id: m.userId, name: m.name || m.email || m.userId })))
-          )
-          .catch(() => undefined);
+    // 审批人候选 = 团队内人类成员（验收修正 2026-10-15：谁的事谁审）。
+    // 不回退全租户成员——下拉里出现的必须是真团队成员；未配人类成员时
+    // 空列表 + 下拉空态文案引导。approverUserId 契约=租户用户 id，
+    // 团队成员经 identity 富化取 planeUserId。
+    runtimeService
+      .listTeamMembers(teamId)
+      .then((members) => {
+        if (ignore) return;
+        setUsers(
+          members
+            .filter((m) => m.kind === "human" && m.planeUserId)
+            .map((m) => ({ id: m.planeUserId as string, name: m.displayName || m.role }))
+        );
+        return;
       })
       .catch(() => undefined);
     return () => {

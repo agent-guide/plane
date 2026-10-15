@@ -90,7 +90,18 @@ class UserEndpoint(BaseViewSet):
         return Response({"is_instance_admin": is_admin}, status=status.HTTP_200_OK)
 
     def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
+        response = super().partial_update(request, *args, **kwargs)
+        # Runtime 工作区成员供给（设计 2026-10-14 §6）：改名/换邮箱 → 广播
+        # 该用户全部接入工作区（幂等 update，runtime 侧同步显示名、邮箱
+        # 冲突跳过）。仅在涉及档案字段时触发，避免无关 PATCH 噪声。
+        profile_fields = {"first_name", "last_name", "display_name", "email", "username"}
+        if response.status_code < 400 and profile_fields & set(request.data.keys()):
+            from plane.bgtasks.runtime_provisioning_task import (
+                notify_runtime_user_everywhere,
+            )
+
+            notify_runtime_user_everywhere(user_id=request.user.id, action="provision")
+        return response
 
     def _validate_new_email(self, user, new_email):
         """
@@ -309,6 +320,17 @@ class UserEndpoint(BaseViewSet):
 
         WorkspaceMember.objects.bulk_update(workspaces_to_deactivate, ["is_active"], batch_size=100)
 
+        # Runtime 工作区成员供给（设计 2026-10-14 §6）：账号停用波及的工作区
+        # 逐个通知 deactivate；实例管理员删除用户的场景由对账扫描种兜底。
+        from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+        for workspace in workspaces_to_deactivate:
+            enqueue_on_commit(
+                workspace_slug=str(workspace.workspace.slug),
+                user_id=request.user.id,
+                action="deactivate",
+            )
+
         # Delete all workspace invites
         WorkspaceMemberInvite.objects.filter(email=user.email).delete()
 
@@ -426,5 +448,17 @@ class ProfileEndpoint(BaseAPIView):
         serializer = ProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            # Runtime 工作区成员供给（设计 2026-10-14 §6）：个人资料（名/姓/
+            # 显示名称）走本端点而非 /users/me/——改名广播挂在这里（10-15
+            # 实证：挂在 UserEndpoint.partial_update 收不到资料表单保存）。
+            profile_fields = {"first_name", "last_name", "display_name"}
+            if profile_fields & set(request.data.keys()):
+                from plane.bgtasks.runtime_provisioning_task import (
+                    notify_runtime_user_everywhere,
+                )
+
+                notify_runtime_user_everywhere(
+                    user_id=request.user.id, action="provision"
+                )
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

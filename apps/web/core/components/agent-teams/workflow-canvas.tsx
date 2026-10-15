@@ -324,6 +324,8 @@ export type WorkflowCanvasEditorLabels = {
   nodePanelTitle: string;
   fieldName: string;
   fieldEmployee: string;
+  /** 团队暂无在编数字员工时的空态引导（不回退全租户目录，验收修正 2026-10-15）。 */
+  fieldEmployeeEmptyHint?: string;
   genericAgent: string;
   employeePersonaInjected: string;
   addNode: string;
@@ -337,6 +339,8 @@ export type WorkflowCanvasEditorLabels = {
   fieldParams: string;
   fieldMessage: string;
   fieldApprover: string;
+  /** 团队暂无人类成员时的空态引导（不回退全租户成员，验收修正 2026-10-15）。 */
+  fieldApproverEmptyHint?: string;
   fieldApproverPlaceholder: string;
   fieldFreeText: string;
   fieldOptions: string;
@@ -615,14 +619,19 @@ export function WorkflowCanvasEditor({
                         />
                       </span>
                     ) : (
-                      <Input
-                        mode="primary"
-                        inputSize="sm"
-                        className="w-full"
-                        value={selectedNode.data.expertId ?? ""}
-                        onChange={(e) => patchSelected({ expertId: e.target.value })}
-                        placeholder="expert_…"
-                      />
+                      <>
+                        <Input
+                          mode="primary"
+                          inputSize="sm"
+                          className="w-full"
+                          value={selectedNode.data.expertId ?? ""}
+                          onChange={(e) => patchSelected({ expertId: e.target.value })}
+                          placeholder="expert_…"
+                        />
+                        {labels.fieldEmployeeEmptyHint ? (
+                          <span className={FIELD_HINT_CLASS}>· {labels.fieldEmployeeEmptyHint}</span>
+                        ) : null}
+                      </>
                     )}
                     {(() => {
                       const bound = employees.find((emp) => emp.id === selectedNode.data.expertId);
@@ -768,6 +777,9 @@ export function WorkflowCanvasEditor({
                         onChange={(v) => patchSelected({ approverUserId: v })}
                       />
                     </span>
+                    {users.length === 0 && labels.fieldApproverEmptyHint ? (
+                      <span className={FIELD_HINT_CLASS}>· {labels.fieldApproverEmptyHint}</span>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2 text-12 text-secondary">
                     <Checkbox

@@ -27,6 +27,7 @@ import workflowService, {
   type TeamWorkflowVersion,
 } from "@/services/agent-teams/workflow.service";
 // components
+import runtimeService from "@/services/agent-teams/runtime.service";
 import { format, parseISO } from "date-fns";
 import { EmptyRow, RowList, Section } from "./section";
 import { FormSelect } from "./form-select";
@@ -209,11 +210,25 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
   }, [load]);
 
   // 弹层打开时懒加载目录（负责成员/引擎清单），失败静默降级为手填。
+  // 负责成员候选 = 本团队在编数字员工（验收修正 2026-10-15：原全租户
+  // 已发布专家目录与团队不符）；团队暂无数字员工时回退全目录防呆。
   useEffect(() => {
     if (!isModalOpen) return;
     let ignore = false;
     Promise.all([
-      workflowService.listPublishedExperts().catch(() => [] as PublishedExpert[]),
+      runtimeService
+        .listTeamMembers(teamId)
+        .then((members) => {
+          const agentEntries = members
+            .filter((m) => m.kind === "agent" && m.expertId)
+            .map((m) => ({ id: m.expertId as string, name: m.displayName || m.role }));
+          return agentEntries.length > 0
+            ? agentEntries
+            : (workflowService.listPublishedExperts().catch(() => [] as PublishedExpert[]) as Promise<
+                { id: string; name: string }[]
+              >);
+        })
+        .catch(() => workflowService.listPublishedExperts().catch(() => [] as PublishedExpert[])),
       workflowService.listEngineConnections().catch(() => [] as EngineConnectionOption[]),
     ]).then(([expertItems, engineItems]) => {
       if (ignore) return null;
@@ -224,7 +239,8 @@ export function TeamWorkflowsSection({ teamId }: { teamId: string }) {
     return () => {
       ignore = true;
     };
-  }, [isModalOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModalOpen, teamId]);
 
   function openHistory(workflow: TeamWorkflow) {
     setHistoryFor(workflow);

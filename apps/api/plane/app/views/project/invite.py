@@ -249,6 +249,14 @@ class ProjectJoinEndpoint(BaseAPIView):
                     workspace_member.is_active = True
                     workspace_member.save()
 
+                # Runtime 工作区成员供给（设计 2026-10-14 §5.1）：项目邀请
+                # 接受即入工作区（新建与复活两分支同通知，幂等）。
+                from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+                enqueue_on_commit(
+                    workspace_slug=str(slug), user_id=user.id, action="provision"
+                )
+
                 # Check if the user was already a member of project then activate the user
                 project_member = ProjectMember.objects.filter(
                     workspace_id=project_invite.workspace_id, member=user

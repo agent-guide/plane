@@ -127,6 +127,15 @@ class WorkSpaceViewSet(BaseViewSet):
                     role=20,
                     company_role=request.data.get("company_role", ""),
                 )
+                # Runtime 工作区成员供给（设计 2026-10-14 §5.1）：自建工作区
+                # 的创建人即首个成员。
+                from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+                enqueue_on_commit(
+                    workspace_slug=str(serializer.instance.slug),
+                    user_id=request.user.id,
+                    action="provision",
+                )
 
                 # Get total members and role
                 total_members = WorkspaceMember.objects.filter(workspace_id=serializer.data["id"]).count()

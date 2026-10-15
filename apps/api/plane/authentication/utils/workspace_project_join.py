@@ -37,6 +37,15 @@ def process_workspace_project_invitations(user):
             user=False,
             multiple=True,
         )
+        # Runtime 工作区成员供给（设计 2026-10-14 §5.1）：受邀入区 → 通知
+        # runtime 幂等供给（未接入的工作区在入口静默跳过）。
+        from plane.bgtasks.runtime_provisioning_task import enqueue_on_commit
+
+        enqueue_on_commit(
+            workspace_slug=str(workspace_member_invite.workspace.slug),
+            user_id=user.id,
+            action="provision",
+        )
 
     # Check if user has any project invites
     project_member_invites = ProjectMemberInvite.objects.filter(email=user.email, accepted=True)
