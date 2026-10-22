@@ -28,6 +28,9 @@
   -ms-text-size-adjust: 100%;
   font-variant-ligatures: none;
   -webkit-font-variant-ligatures: none;
+  /* 全局数字等宽（tabular figures）：统计、计数、时间、版本号等数字
+   * 变化时宽度稳定不抖动；现代字体（Inter 等）均支持该特性。 */
+  font-variant-numeric: tabular-nums;
   text-rendering: optimizeLegibility;
   -moz-osx-font-smoothing: grayscale;
   -webkit-font-smoothing: antialiased;

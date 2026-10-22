@@ -9,6 +9,7 @@ import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { observer } from "mobx-react";
 import { useParams, usePathname } from "next/navigation";
+import Link from "next/link";
 import { Ellipsis } from "lucide-react";
 import { Disclosure, Transition } from "@headlessui/react";
 // plane imports
@@ -172,19 +173,14 @@ export const SidebarProjectsList = observer(function SidebarProjectsList() {
         <>
           <Disclosure as="div" className="flex flex-col" defaultOpen={isAllProjectsListOpen}>
             <div className="group flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-placeholder hover:bg-layer-transparent-hover">
-              <Disclosure.Button
-                as="button"
-                type="button"
+              {/* 组头文字=跳项目列表页（整合自顶部工作区菜单的「项目」入口，
+                  2026-10-22）；展开/收起由右侧箭头承担。 */}
+              <Link
+                href={`/${workspaceSlug}/projects`}
                 className="flex w-full items-center gap-1 text-left text-13 font-semibold whitespace-nowrap text-placeholder"
-                onClick={() => toggleListDisclosure(!isAllProjectsListOpen)}
-                aria-label={t(
-                  isAllProjectsListOpen
-                    ? "aria_labels.projects_sidebar.close_projects_menu"
-                    : "aria_labels.projects_sidebar.open_projects_menu"
-                )}
               >
                 <span className="text-13 font-semibold">{t("projects")}</span>
-              </Disclosure.Button>
+              </Link>
               <div className="flex items-center gap-1">
                 {isAuthorizedUser && (
                   <Tooltip tooltipHeading={t("create_project")} tooltipContent="">

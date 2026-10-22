@@ -110,7 +110,7 @@ export function ProjectExecutionFields({
         <CustomSelect
           value={value?.teamId ?? ""}
           onChange={(v: string) => {
-            if (v) onChange({ teamId: v, workflowVersionId: "" });
+            if (v && !v.startsWith("__blocked_")) onChange({ teamId: v, workflowVersionId: "" });
           }}
           label={
             <div className="flex h-full items-center gap-1">
@@ -134,7 +134,9 @@ export function ProjectExecutionFields({
           {teams.map((team) => (
             <CustomSelect.Option
               key={team.id}
-              value={team.bindable ? team.id : ""}
+              /* 不可选团队用哨兵值而非空串：空串与"未选择"状态相等，会让
+                 组件库的选中勾打在禁用项上（10-20 实证）。onChange 处过滤。 */
+              value={team.bindable ? team.id : `__blocked_${team.id}`}
               className={team.bindable ? "" : "cursor-not-allowed"}
             >
               <div className="flex items-start gap-2">

@@ -18,7 +18,7 @@ import { Button } from "@plane/propel/button";
 import { useTranslation } from "@plane/i18n";
 import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
 // icons
-import { Archive, ArchiveRestore, Bot, Globe, MessageSquare, Plus, Send, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Bot, Globe, MessageSquare, Send, Users } from "lucide-react";
 // components
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
@@ -241,7 +241,7 @@ function AgentTeamsChatPage() {
               </Header.LeftItem>
               <Header.RightItem>
                 {/* Free dialogue entry (migrated 自由对话) */}
-                <Button variant="secondary" size="lg" prependIcon={<Plus />} onClick={() => void handleNewSession()}>
+                <Button variant="secondary" size="lg" onClick={() => void handleNewSession()}>
                   {t("agent_teams_chat_new_session")}
                 </Button>
               </Header.RightItem>

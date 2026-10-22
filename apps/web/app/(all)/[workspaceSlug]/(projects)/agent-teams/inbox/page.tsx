@@ -25,10 +25,12 @@ import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 // services
-import runtimeService, {
-  type HumanInboxDetail,
-  type HumanInboxItem,
-} from "@/services/agent-teams/runtime.service";
+import runtimeService, { type HumanInboxDetail, type HumanInboxItem } from "@/services/agent-teams/runtime.service";
+import {
+  classifyRuntimeFailure,
+  RUNTIME_FAILURE_COPY,
+  type RuntimeFailureKind,
+} from "@/services/agent-teams/runtime-errors";
 // hooks
 import { useRouter, useSearchParams } from "next/navigation";
 import { useWorkspace } from "@/hooks/store/use-workspace";
@@ -51,6 +53,8 @@ function AgentTeamsInboxPage() {
   // not referentially stable, so keeping it out of effect deps avoids a
   // refetch loop (and the loading flicker it caused).
   const [errorKey, setErrorKey] = useState<"load" | "answer" | "">("");
+  // 列表加载失败的原因分类：未接入/服务不可用不该只是「失败，请重试」。
+  const [loadFailure, setLoadFailure] = useState<RuntimeFailureKind | null>(null);
   const [detail, setDetail] = useState<HumanInboxDetail | null>(null);
   // Decoupled from `detail`: closing only collapses the dialog — content
   // stays mounted through the 200ms exit transition instead of flashing an
@@ -70,10 +74,12 @@ function AgentTeamsInboxPage() {
   const loadInbox = useCallback(async () => {
     setLoading(true);
     setErrorKey("");
+    setLoadFailure(null);
     try {
       setItems(await runtimeService.listHumanInbox());
-    } catch {
+    } catch (error) {
       setErrorKey("load");
+      setLoadFailure(classifyRuntimeFailure(error));
     } finally {
       setLoading(false);
     }
@@ -142,6 +148,15 @@ function AgentTeamsInboxPage() {
       : errorKey === "answer"
         ? t("agent_teams_inbox_answer_failed")
         : "";
+
+  // 未接入 / 服务不可用：说明 + 指引，而不是让用户对着「请重试」反复点。
+  const loadFailureCopy =
+    errorKey === "load" && loadFailure && loadFailure !== "unknown"
+      ? {
+          title: t(RUNTIME_FAILURE_COPY[loadFailure].titleKey),
+          hint: t(RUNTIME_FAILURE_COPY[loadFailure].hintKey),
+        }
+      : null;
 
   // Context keys are raw Runtime JSON field names — map the known ones to
   // translated labels and humanize the rest instead of showing camelCase.
@@ -227,7 +242,14 @@ function AgentTeamsInboxPage() {
                 </button>
               )}
             </div>
-            {error && <div className="text-body-sm-regular text-danger-primary">{error}</div>}
+            {loadFailureCopy ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-body-sm-regular text-secondary">{loadFailureCopy.title}</span>
+                <span className="text-body-xs-regular text-tertiary">{loadFailureCopy.hint}</span>
+              </div>
+            ) : (
+              error && <div className="text-body-sm-regular text-danger-primary">{error}</div>
+            )}
 
             <div className="overflow-hidden rounded-lg border border-subtle bg-layer-1">
               {loading ? (

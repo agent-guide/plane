@@ -17,7 +17,6 @@ import ProjectCreateHeader from "@/components/project/create/header";
 import ProjectCreateButtons from "@/components/project/create/project-create-buttons";
 // hooks
 import { getCoverImageType, uploadCoverImage } from "@/helpers/cover-image.helper";
-import { ProjectService } from "@/services/project/project.service";
 import { useProject } from "@/hooks/store/use-project";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web types
@@ -42,11 +41,9 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
   const { setToFavorite, workspaceSlug, data, onClose, handleNextStep, updateCoverImageStatus } = props;
   // store
   const { t } = useTranslation();
-  const { addProjectToFavorites, createProject, updateProject } = useProject();
+  const { addProjectToFavorites, createProject, updateProject, deleteProject } = useProject();
   // states
   const [shouldAutoSyncIdentifier, setShouldAutoSyncIdentifier] = useState(true);
-  // 补偿删除走 service 直连：补偿场景无需 store 增量同步（失败路径表单不关）。
-  const projectService = new ProjectService();
   const [execution, setExecution] = useState<ExecutionSelection>(null);
   // form info
   const methods = useForm<TProject>({
@@ -70,19 +67,36 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
   // Saga 补偿辅助（建项目即绑定）：仅 PROJECT_TEAM_BINDING_CONFLICT（项目已
   // 绑定）视为成功终态（幂等重放）；后端其余 409（版本未发布/引擎未钉/团队
   // 停用等 fail-closed 校验）必须走回滚报错，不能吞成"成功"。
-  // 删除回滚幂等且带退避重试 x2（瞬时故障兜底，AWS/Stripe SDK 同款默认）。
+  //
+  // 投影等待：后端把 Plane 项目登记为内部项目+external 映射要靠 Plane 的
+  // project.created webhook 异步投影完成（实测 2–4s）。刚创建就绑定会拿到
+  // 404 PROJECT_NOT_FOUND，于是"创建成功"后立刻报失败、回滚把项目删掉。
+  // 这里按最终一致性退避重试（与 AWS SDK 的资源传播等待同款），只对
+  // PROJECT_NOT_FOUND 重试；版本未发布/引擎未钉等 fail-closed 错误立即失败。
+  const PROJECTION_RETRY_DELAYS_MS = [500, 1000, 1500, 2000, 2500, 3000];
+
   const bindOrThrow = async (projectId: string, exec: NonNullable<ExecutionSelection>) => {
-    try {
-      await workflowService.createBindingForExternalProject(projectId, {
-        teamId: exec.teamId,
-        defaultWorkflowVersionId: exec.workflowVersionId,
-      });
-    } catch (error) {
-      const response = (error as { response?: { status?: number; data?: { code?: string } } })?.response;
-      if (response?.status === 409 && response?.data?.code === "PROJECT_TEAM_BINDING_CONFLICT") {
-        return; // 幂等重放：项目已绑定为成功终态
+    for (let attempt = 0; ; attempt++) {
+      try {
+        // oxlint-disable-next-line no-await-in-loop
+        await workflowService.createBindingForExternalProject(projectId, {
+          teamId: exec.teamId,
+          defaultWorkflowVersionId: exec.workflowVersionId,
+        });
+        return;
+      } catch (error) {
+        const response = (error as { response?: { status?: number; data?: { code?: string } } })?.response;
+        if (response?.status === 409 && response?.data?.code === "PROJECT_TEAM_BINDING_CONFLICT") {
+          return; // 幂等重放：项目已绑定为成功终态
+        }
+        const notProjectedYet = response?.status === 404 && response?.data?.code === "PROJECT_NOT_FOUND";
+        if (notProjectedYet && attempt < PROJECTION_RETRY_DELAYS_MS.length) {
+          // oxlint-disable-next-line no-await-in-loop
+          await new Promise((r) => setTimeout(r, PROJECTION_RETRY_DELAYS_MS[attempt]));
+          continue;
+        }
+        throw error;
       }
-      throw error;
     }
   };
 
@@ -90,8 +104,10 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
     // 退避重试是刻意的串行循环（1s/2s），非可并行集合。
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
+        // 走 store 的删除：createProject 已把项目写进 projectMap，直连
+        // service 删除会让侧栏/项目列表残留一条已回滚的"幽灵项目"。
         // oxlint-disable-next-line no-await-in-loop
-        await projectService.deleteProject(slug, projectId);
+        await deleteProject(slug, projectId);
         return true;
       } catch {
         if (attempt < 2) {
@@ -153,12 +169,6 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
           await updateCoverImageStatus(res.id, coverImage);
           await updateProject(workspaceSlug.toString(), res.id, { cover_image_url: coverImage });
         }
-        setToast({
-          type: TOAST_TYPE.SUCCESS,
-          title: t("success"),
-          message: t("project_created_successfully"),
-        });
-
         if (setToFavorite) {
           handleAddToFavorites(res.id);
         }
@@ -181,6 +191,13 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
           if (!compensated) console.error("binding failed and rollback failed:", bindError);
           return;
         }
+        // 建项目 + 绑定是一个整体，"创建成功"只在两步都完成后提示一次
+        // （此前建完项目就先弹成功，绑定失败时用户会看到成功紧跟着失败）。
+        setToast({
+          type: TOAST_TYPE.SUCCESS,
+          title: t("success"),
+          message: t("project_created_successfully"),
+        });
         return handleNextStep(res.id);
       })
       .catch((err) => {

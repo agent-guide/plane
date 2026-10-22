@@ -29,6 +29,16 @@ export const extendedRoutes: RouteConfigEntry[] = [
         route(":workspaceSlug/agent-teams/inbox", "./(all)/[workspaceSlug]/(projects)/agent-teams/inbox/page.tsx"),
         route(":workspaceSlug/agent-teams/chat", "./(all)/[workspaceSlug]/(projects)/agent-teams/chat/page.tsx"),
         route(":workspaceSlug/agent-teams/:teamId", "./(all)/[workspaceSlug]/(projects)/agent-teams/[teamId]/page.tsx"),
+        // 团队子列表页（2026-10-22 侧边栏成员/流程子项落点）：与工作项
+        // 列表同形态的整页视图；详情 :teamId 之上注册静态段。
+        route(
+          ":workspaceSlug/agent-teams/:teamId/members",
+          "./(all)/[workspaceSlug]/(projects)/agent-teams/[teamId]/members/page.tsx"
+        ),
+        route(
+          ":workspaceSlug/agent-teams/:teamId/processes",
+          "./(all)/[workspaceSlug]/(projects)/agent-teams/[teamId]/processes/page.tsx"
+        ),
         // Project Overview page (design §12.2, Linear-style): the project's
         // landing view hosting the responsible-team panel, counts, controlled
         // tasks and recent runs. Mirrors the core project detail layout chain

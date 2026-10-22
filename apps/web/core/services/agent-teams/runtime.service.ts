@@ -91,6 +91,11 @@ export type AgentTeam = {
   activeTaskCount?: number;
   runningRunCount?: number;
   artifactCount?: number;
+  // 全员自建（设计 2026-10-19）：查看者可管理（创建者或管理员）/是管理员
+  // ——服务端按 principal 填充，前端仅做可见性，不是安全边界。
+  viewerCanManage?: boolean;
+  viewerIsAdmin?: boolean;
+  createdByDisplayName?: string | null;
 };
 
 /** Runtime identity directory entry (§5.1) — display fields for members. */
@@ -120,8 +125,13 @@ export type AgentTeamMember = {
 };
 
 export type AgentTeamProject = {
+  // Internal runtime id — not routable in Plane (its routes take the workspace
+  // project UUID). Navigation must use externalProjectId.
   projectId: string;
   projectName: string;
+  // Plane project UUID from the work-management mapping; null for local-only
+  // projects, which have no Plane page at all.
+  externalProjectId?: string | null;
   workflowName?: string | null;
   workflowVersion?: number | null;
 };
@@ -291,6 +301,65 @@ export class AgentTeamRuntimeService {
       expertsHttp.get("/api/v1/agent-teams", { headers }).then((r) => r.data)
     );
     return (payload as { items?: AgentTeam[] })?.items ?? (Array.isArray(payload) ? payload : []);
+  }
+
+  /** 建团配额（设计 §1.2 钩子②）：新建入口主动展示剩余名额；admin applies=false。 */
+  async getTeamQuota(): Promise<{ applies: boolean; quota: number; owned: number; remaining: number | null }> {
+    return expertsRequest((headers) => expertsHttp.get("/api/v1/agent-teams/quota", { headers }).then((r) => r.data));
+  }
+
+  /** 全员自建（设计 2026-10-19）：成员可建（配额内），draft 起步。 */
+  async createTeam(data: { name: string; objective?: string }): Promise<AgentTeam> {
+    return expertsRequest((headers) => expertsHttp.post("/api/v1/agent-teams", data, { headers }).then((r) => r.data));
+  }
+
+  /** 创建者自管或管理员；status 变更走这里（上架 active / 回草稿）。 */
+  async updateTeam(
+    teamId: string,
+    patch: { name?: string; objective?: string; status?: "draft" | "active" }
+  ): Promise<AgentTeam> {
+    return expertsRequest((headers) =>
+      expertsHttp.patch(`/api/v1/agent-teams/${teamId}`, patch, { headers }).then((r) => r.data)
+    );
+  }
+
+  /** 归档仅管理员（治理动作）。 */
+  async archiveTeam(teamId: string): Promise<AgentTeam> {
+    return expertsRequest((headers) =>
+      expertsHttp.post(`/api/v1/agent-teams/${teamId}/archive`, {}, { headers }).then((r) => r.data)
+    );
+  }
+
+  /** 加成员：kind=human 传 userId（租户成员）；kind=agent 传 expertId（已发布专家）。 */
+  async addTeamMember(
+    teamId: string,
+    data: {
+      kind: "human" | "agent";
+      userId?: string;
+      expertId?: string;
+      role?: string;
+      capabilities?: string[];
+    }
+  ): Promise<AgentTeam> {
+    return expertsRequest((headers) =>
+      expertsHttp.post(`/api/v1/agent-teams/${teamId}/members`, data, { headers }).then((r) => r.data)
+    );
+  }
+
+  async updateTeamMember(
+    teamId: string,
+    memberId: string,
+    patch: { role?: string; capabilities?: string[]; enabled?: boolean }
+  ): Promise<AgentTeam> {
+    return expertsRequest((headers) =>
+      expertsHttp.patch(`/api/v1/agent-teams/${teamId}/members/${memberId}`, patch, { headers }).then((r) => r.data)
+    );
+  }
+
+  async removeTeamMember(teamId: string, memberId: string): Promise<void> {
+    await expertsRequest((headers) =>
+      expertsHttp.delete(`/api/v1/agent-teams/${teamId}/members/${memberId}`, { headers })
+    );
   }
 
   /** GET /api/v1/agent-teams/{team_id} */

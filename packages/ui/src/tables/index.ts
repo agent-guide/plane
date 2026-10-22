@@ -5,3 +5,4 @@
  */
 
 export * from "./table";
+export type { TTableColumn, TTableData } from "./types";

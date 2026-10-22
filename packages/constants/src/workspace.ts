@@ -284,10 +284,12 @@ export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarN
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["home"],
 ];
 
-export const WORKSPACE_SIDEBAR_STATIC_PINNED_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
-  WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["projects"],
-  WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["agent_teams"],
-];
+/**
+ * 顶部工作区菜单的「团队 / 项目」固定入口已移除（2026-10-22 整改）：
+ * 与下方团队组/项目组信息架构重复——列表页跳转整合到两组组头文字上，
+ * 新建入口在组头 + 号，二级导航在组内。数组保留为空以维持导出契约。
+ */
+export const WORKSPACE_SIDEBAR_STATIC_PINNED_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [];
 
 export const IS_FAVORITE_MENU_OPEN = "is_favorite_menu_open";
 export const WORKSPACE_DEFAULT_SEARCH_RESULT: IWorkspaceSearchResults = {
