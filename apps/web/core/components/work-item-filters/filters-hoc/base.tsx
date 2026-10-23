@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import { v4 as uuidv4 } from "uuid";
 // plane imports
@@ -43,7 +43,7 @@ export const WorkItemFiltersHOC = observer(function WorkItemFiltersHOC(props: TW
 type TWorkItemFilterProps = TSharedWorkItemFiltersProps &
   TAdditionalWorkItemFiltersProps & {
     initialWorkItemFilters: IIssueFilters;
-    children: React.ReactNode | ((props: { filter: IWorkItemFilterInstance }) => React.ReactNode);
+    children: React.ReactNode | ((props: { filter: IWorkItemFilterInstance | undefined }) => React.ReactNode);
   };
 
 const WorkItemFilterRoot = observer(function WorkItemFilterRoot(props: TWorkItemFilterProps) {
@@ -73,39 +73,42 @@ const WorkItemFilterRoot = observer(function WorkItemFilterRoot(props: TWorkItem
     allowedFilters: filtersToShowByLayout ? filtersToShowByLayout : [],
     ...entityConfigProps,
   });
-  // get or create filter instance
-  const workItemLayoutFilter = useMemo(
-    () =>
-      getOrCreateFilter({
-        entityType,
-        entityId: workItemEntityID,
-        initialExpression: initialUserFilters,
-        onExpressionChange: updateFilters,
-        expressionOptions: {
-          saveViewOptions,
-          updateViewOptions,
-        },
-        showOnMount,
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entityType, workItemEntityID, saveViewOptions, updateViewOptions, updateFilters]
-  );
-
-  // delete filter instance when component unmounts
-  useEffect(
-    () => () => {
+  // get or create filter instance —— 挂载后创建（10-23 修）：原在渲染期
+  // useMemo 内调 getOrCreateFilter（mobx action 写注册表），而 Filters
+  // 按钮等 observer 已在渲染中读取该表，触发 React「渲染 A 时更新 B」
+  // 中断整次提交——布局根挂载失败、实例永远缺失（刷新后 Filters 不可用
+  // 且偶发白屏，切视图经事件路径写入才恢复）。挂载后写入为合法更新；
+  // 首帧 filter 为 undefined，下游（含 WorkItemFiltersHOC 的 undefined
+  // 分支与按钮禁用）已兼容。
+  const [workItemLayoutFilter, setWorkItemLayoutFilter] = useState<IWorkItemFilterInstance | undefined>(undefined);
+  useEffect(() => {
+    const instance = getOrCreateFilter({
+      entityType,
+      entityId: workItemEntityID,
+      initialExpression: initialUserFilters,
+      onExpressionChange: updateFilters,
+      expressionOptions: {
+        saveViewOptions,
+        updateViewOptions,
+      },
+      showOnMount,
+    });
+    setWorkItemLayoutFilter(instance);
+    // delete filter instance when component unmounts
+    return () => {
       deleteFilter(entityType, workItemEntityID);
-    },
-    [deleteFilter, entityType, workItemEntityID]
-  );
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityType, workItemEntityID, saveViewOptions, updateViewOptions, updateFilters]);
 
   useEffect(() => {
+    if (!workItemLayoutFilter) return;
     workItemLayoutFilter.configManager.setAreConfigsReady(workItemFiltersConfig.areAllConfigsInitialized);
     workItemLayoutFilter.configManager.registerAll(workItemFiltersConfig.configs);
   }, [
     workItemFiltersConfig.areAllConfigsInitialized,
     workItemFiltersConfig.configs,
-    workItemLayoutFilter.configManager,
+    workItemLayoutFilter,
   ]);
 
   return <>{typeof children === "function" ? children({ filter: workItemLayoutFilter }) : children}</>;

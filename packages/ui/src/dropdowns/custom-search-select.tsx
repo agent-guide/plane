@@ -46,8 +46,15 @@ export function CustomSearchSelect(props: ICustomSearchSelectProps) {
   const [query, setQuery] = useState("");
 
   const [referenceElement, setReferenceElement] = useState<HTMLButtonElement | null>(null);
-  const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
+  // HTMLElement 与 custom-select 对齐（ref 挂到 Combobox.Options 本身后
+  // 其类型是 HTMLElement 而非 HTMLDivElement）。
+  const [popperElement, setPopperElement] = useState<HTMLElement | null>(null);
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  // 搜索框自动聚焦（10-23）：非 modal 模式下 HeadlessUI 不搬焦点，
+  // portal 内输入框原生点击聚焦在部分布局下会被抢——打开后 rAF 主动
+  // 聚焦，点击兜底用 onMouseDown stopPropagation 防抢焦。
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const focusInput = () => requestAnimationFrame(() => inputRef.current?.focus());
   // refs
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -82,7 +89,10 @@ export function CustomSearchSelect(props: ICustomSearchSelectProps) {
 
   const toggleDropdown = () => {
     if (isOpen) closeDropdown();
-    else openDropdown();
+    else {
+      openDropdown();
+      focusInput();
+    }
   };
 
   return (
@@ -141,26 +151,38 @@ export function CustomSearchSelect(props: ICustomSearchSelectProps) {
                 </button>
               </Combobox.Button>
             )}
+            {/* 9-14 下拉三连修同款（9a9d87f；10-09 修 custom-select 时漏了
+                本组件，10-23 补上）：popper 定位必须挂在 Combobox.Options
+                本身（挂在内层 div 时 ul 缺测量导致弹层定位到视口左上角），
+                且 modal={false} 避免 HeadlessUI 把页面其余部分置 inert。 */}
             {isOpen &&
               createPortal(
-                <Combobox.Options as="ul" data-prevent-outside-click static>
+                <Combobox.Options
+                  as="ul"
+                  data-prevent-outside-click
+                  modal={false}
+                  static
+                  ref={setPopperElement}
+                  className="z-30"
+                  style={styles.popper}
+                  {...attributes.popper}
+                >
                   <div
                     className={cn(
                       "z-30 my-1 min-w-48 overflow-y-scroll rounded-md border-[0.5px] border-subtle-1 bg-surface-1 py-2.5 text-11 whitespace-nowrap focus:outline-none",
                       optionsClassName
                     )}
-                    ref={setPopperElement}
-                    style={styles.popper}
-                    {...attributes.popper}
                   >
                     <div className="mx-2 flex items-center gap-1.5 rounded-sm border border-subtle px-2">
                       <SearchIcon className="h-3.5 w-3.5 text-placeholder" strokeWidth={1.5} />
                       <Combobox.Input
+                        ref={inputRef}
                         className="w-full bg-transparent py-1 text-11 text-secondary placeholder:text-placeholder focus:outline-none"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search"
                         displayValue={(assigned: any) => assigned?.name}
+                        onMouseDown={(e) => e.stopPropagation()}
                       />
                     </div>
                     <div

@@ -199,7 +199,19 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
   handleIssuesLocalFilters = {
     fetchFiltersFromStorage: () => {
       const _filters = storage.get("issue_local_filters");
-      return _filters ? JSON.parse(_filters) : [];
+      // 10-23 防御性解析：存储损坏/历史遗留对象形态（非数组）时
+      // JSON.parse 或下游 findIndex 会抛异常——fetchFilters 随之整体
+      // 失败，页面布局根拿不到筛选数据、Filters 实例永不创建（表现为
+      // 刷新后 Filters 按钮一直不可用，切视图乐观写入才恢复）。坏数据
+      // 静默重置为空并清源，下次写入自然重建。
+      if (!_filters) return [];
+      try {
+        const parsed = JSON.parse(_filters);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        storage.set("issue_local_filters", JSON.stringify([]));
+        return [];
+      }
     },
 
     get: (
@@ -216,7 +228,10 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
           filter.viewId === viewId &&
           filter.userId === userId
       );
-      if (!currentFilterIndex && currentFilterIndex.length < 0) return undefined;
+      // 上游笔误修正：findIndex 返回数字（-1=未命中），原 `!index &&
+      // index.length < 0` 在数字上取 length 恒为 false，语义应为未命中
+      // 才返回 undefined。
+      if (currentFilterIndex === -1) return undefined;
 
       return storageFilters[currentFilterIndex]?.filters || {};
     },

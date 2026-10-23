@@ -34,6 +34,7 @@ export const FiltersToggle = observer(function FiltersToggle<P extends TFilterPr
 
   const handleToggleFilter = () => {
     if (!filter) {
+      // eslint-disable-next-line no-console
       console.error("Filters toggle error - filter instance not available");
       return;
     }
@@ -78,11 +79,15 @@ export const FiltersToggle = observer(function FiltersToggle<P extends TFilterPr
   }
 
   return (
+    // filter 实例由布局根在 fetchFilters 就绪后创建（10-23 定位：刷新
+    // 进入到数据就绪之间是竞态窗口）——未就绪时禁用置灰而非报错，数据
+    // 到达后 mobx 响应式自动恢复。
     <IconButton
       size="lg"
       variant="secondary"
       icon={showFilterRowChangesPill ? FilterAppliedIcon : FilterIcon}
       onClick={handleToggleFilter}
+      disabled={!filter}
       className={buttonClassName}
       iconClassName={iconClassName}
     />
