@@ -22,7 +22,7 @@ import { ContentWrapper, ERowVariant, Table } from "@plane/ui";
 import type { TTableColumn } from "@plane/ui";
 import { calculateTimeAgo } from "@plane/utils";
 // icons
-import { Archive, ListTodo, Power, Settings, User } from "lucide-react";
+import { Archive, Power, Settings, User } from "lucide-react";
 // components
 import { EmptyRow, Section } from "@/components/agent-teams/section";
 import { TeamSettingsModal } from "@/components/agent-teams/team-manage-modals";
@@ -480,18 +480,12 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                     保证页面下边距。 */}
                 <div className="flex flex-col gap-10 px-8 pt-6 pb-16">
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-secondary">
-                    <span className="inline-flex items-center gap-1.5">
-                      <User className="size-3.5 text-tertiary" aria-hidden />
-                      {t("agent_teams_member_count", { count: data.members.length })}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <ListTodo
-                        className={`size-3.5 ${data.activeTasks.length > 0 ? "text-accent-primary" : "text-tertiary"}`}
-                        aria-hidden
-                      />
-                      <span className={data.activeTasks.length > 0 ? "font-medium text-accent-primary" : ""}>
-                        {t("agent_teams_run_count", { count: data.activeTasks.length })}
-                      </span>
+                    {/* 纯文字 meta（与项目概览横幅同款）：去图标，点分隔；
+                        有进行中任务时该项主题色加粗。 */}
+                    <span>{t("agent_teams_member_count", { count: data.members.length })}</span>
+                    <span aria-hidden>·</span>
+                    <span className={data.activeTasks.length > 0 ? "font-medium text-accent-primary" : ""}>
+                      {t("agent_teams_run_count", { count: data.activeTasks.length })}
                     </span>
                   </div>
                   {/* Active work items — in-flight only; finished/failed history
