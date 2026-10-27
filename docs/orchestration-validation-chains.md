@@ -67,9 +67,22 @@ WORKFLOW_NOT_FOUND / WORKFLOW_OWNER_REQUIRED（项目成员权限）
 | 管理端支撑（tenant/rbac/users/deps/board/task_workflow/builds） | ≈60 | 随 admin 退役/过渡 |
 | 其他（storage/ops 等） | ≈62 | 逐文件归类〔待走查：ops 的队列信号接口属运维观测，新架构归 worker 健康接口〕 |
 
-## 4. 数据库约束账目（32 个迁移文件的约束提取）
+## 4. 数据库约束账目（32 个迁移文件 → 编排域关键约束）
 
-〔实施前置补全：逐迁移文件列出唯一索引/外键/检查约束 → 映射 Django 模型 constraints；数据盘点已核对主要表结构〕
+全仓约束语句 209 处；编排域关键约束（→ Django 模型 constraints 映射）：
+
+**唯一性/互斥（业务不变式的库级兜底，必须等价重建）**：
+- `idx_workflow_versions_workflow_version`：(workflow, version) 唯一——版本不可变键
+- `idx_project_team_bindings_active`：每项目至多一条活跃绑定（partial unique）——设计稿 3.3 已含
+- `idx_task_bindings_nonterminal`：每任务至多一条非终态执行（partial unique）——设计稿 3.3 已含
+- `idx_task_workflow_assignments_active`：v1 任务工作流活跃分配唯一（随域退役）
+
+**外键引用完整性（关键三条）**：
+- workflow_versions → workflows（级联）
+- workflow_versions → engine_connections（on delete restrict——引擎连接被引用时禁删，防版本失锚）
+- agent_team_members → agent_teams（restrict）
+
+**迁移映射规则**：设计稿 Django 模型按上表逐条建 `UniqueConstraint(condition=...)` / FK on_delete；全量 209 处中编排域外部分随域处置（资源域→agwmngr、过渡域保留旧库即保留约束）。
 
 ## 5. 实施规则
 
