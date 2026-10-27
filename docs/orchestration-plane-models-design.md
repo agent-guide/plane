@@ -98,8 +98,8 @@
 | BusinessApproval | agent_human_requests(0) | 空 |
 | 历史（runs/events/handoffs/chat） | — | 不迁，旧库只读归档 |
 
-## 6. 待评审确认点
+## 6. 确认点结论（2026-10-28 评审定案）
 
-1. engine_connection_ref 的承载形态：环境变量/独立受控表/复用 WorkflowDefinition 单行——倾向受控单表（服务端解析，不进共享 DAG/日志）
-2. agent 成员是否需要映射 Plane Bot 展示身份（§5.4 提及）——一期先不做展示映射，引用直显 agwmngr 名称
-3. inbox/outbox 与引擎 worker 的传输协议（HTTP 回调 vs 队列）——随 §7 契约定稿
+1. **引擎连接承载形态：环境变量/部署配置**（机密管理业界铁律——绝不进业务数据库与日志；单引擎部署时定死，库中仅存引用名；与意见稿「部署期初始化」口径一致）。
+2. **Agent 成员映射 Plane Bot 账号：沿用既有 bot 供给机制**（修正：v2 现状每个数字员工已有 Plane 工作台账号，用于执行中工作项的指派人投影——「按指派人看板显示数字员工列」的体验依赖它；终局仅将映射对象从旧专家 ID 改挂 agwmngr AgentDefinition，机制不变、不新建）。
+3. **worker 回话协议：HTTP 回调 + 收发件箱**（延续现状模式——Airflow 步骤回调内部 HTTP 接口，接收方从 experts-backend 换为 Plane 并加 outbox/inbox 加固；其可靠性由语义保证成立〔必达/幂等/可对账〕，不依赖当前规模；将来出现多消费方/削峰需求时可平滑换队列投递，收件箱不变）。
