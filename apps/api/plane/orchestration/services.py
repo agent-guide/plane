@@ -140,3 +140,54 @@ def remove_member(*, team: AgentTeam, member: AgentTeamMember, user_id, is_admin
     if team.status == AgentTeam.Status.ACTIVE and member.enabled and team.members.filter(enabled=True).count() == 1:
         raise TeamDomainError(409, "AGENT_TEAM_EMPTY", "An active team requires at least one enabled member")
     member.delete()
+
+
+# ---------------------------------------------------------------- 绑定域
+
+"""绑定校验链（校验链清单 §1，顺序即暴露顺序，不得调换）：
+
+PROJECT_INACTIVE → AGENT_TEAM_NOT_FOUND → AGENT_TEAM_INACTIVE
+→ PROJECT_TEAM_BINDING_CONFLICT → WORKFLOW_VERSION_NOT_FOUND
+→ WORKFLOW_VERSION_NOT_PUBLISHED → WORKFLOW_ENGINE_CONNECTION_INACTIVE(env 承载)
+"""
+
+from .models import ProjectTeamBinding, WorkflowVersion
+
+
+def bind_project(*, project, team: AgentTeam, user_id, is_admin: bool,
+                 workflow_version: WorkflowVersion) -> ProjectTeamBinding:
+    _require_manage(team, user_id, is_admin)
+    if team.workspace_id != project.workspace_id:
+        raise TeamDomainError(404, "AGENT_TEAM_NOT_FOUND", "Team not found in this workspace")
+    if team.status != AgentTeam.Status.ACTIVE:
+        raise TeamDomainError(409, "AGENT_TEAM_INACTIVE", "Team is not active")
+    if ProjectTeamBinding.objects.filter(project=project, status=ProjectTeamBinding.Status.ACTIVE).exists():
+        raise TeamDomainError(409, "PROJECT_TEAM_BINDING_CONFLICT", "Project already has an active team binding")
+    if workflow_version.workflow.project_id != project.id:
+        raise TeamDomainError(404, "WORKFLOW_VERSION_NOT_FOUND", "Workflow version not found for this project")
+    if workflow_version.status != WorkflowVersion.Status.PUBLISHED:
+        raise TeamDomainError(409, "WORKFLOW_VERSION_NOT_PUBLISHED", "Workflow version is not published")
+    try:
+        with transaction.atomic():
+            return ProjectTeamBinding.objects.create(
+                project=project, team=team, workflow_version=workflow_version,
+                status=ProjectTeamBinding.Status.ACTIVE,
+            )
+    except IntegrityError:
+        # partial unique 兜底：并发下另一条活跃绑定先落库
+        raise TeamDomainError(409, "PROJECT_TEAM_BINDING_CONFLICT", "Project already has an active team binding")
+
+
+def upgrade_binding(*, binding: ProjectTeamBinding, user_id, is_admin: bool,
+                    workflow_version: WorkflowVersion) -> ProjectTeamBinding:
+    """显式升级到新发布版本（不自动跟随，沿用既有语义）。"""
+    _require_manage(binding.team, user_id, is_admin)
+    if binding.status != ProjectTeamBinding.Status.ACTIVE:
+        raise TeamDomainError(404, "PROJECT_TEAM_BINDING_NOT_FOUND", "No active binding")
+    if workflow_version.workflow.project_id != binding.project_id:
+        raise TeamDomainError(404, "WORKFLOW_VERSION_NOT_FOUND", "Workflow version not found for this project")
+    if workflow_version.status != WorkflowVersion.Status.PUBLISHED:
+        raise TeamDomainError(409, "WORKFLOW_VERSION_NOT_PUBLISHED", "Workflow version is not published")
+    binding.workflow_version = workflow_version
+    binding.save(update_fields=["workflow_version", "updated_at"])
+    return binding
