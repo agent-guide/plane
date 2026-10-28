@@ -105,6 +105,8 @@ INSTALLED_APPS = [
     "plane.space",
     "plane.bgtasks",
     "plane.db",
+    # 编排域独立 app（阶段 2′；自持模型/迁移，接触点仅此注册）
+    "plane.orchestration",
     "plane.utils",
     "plane.web",
     "plane.middleware",
