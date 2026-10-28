@@ -397,3 +397,43 @@ class ApprovalsEndpoint(BaseAPIView):
         except Exception:
             pass  # 执行未在等待态（终态/冲突）时审批仍成立
         return Response({"id": approval.id, "result": approval.result})
+
+
+class StartExecutionEndpoint(BaseAPIView):
+    def post(self, request, slug, project_id):
+        """受控启动：校验 + 冻结上下文 + outbox 启动命令。"""
+        from plane.db.models.issue import Issue
+        from .models import ProjectTeamBinding
+        from . import execution as execution_svc
+        issue = Issue.objects.filter(
+            project__workspace__slug=slug, project_id=project_id, id=request.data.get("issueId")).first()
+        binding = ProjectTeamBinding.objects.filter(
+            project__workspace__slug=slug, project_id=project_id,
+            status=ProjectTeamBinding.Status.ACTIVE).first()
+        if not issue or not binding:
+            return Response({"error": "issue or binding not found"}, status=404)
+        try:
+            execution = execution_svc.start_execution(issue=issue, binding=binding, user_id=request.user.id)
+            return Response(_execution_json(execution), status=201)
+        except TeamDomainError as exc:
+            return _error_response(exc)
+
+
+class EngineEventEndpoint(BaseAPIView):
+    """worker → Plane 引擎事件入口（服务令牌鉴权，worker 专用）。"""
+
+    permission_classes = []
+
+    def post(self, request):
+        import os, secrets
+        expected = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
+        provided = request.headers.get("X-Orchestration-Token", "")
+        if not expected or not secrets.compare_digest(expected, provided):
+            return Response({"error": "unauthorized"}, status=401)
+        from . import execution as execution_svc
+        result = execution_svc.process_event(
+            external_event_id=request.data.get("externalEventId", ""),
+            event_type=request.data.get("eventType", ""),
+            payload=request.data.get("payload", {}),
+        )
+        return Response(result)

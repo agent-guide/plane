@@ -139,3 +139,58 @@ def process_event(*, external_event_id: str, event_type: str, payload: dict) -> 
             raise  # inbox 行已在事务内，失败回滚 → 可重投
         OrchestrationInbox.objects.filter(external_event_id=external_event_id).update(processed_at=dj_tz.now())
         return {"status": "applied", "business_status": execution.business_status, "version": execution.transition_version}
+
+
+# ---------------------------------------------------------------- 受控启动（校验链清单 §1 启动段）
+
+
+def start_execution(*, issue, binding, user_id) -> WorkItemExecution:
+    """受控启动：校验链 + 冻结上下文 + outbox 启动命令（worker 触发引擎）。
+
+    校验（顺序即暴露顺序）：
+    EXECUTION_CONFLICT（已有活跃）→ AGENT_TEAM_INACTIVE → AGENT_TEAM_EMPTY
+    → WORKFLOW_VERSION_NOT_PUBLISHED
+    """
+    from .models import ProjectTeamBinding, WorkflowVersion
+    if WorkItemExecution.objects.filter(
+        issue=issue,
+    ).exclude(business_status__in=list(TERMINAL_STATUSES)).exists():
+        raise TeamDomainError(409, "EXECUTION_CONFLICT", "Issue already has an active execution")
+    if binding.status != ProjectTeamBinding.Status.ACTIVE:
+        raise TeamDomainError(409, "PROJECT_TEAM_BINDING_NOT_FOUND", "No active binding")
+    team = binding.team
+    if team.status != "active":
+        raise TeamDomainError(409, "AGENT_TEAM_INACTIVE", "Team is not active")
+    if not team.members.filter(enabled=True).exists():
+        raise TeamDomainError(409, "AGENT_TEAM_EMPTY", "An active team requires at least one enabled member")
+    version = binding.workflow_version
+    if version.status != WorkflowVersion.Status.PUBLISHED:
+        raise TeamDomainError(409, "WORKFLOW_VERSION_NOT_PUBLISHED", "Workflow version is not published")
+
+    frozen = {
+        "projectId": str(binding.project_id), "issueId": str(issue.id),
+        "teamId": str(team.id), "workflowVersionId": str(version.id),
+        "workflowVersionHash": version.content_hash,
+        "members": [
+            {"id": m.id, "kind": m.kind, "agentDefinitionId": m.agent_definition_id}
+            for m in team.members.filter(enabled=True)
+        ],
+        "startedBy": str(user_id),
+    }
+    try:
+        with transaction.atomic():
+            execution = WorkItemExecution.objects.create(
+                issue=issue, binding=binding, frozen_context=frozen,
+            )
+            import hashlib, json as _json
+            OrchestrationOutbox.objects.create(
+                idempotency_key=f"start:{execution.id}",
+                command_type="engine.start",
+                payload={"executionId": execution.id, "workflowVersionId": str(version.id)},
+                payload_hash=hashlib.sha256(_json.dumps(frozen, sort_keys=True).encode()).hexdigest(),
+            )
+            return execution
+    except Exception as e:
+        if "uniq_nonterminal_execution" in str(e):
+            raise TeamDomainError(409, "EXECUTION_CONFLICT", "Issue already has an active execution")
+        raise
