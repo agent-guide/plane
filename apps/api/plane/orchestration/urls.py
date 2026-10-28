@@ -5,7 +5,8 @@
 from django.urls import path
 
 from .views import (
-    ApprovalsEndpoint, EngineEventEndpoint, ProjectBindingsEndpoint, ProjectExecutionsEndpoint,
+    ApprovalsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
+    EngineEventEndpoint, ProjectBindingsEndpoint, ProjectExecutionsEndpoint,
     StartExecutionEndpoint,
     ProjectWorkflowDetailEndpoint, ProjectWorkflowsEndpoint, TeamDetailEndpoint,
     TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint,
@@ -28,4 +29,11 @@ urlpatterns = [
     path("internal/orchestration/events/", EngineEventEndpoint.as_view(http_method_names=["post"]), name="orchestration-engine-events"),
     path("workspaces/<str:slug>/orchestration/approvals/", ApprovalsEndpoint.as_view(), name="orchestration-approvals"),
     path("workspaces/<str:slug>/orchestration/approvals/<str:approval_id>/", ApprovalsEndpoint.as_view(http_method_names=["post"]), name="orchestration-approval-answer"),
+]
+
+urlpatterns += [
+    path("internal/workflow-runs/<str:run_ref>/nodes/<str:node_key>/", DagNodeView.as_view(http_method_names=["get"]), name="dag-node-view"),
+    path("internal/workflow-runs/<str:run_ref>/nodes/<str:node_key>/start/", DagNodeStartView.as_view(http_method_names=["post"]), name="dag-node-start"),
+    path("internal/workflow-runs/<str:run_ref>/nodes/<str:node_key>/finish/", DagNodeFinishView.as_view(http_method_names=["post"]), name="dag-node-finish"),
+    path("internal/workflow-runs/<str:run_ref>/nodes/<str:node_key>/fail/", DagNodeFailView.as_view(http_method_names=["post"]), name="dag-node-fail"),
 ]

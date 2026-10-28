@@ -273,3 +273,6 @@ class LegacyRuntimeRef(OrchestrationBaseModel):
         constraints = [
             models.UniqueConstraint(fields=["legacy_type", "legacy_id"], name="uniq_legacy_ref"),
         ]
+
+
+from .node_runtime import NodeRuntimeRecord  # noqa: E402,F401

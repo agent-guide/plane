@@ -437,3 +437,103 @@ class EngineEventEndpoint(BaseAPIView):
             payload=request.data.get("payload", {}),
         )
         return Response(result)
+
+
+class DagNodeRuntimeBase(BaseAPIView):
+    """DAG 运行时回调（令牌鉴权同 EngineEventEndpoint）。"""
+
+    permission_classes = []
+
+    def _auth(self, request):
+        import os, secrets
+        expected = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
+        return expected and secrets.compare_digest(expected, request.headers.get("X-Orchestration-Token", ""))
+
+    def _execution(self, run_ref: str):
+        return WorkItemExecution.objects.filter(engine_run_ref=run_ref).first()
+
+    def _denied(self):
+        return Response({"error": "unauthorized"}, status=401)
+
+
+class DagNodeView(DagNodeRuntimeBase):
+    def get(self, request, run_ref, node_key):
+        if not self._auth(request):
+            return self._denied()
+        from .node_runtime import NodeRuntimeRecord
+        execution = self._execution(run_ref)
+        if not execution:
+            return Response({"error": "run not found"}, status=404)
+        record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
+        return Response(record.view())
+
+
+class DagNodeStartView(DagNodeRuntimeBase):
+    def post(self, request, run_ref, node_key):
+        from .node_runtime import NodeRuntimeRecord
+        from .models import OrchestrationOutbox
+        import hashlib, json as _json
+        if not self._auth(request):
+            return self._denied()
+        execution = self._execution(run_ref)
+        if not execution:
+            return Response({"error": "run not found"}, status=404)
+        record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
+        record.status = NodeRuntimeRecord.Status.RUNNING
+        record.attempt = int(request.data.get("attempt", 1))
+        record.last_event_id = request.data.get("eventId", "")
+        record.save()
+        node = next((n for n in (execution.frozen_context.get("members") or []) if n.get("kind") == "agent"), None)
+        if node and node_key != "human":
+            payload = {"executionId": execution.id, "nodeKey": node_key, "attempt": record.attempt}
+            OrchestrationOutbox.objects.get_or_create(
+                idempotency_key=f"agent_call:{execution.id}:{node_key}:{record.attempt}",
+                defaults={"command_type": "agent.invoke", "payload": payload,
+                          "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest()})
+        return Response({"accepted": True, "status": record.status})
+
+
+class DagNodeFinishView(DagNodeRuntimeBase):
+    def post(self, request, run_ref, node_key):
+        from .node_runtime import NodeRuntimeRecord
+        from . import execution as execution_svc
+        if not self._auth(request):
+            return self._denied()
+        execution = self._execution(run_ref)
+        if not execution:
+            return Response({"error": "run not found"}, status=404)
+        record = NodeRuntimeRecord.objects.filter(execution=execution, node_key=node_key).first()
+        skipped = (request.data.get("result") or {}).get("status") == "skipped"
+        status = NodeRuntimeRecord.Status.SKIPPED if skipped else NodeRuntimeRecord.Status.SUCCESS
+        if record:
+            record.status = status
+            record.result = request.data.get("result") or {}
+            record.save()
+        if node_key == "human" or skipped:
+            return Response({"accepted": True, "status": status})
+        # 无更多待跑节点时的运行终态由引擎 terminal 事件结算（worker 投递），
+        # 此处仅登记节点事实——与旧系统「节点事件→运行聚合」分工一致。
+        return Response({"accepted": True, "status": status})
+
+
+class DagNodeFailView(DagNodeRuntimeBase):
+    def post(self, request, run_ref, node_key):
+        from .node_runtime import NodeRuntimeRecord
+        from . import execution as execution_svc
+        if not self._auth(request):
+            return self._denied()
+        execution = self._execution(run_ref)
+        if not execution:
+            return Response({"error": "run not found"}, status=404)
+        record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
+        record.status = NodeRuntimeRecord.Status.FAILED
+        record.result = request.data.get("result") or {"error": "node failed"}
+        record.save()
+        try:
+            execution_svc.on_engine_terminal(
+                execution_id=execution.id,
+                event_id=request.data.get("eventId") or f"nodefail:{run_ref}:{node_key}",
+                engine_status="failed")
+        except Exception:
+            pass  # 已终态时节点失败仅登记
+        return Response({"accepted": True, "status": record.status})
