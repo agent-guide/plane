@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 from .agent_teams import urlpatterns as agent_teams_urls
+from plane.orchestration.urls import urlpatterns as orchestration_urls
 from .analytic import urlpatterns as analytic_urls
 from .api import urlpatterns as api_urls
 from .asset import urlpatterns as asset_urls
@@ -46,4 +47,6 @@ urlpatterns = [
     *timezone_urls,
     *exporter_urls,
     *agent_teams_urls,
+    *orchestration_urls,
+
 ]
