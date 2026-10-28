@@ -1,0 +1,351 @@
+/**
+ * Copyright © 2026 agent-guide contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * See the LICENSE.txt file in the repository root for details.
+ *
+ * Orchestration service（阶段 2′ 前端数据源切换）：调 Plane 自身编排域 API
+ * （/api/workspaces/<slug>/orchestration/**），会话认证同源——不再走
+ * runtime-token 换票（experts-auth）。方法签名对齐 runtime.service 的
+ * 消费面，页面按域逐步切换 import。
+ */
+
+const BASE = (workspaceSlug: string) => `/api/workspaces/${workspaceSlug}/orchestration`;
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    let detail: string = response.statusText;
+    try {
+      const body = await response.json();
+      detail = body?.error ?? body?.detail ?? detail;
+      if (body?.code) detail = `${detail} [${body.code}]`;
+    } catch {
+      /* keep statusText */
+    }
+    throw Object.assign(new Error(detail), { status: response.status });
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+function csrfHeaders(): Record<string, string> {
+  // Django CSRF：cookie/header 同名对（写请求需要）
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? { "X-CSRFToken": decodeURIComponent(match[1]) } : {};
+}
+
+// ---------------------------------------------------------------- 团队域
+
+export interface OrchestrationTeam {
+  id: string;
+  name: string;
+  objective: string;
+  status: "draft" | "active" | "archived";
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  members?: OrchestrationTeamMember[];
+}
+
+export interface OrchestrationTeamMember {
+  id: string;
+  kind: "human" | "agent";
+  userId: string | null;
+  agentDefinitionId: string;
+  role: string;
+  capabilities: string[];
+  sequence: number;
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export async function listTeams(workspace: string): Promise<OrchestrationTeam[]> {
+  return request(`${BASE(workspace)}/teams/`);
+}
+
+export async function getTeam(workspace: string, teamId: string): Promise<OrchestrationTeam> {
+  return request(`${BASE(workspace)}/teams/${teamId}/`);
+}
+
+export async function createTeam(
+  workspace: string,
+  data: { name: string; objective?: string },
+): Promise<OrchestrationTeam> {
+  return request(`${BASE(workspace)}/teams/`, { method: "POST", body: JSON.stringify(data), headers: csrfHeaders() });
+}
+
+export async function updateTeam(
+  workspace: string,
+  teamId: string,
+  data: { name?: string; objective?: string },
+): Promise<OrchestrationTeam> {
+  return request(`${BASE(workspace)}/teams/${teamId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    headers: csrfHeaders(),
+  });
+}
+
+export async function activateTeam(workspace: string, teamId: string): Promise<OrchestrationTeam> {
+  return request(`${BASE(workspace)}/teams/${teamId}/activate/`, { method: "POST", headers: csrfHeaders() });
+}
+
+export async function archiveTeam(workspace: string, teamId: string): Promise<OrchestrationTeam> {
+  return request(`${BASE(workspace)}/teams/${teamId}/archive/`, { method: "POST", headers: csrfHeaders() });
+}
+
+// ---------------------------------------------------------------- 成员域
+
+export async function listMembers(workspace: string, teamId: string): Promise<OrchestrationTeamMember[]> {
+  return request(`${BASE(workspace)}/teams/${teamId}/members/`);
+}
+
+export async function addMember(
+  workspace: string,
+  teamId: string,
+  data: {
+    kind: "human" | "agent";
+    userId?: string;
+    agentDefinitionId?: string;
+    role: string;
+    capabilities?: string[];
+    sequence?: number;
+  },
+): Promise<OrchestrationTeamMember> {
+  return request(`${BASE(workspace)}/teams/${teamId}/members/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: csrfHeaders(),
+  });
+}
+
+export async function updateMember(
+  workspace: string,
+  teamId: string,
+  memberId: string,
+  data: { role?: string; capabilities?: string[]; sequence?: number; enabled?: boolean },
+): Promise<OrchestrationTeamMember> {
+  return request(`${BASE(workspace)}/teams/${teamId}/members/${memberId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    headers: csrfHeaders(),
+  });
+}
+
+export async function removeMember(workspace: string, teamId: string, memberId: string): Promise<void> {
+  await request(`${BASE(workspace)}/teams/${teamId}/members/${memberId}/`, {
+    method: "DELETE",
+    headers: csrfHeaders(),
+  });
+}
+
+// ---------------------------------------------------------------- 流程域
+
+export interface OrchestrationWorkflow {
+  id: string;
+  name: string;
+  description: string;
+  engineKind: string;
+  draft: Record<string, unknown>;
+  versions?: OrchestrationWorkflowVersion[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrchestrationWorkflowVersion {
+  id: string;
+  version: number;
+  status: "draft" | "publishing" | "published" | "failed";
+  contentHash: string;
+  publishedAt: string | null;
+}
+
+export async function listWorkflows(workspace: string, projectId: string): Promise<OrchestrationWorkflow[]> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/`);
+}
+
+export async function getWorkflow(
+  workspace: string,
+  projectId: string,
+  workflowId: string,
+): Promise<OrchestrationWorkflow> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/${workflowId}/`);
+}
+
+export async function createWorkflow(
+  workspace: string,
+  projectId: string,
+  data: { name: string; description?: string },
+): Promise<OrchestrationWorkflow> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: csrfHeaders(),
+  });
+}
+
+export async function saveDraft(
+  workspace: string,
+  projectId: string,
+  workflowId: string,
+  draft: Record<string, unknown>,
+): Promise<OrchestrationWorkflow> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/${workflowId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ draft }),
+    headers: csrfHeaders(),
+  });
+}
+
+export async function saveDraftVersion(
+  workspace: string,
+  projectId: string,
+  workflowId: string,
+): Promise<OrchestrationWorkflowVersion> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/${workflowId}/versions/`, {
+    method: "POST",
+    headers: csrfHeaders(),
+  });
+}
+
+export async function publishVersion(
+  workspace: string,
+  projectId: string,
+  workflowId: string,
+  versionId: string,
+): Promise<OrchestrationWorkflowVersion> {
+  return request(
+    `${BASE(workspace)}/projects/${projectId}/orchestration/workflows/${workflowId}/versions/${versionId}/publish/`,
+    { method: "POST", headers: csrfHeaders() },
+  );
+}
+
+// ---------------------------------------------------------------- 绑定域
+
+export interface OrchestrationBinding {
+  id: string;
+  projectId: string;
+  teamId: string;
+  workflowVersionId: string;
+  status: "active" | "retired";
+  updatedAt: string;
+}
+
+export async function listBindings(workspace: string, projectId: string): Promise<OrchestrationBinding[]> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/bindings/`);
+}
+
+export async function bindProject(
+  workspace: string,
+  projectId: string,
+  data: { teamId: string; workflowVersionId: string },
+): Promise<OrchestrationBinding> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/bindings/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: csrfHeaders(),
+  });
+}
+
+export async function upgradeBinding(
+  workspace: string,
+  projectId: string,
+  workflowVersionId: string,
+): Promise<OrchestrationBinding> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/bindings/`, {
+    method: "PATCH",
+    body: JSON.stringify({ workflowVersionId }),
+    headers: csrfHeaders(),
+  });
+}
+
+// ---------------------------------------------------------------- 执行与审批
+
+export interface OrchestrationExecution {
+  id: string;
+  issueId: string;
+  bindingId: string;
+  businessStatus: string;
+  currentMemberId: string | null;
+  engineRunRef: string;
+  version: number;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+export async function listExecutions(workspace: string, projectId: string): Promise<OrchestrationExecution[]> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/executions/`);
+}
+
+export async function startExecution(
+  workspace: string,
+  projectId: string,
+  issueId: string,
+): Promise<OrchestrationExecution> {
+  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/executions/start/`, {
+    method: "POST",
+    body: JSON.stringify({ issueId }),
+    headers: csrfHeaders(),
+  });
+}
+
+export interface OrchestrationApproval {
+  id: string;
+  executionId: string;
+  nodeRef: string;
+  options: string[];
+  result: "pending" | "approved" | "rejected";
+  reason: string;
+  answeredAt: string | null;
+}
+
+export async function listMyApprovals(workspace: string): Promise<OrchestrationApproval[]> {
+  return request(`${BASE(workspace)}/approvals/`);
+}
+
+export async function answerApproval(
+  workspace: string,
+  approvalId: string,
+  decision: "approved" | "rejected",
+  reason?: string,
+): Promise<{ id: string; result: string }> {
+  return request(`${BASE(workspace)}/approvals/${approvalId}/`, {
+    method: "POST",
+    body: JSON.stringify({ decision, reason }),
+    headers: csrfHeaders(),
+  });
+}
+
+/** 单例便捷封装（workspaceSlug 由调用方从路由 params 传入）。 */
+export const orchestrationService = {
+  listTeams,
+  getTeam,
+  createTeam,
+  updateTeam,
+  activateTeam,
+  archiveTeam,
+  listMembers,
+  addMember,
+  updateMember,
+  removeMember,
+  listWorkflows,
+  getWorkflow,
+  createWorkflow,
+  saveDraft,
+  saveDraftVersion,
+  publishVersion,
+  listBindings,
+  bindProject,
+  upgradeBinding,
+  listExecutions,
+  startExecution,
+  listMyApprovals,
+  answerApproval,
+};
