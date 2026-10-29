@@ -92,6 +92,29 @@ class HumanInteractionTests(ExecutionTestBase):
         on_engine_started(execution_id=ex.id, event_id="e0", engine_run_ref="r")
         return ex
 
+    def test_agent_member_handoff_creates_unassigned_approval(self):
+        """agent 成员交接（无 user）→ 审批建单不崩，assignee 未钉（全员可答）。"""
+        from plane.orchestration.models import AgentTeamMember, BusinessApproval
+        ex = self._running()
+        agent_member = AgentTeamMember.objects.create(
+            team=ex.binding.team, kind="agent", agent_definition_id="agent:t:x",
+            role="worker", sequence=1, enabled=True)
+        waiting = on_human_handoff(execution_id=ex.id, event_id="e1", member=agent_member)
+        self.assertEqual(waiting.business_status, "waiting_human")
+        approval = BusinessApproval.objects.get(execution=ex, result=BusinessApproval.Result.PENDING)
+        self.assertIsNone(approval.assignee)
+
+    def test_handoff_idempotent_when_waiting(self):
+        """已在 waiting_human（重投/遗留）时再 handoff：跳转移但保证待审批存在。"""
+        from plane.orchestration.models import BusinessApproval
+        ex = self._running()
+        on_human_handoff(execution_id=ex.id, event_id="e1", member=self.human_member)
+        # 删掉审批模拟此前建单失败遗留，再投一次
+        BusinessApproval.objects.filter(execution=ex).delete()
+        again = on_human_handoff(execution_id=ex.id, event_id="e1-retry", member=self.human_member)
+        self.assertEqual(again.business_status, "waiting_human")
+        self.assertTrue(BusinessApproval.objects.filter(execution=ex).exists())
+
     def test_handoff_sets_human_member_and_resume_clears(self):
         ex = self._running()
         waiting = on_human_handoff(execution_id=ex.id, event_id="e1", member=self.human_member)

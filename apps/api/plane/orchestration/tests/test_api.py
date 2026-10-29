@@ -163,8 +163,12 @@ class OrchestrationAPITest(TestCase):
         self.assertEqual(r.status_code, 200)
         human_entry = r.json()[0]
         self.assertEqual(human_entry["displayName"], self.human.display_name)
-        # 目录端点：未配置时 503 语义（前端空态）
-        r = self.client.get("/api/workspaces/aws-orch/agent-teams/agent-catalog/")
+        # 目录端点：未配置时 503 语义（前端空态）——显式清 env，
+        # 不受本地 .env 可能配置的真凭证影响
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"AGWMNGR_BASE_URL": "", "AGWMNGR_TENANT_TOKEN": "", "AGWMNGR_TENANT_ID": ""}):
+            r = self.client.get("/api/workspaces/aws-orch/agent-teams/agent-catalog/")
         self.assertEqual(r.status_code, 503)
 
     def test_project_team_panel(self):

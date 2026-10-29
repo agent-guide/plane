@@ -550,9 +550,10 @@ class ProjectExecutionsEndpoint(BaseAPIView):
 class ApprovalsEndpoint(BaseAPIView):
     def get(self, request, slug):
         """当前用户的待办/已办审批（跨项目）——列表自带详情面所需全部字段。"""
+        from django.db.models import Q
         approvals = BusinessApproval.objects.filter(
-            execution__binding__project__workspace__slug=slug, assignee=request.user,
-        ).select_related(
+            execution__binding__project__workspace__slug=slug,
+        ).filter(Q(assignee=request.user) | Q(assignee__isnull=True)).select_related(
             "execution", "execution__issue", "execution__issue__project",
             "execution__binding", "execution__binding__team",
         ).order_by("-created_at")
@@ -560,9 +561,10 @@ class ApprovalsEndpoint(BaseAPIView):
 
     def post(self, request, slug, approval_id):
         """审批作答（approved/rejected + 理由）；恢复执行经 outbox 由 worker 投递。"""
+        from django.db.models import Q
         approval = BusinessApproval.objects.filter(
             execution__binding__project__workspace__slug=slug, id=approval_id,
-            assignee=request.user).first()
+        ).filter(Q(assignee=request.user) | Q(assignee__isnull=True)).first()
         if not approval:
             return Response({"error": "not found"}, status=404)
         if approval.result != BusinessApproval.Result.PENDING:
@@ -682,8 +684,10 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             "version": a.version, "sizeBytes": None, "contentUrl": a.storage_ref,
         } for a in execution.artifacts.order_by("version")]
 
+        from django.db.models import Q
         pending = execution.approvals.filter(
-            result=BusinessApproval.Result.PENDING, assignee=request.user).first()
+            result=BusinessApproval.Result.PENDING).filter(
+            Q(assignee=request.user) | Q(assignee__isnull=True)).first()
 
         # 时间线：执行创建 → 节点记录 → 审批 → 终态（按时间归并）
         events = [{

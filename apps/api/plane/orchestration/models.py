@@ -190,7 +190,8 @@ class BusinessApproval(OrchestrationBaseModel):
 
     execution = models.ForeignKey(WorkItemExecution, on_delete=models.CASCADE, related_name="approvals")
     node_ref = models.CharField(max_length=200)  # 含引擎步骤/尝试，答复绑定当前步骤
-    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="business_approvals")
+    # null=True：未钉审批人（definition 未指定且交接成员非人类）——全员可答
+    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="business_approvals", null=True, blank=True)
     options = models.JSONField(default=list, blank=True)
     # 审批呈现面（handoff 时自发布版本 definition 快照）
     question = models.TextField(blank=True, default="")

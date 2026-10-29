@@ -75,9 +75,16 @@ def on_engine_started(*, execution_id: str, event_id: str, engine_run_ref: str) 
 
 
 def on_human_handoff(*, execution_id: str, event_id: str, member, node_ref: str = "human") -> WorkItemExecution:
-    """调用点 3：引擎人工节点 → running→waiting_human + 设人工成员 + 建待审批。"""
+    """调用点 3：引擎人工节点 → running→waiting_human + 设人工成员 + 建待审批。
+
+    幂等：已在 waiting_human（事件重投/此前建单失败遗留）时跳过转移但仍
+    保证待审批存在——审批建单失败不得静默丢待办。
+    """
     ex = _load_active(execution_id)
-    execution = transition_execution(execution=ex, target="waiting_human", event_id=event_id, member=member)
+    if ex.business_status == "waiting_human":
+        execution = ex
+    else:
+        execution = transition_execution(execution=ex, target="waiting_human", event_id=event_id, member=member)
     _ensure_pending_approval(execution, member, node_ref)
     return execution
 
@@ -106,12 +113,24 @@ def _ensure_pending_approval(execution, member, node_ref: str = "human") -> None
         {"label": "Approve", "value": "approve", "terminal": False},
         {"label": "Reject", "value": "reject", "terminal": True},
     ]
+    # assignee：人类成员 > definition 钉的审批人 > 不钉（全员可答）
+    assignee_id = getattr(member, "user_id", None) or _as_uuid((node or {}).get("approverUserId"))
     BusinessApproval.objects.create(
         execution=execution, node_ref=node_ref, options=options,
         question=(node or {}).get("message") or "",
         free_text=bool((node or {}).get("freeText")),
-        assignee_id=member.user_id if getattr(member, "user_id", None) else None,
+        assignee_id=assignee_id,
     )
+
+
+def _as_uuid(value):
+    if not value:
+        return None
+    try:
+        from uuid import UUID
+        return str(UUID(str(value)))
+    except (ValueError, TypeError):
+        return None
 
 
 def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
