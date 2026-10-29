@@ -45,17 +45,24 @@ def update_draft(*, workflow: WorkflowDefinition, user_id, draft: dict) -> Workf
 
 
 def save_draft_version(*, workflow: WorkflowDefinition, user_id) -> WorkflowVersion:
-    """把当前编辑态存为 draft 版本（发布的前置）。"""
+    """把当前编辑态存为 draft 版本（发布的前置）。
+
+    画布 graph 在此处编译为可执行 definition（编译器保证视图数据不进执行路径、
+    等值草稿哈希稳定）；非法图（环/空图/坏节点）在存版本时即拒绝。
+    """
+    from .graph_compiler import compile_graph
     if not workflow.draft:
         raise TeamDomainError(400, "WORKFLOW_DRAFT_EMPTY", "Workflow draft is empty")
+    definition = compile_graph(workflow.draft)
+    digest = _digest(definition)
     latest = workflow.versions.order_by("-version").first()
     # 同内容草稿重复保存 → 复用既有 draft 版本（幂等），不堆叠空版本
-    if latest and latest.status == WorkflowVersion.Status.DRAFT and latest.content_hash == _digest(workflow.draft):
+    if latest and latest.status == WorkflowVersion.Status.DRAFT and latest.content_hash == digest:
         return latest
     version = (latest.version + 1) if latest else 1
     return WorkflowVersion.objects.create(
         workflow=workflow, version=version, status=WorkflowVersion.Status.DRAFT,
-        definition=workflow.draft, content_hash=_digest(workflow.draft),
+        definition=definition, content_hash=digest,
     )
 
 

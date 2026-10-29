@@ -13,6 +13,7 @@ from plane.orchestration.workflows import (
 )
 from plane.orchestration.models import WorkflowDefinition, WorkflowVersion
 from plane.orchestration.services import TeamDomainError
+from .canvas import CANVAS_SINGLE
 
 User = get_user_model()
 
@@ -42,7 +43,7 @@ class DefinitionTests(WorkflowTestBase):
 class VersionTests(WorkflowTestBase):
     def test_draft_version_created_with_content_hash(self):
         wf = create_workflow(project=self.project, user_id=self.owner.id, name="带草稿")
-        update_draft(workflow=wf, user_id=self.owner.id, draft={"n": 1})
+        update_draft(workflow=wf, user_id=self.owner.id, draft=CANVAS_SINGLE)
         v1 = save_draft_version(workflow=wf, user_id=self.owner.id)
         self.assertEqual(v1.status, WorkflowVersion.Status.DRAFT)
         self.assertEqual(len(v1.content_hash), 64)
@@ -60,7 +61,7 @@ class VersionTests(WorkflowTestBase):
 class PublishChainTests(WorkflowTestBase):
     def _draft_version(self, name="发布流程"):
         wf = create_workflow(project=self.project, user_id=self.owner.id, name=name)
-        update_draft(workflow=wf, user_id=self.owner.id, draft={"nodes": []})
+        update_draft(workflow=wf, user_id=self.owner.id, draft=CANVAS_SINGLE)
         return save_draft_version(workflow=wf, user_id=self.owner.id)
 
     def test_publish_requires_draft_version(self):

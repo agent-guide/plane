@@ -8,6 +8,7 @@ from django.test import Client, TestCase
 from plane.db.models.workspace import Workspace, WorkspaceMember
 from plane.db.models.project import Project
 from plane.db.models.issue import Issue
+from .canvas import CANVAS_SINGLE
 from plane.orchestration import services, workflows
 from plane.orchestration.models import (
     OrchestrationOutbox, WorkflowDefinition, WorkflowVersion,
@@ -29,7 +30,7 @@ class StartExecutionTestBase(TestCase):
         services.add_member(team=cls.team, user_id=cls.owner.id, is_admin=True, kind="human", role="dev", user_ref=cls.owner.id)
         services.activate_team(team=cls.team, user_id=cls.owner.id, is_admin=True)
         cls.workflow = WorkflowDefinition.objects.create(project=cls.project, name="启动流程", created_by=cls.owner)
-        workflows.update_draft(workflow=cls.workflow, user_id=cls.owner.id, draft={"nodes": []})
+        workflows.update_draft(workflow=cls.workflow, user_id=cls.owner.id, draft=CANVAS_SINGLE)
         v = workflows.save_draft_version(workflow=cls.workflow, user_id=cls.owner.id)
         publishing = workflows.start_publish(workflow=cls.workflow, user_id=cls.owner.id)
         cls.version = workflows.finish_publish(version=publishing, engine_deploy_ref={"dag": "x"})

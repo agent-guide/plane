@@ -12,6 +12,7 @@ from django.test import TestCase
 from plane.db.models.workspace import Workspace
 from plane.db.models.project import Project
 from plane.db.models.issue import Issue
+from .canvas import CANVAS_SINGLE
 from plane.orchestration import services, workflows
 from plane.orchestration.models import (
     OrchestrationOutbox, WorkflowDefinition, WorkflowVersion,
@@ -101,7 +102,7 @@ class OutboxConsumerTests(TestCase):
         services.add_member(team=cls.team, user_id=cls.owner.id, is_admin=True, kind="human", role="dev", user_ref=cls.owner.id)
         services.activate_team(team=cls.team, user_id=cls.owner.id, is_admin=True)
         cls.wf = WorkflowDefinition.objects.create(project=cls.project, name="outbox 流程", created_by=cls.owner)
-        workflows.update_draft(workflow=cls.wf, user_id=cls.owner.id, draft={"nodes": []})
+        workflows.update_draft(workflow=cls.wf, user_id=cls.owner.id, draft=CANVAS_SINGLE)
         v = workflows.save_draft_version(workflow=cls.wf, user_id=cls.owner.id)
         pub = workflows.start_publish(workflow=cls.wf, user_id=cls.owner.id)
         cls.version = workflows.finish_publish(version=pub, engine_deploy_ref={})

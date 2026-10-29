@@ -10,6 +10,7 @@ from plane.db.models.project import Project
 from plane.orchestration.models import WorkItemExecution
 from plane.orchestration.execution import on_engine_started, on_human_handoff
 from plane.db.models.issue import Issue
+from .canvas import CANVAS_SINGLE
 
 User = get_user_model()
 
@@ -48,7 +49,7 @@ class OrchestrationAPITest(TestCase):
         wf_id = r.json()["id"]
 
         r = self.client.patch(f"/api/workspaces/aws-orch/projects/{self.project.id}/workflows/{wf_id}/",
-                              {"draft": {"nodes": [{"key": "analyze"}]}}, content_type="application/json")
+                              {"draft": CANVAS_SINGLE}, content_type="application/json")
         self.assertEqual(r.status_code, 200, r.content)
 
         r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/workflows/{wf_id}/versions/",
