@@ -26,12 +26,15 @@ import { Bot, ExternalLink, FileBox } from "lucide-react";
 // components
 import { AgentArtifactPreviewModal } from "@/components/agent-teams/artifact-preview-modal";
 // services
-import runtimeService, { type RuntimeArtifact } from "@/services/agent-teams/runtime.service";
+// 数据源切换（阶段 2′）：成果解析改走编排域工作项运行时视图
+import { orchestrationService, type OrchestrationRuntimeArtifact } from "@/services/agent-teams/orchestration.service";
 
 type TAgentRunSummaryCardProps = {
   comment: TIssueComment | undefined;
   ends: "top" | "bottom" | undefined;
   issueId: string;
+  workspaceSlug: string;
+  projectId: string;
 };
 
 type TerminalKind = "completed" | "failed" | "cancelled";
@@ -72,21 +75,24 @@ export const AgentRunSummaryCard = observer(function AgentRunSummaryCard({
   comment,
   ends,
   issueId,
+  workspaceSlug,
+  projectId,
 }: TAgentRunSummaryCardProps) {
   const { t } = useTranslation();
   // In-page artifact preview (§12.6) — same modal the sidebar panel opens.
-  const [previewArtifact, setPreviewArtifact] = useState<RuntimeArtifact | null>(null);
+  const [previewArtifact, setPreviewArtifact] = useState<OrchestrationRuntimeArtifact | null>(null);
 
   const run = comment ? parseRunSummary(comment.comment_html) : null;
 
   // Deliverable "view" needs artifact ids, which the comment doesn't carry —
   // resolve them from the runtime summary (only fetched when there is
   // something to open; terminal runs make it a one-shot request).
-  const { data: artifacts } = useSWR(
-    run && run.deliverables.length > 0 ? (["agent-teams", "summary-artifacts", issueId] as const) : null,
-    () => runtimeService.getWorkItemRuntimeSummary(issueId),
+  const { data: runtime } = useSWR(
+    run && run.deliverables.length > 0 ? (["orchestration", "summary-artifacts", projectId, issueId] as const) : null,
+    () => orchestrationService.getWorkItemRuntime(workspaceSlug, projectId, issueId),
     { revalidateOnFocus: false, shouldRetryOnError: false }
   );
+  const artifacts = runtime?.artifacts;
 
   if (!comment) return null;
 
@@ -94,11 +100,9 @@ export const AgentRunSummaryCard = observer(function AgentRunSummaryCard({
   const findArtifact = (label: string) => {
     // Comment items read "名称（vN）" — node display name or artifact name.
     const match = label.match(/^(.*)（v(\d+)）$/);
-    if (!match || !artifacts?.artifacts) return undefined;
+    if (!match || !artifacts) return undefined;
     const [, name, version] = match;
-    return artifacts.artifacts.find(
-      (a) => a.name === name && String(a.version) === version
-    );
+    return artifacts.find((a) => a.name === name && String(a.version) === version);
   };
 
   return (
@@ -114,7 +118,7 @@ export const AgentRunSummaryCard = observer(function AgentRunSummaryCard({
       </div>
       {/* body — one caption-sm header line (native activity rhythm), then a
           single quiet card: outcome, optional reason, deliverable rows. */}
-      <div className="min-w-0 w-full">
+      <div className="w-full min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 text-caption-sm-regular">
           <span className="inline-flex items-center gap-1 rounded bg-accent-subtle px-1.5 py-0.5 text-caption-sm-medium text-accent-primary">
             <Bot className="size-3" aria-hidden="true" />

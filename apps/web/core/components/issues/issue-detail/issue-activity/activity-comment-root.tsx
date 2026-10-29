@@ -64,7 +64,14 @@ export const IssueActivityCommentRoot = observer(function IssueActivityCommentRo
         const ends = index === 0 ? "top" : index === filteredActivityAndComments.length - 1 ? "bottom" : undefined;
         return activityComment.activity_type === "COMMENT" ? (
           comment?.actor_detail?.is_bot ? (
-            <AgentRunSummaryCard key={activityComment.id} comment={comment} ends={ends} issueId={issueId} />
+            <AgentRunSummaryCard
+              key={activityComment.id}
+              comment={comment}
+              ends={ends}
+              issueId={issueId}
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+            />
           ) : (
             <CommentCard
               key={activityComment.id}

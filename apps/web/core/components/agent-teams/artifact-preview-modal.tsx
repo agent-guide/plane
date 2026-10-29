@@ -30,7 +30,10 @@ import { Check, Copy, Download, FileBox, RefreshCw, X } from "lucide-react";
 // components
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 // services
-import runtimeService, { type RuntimeArtifact } from "@/services/agent-teams/runtime.service";
+
+import type { OrchestrationRuntimeArtifact } from "@/services/agent-teams/orchestration.service";
+
+type RuntimeArtifact = OrchestrationRuntimeArtifact;
 
 type TAgentArtifactPreviewModalProps = {
   // contentUrl：编排域直接给存储引用时跳过签名 URL 取数（旧链走签名端点）
@@ -38,7 +41,7 @@ type TAgentArtifactPreviewModalProps = {
   onClose: () => void;
 };
 
-const isMarkdown = (artifact: RuntimeArtifact & { contentUrl?: string }) =>
+const isMarkdown = (artifact: RuntimeArtifact & { contentUrl?: string; mimeType?: string | null }) =>
   (artifact.mimeType ?? "").includes("markdown") || artifact.name.toLowerCase().endsWith(".md");
 
 export const AgentArtifactPreviewModal = function AgentArtifactPreviewModal({
@@ -58,7 +61,8 @@ export const AgentArtifactPreviewModal = function AgentArtifactPreviewModal({
     setError(false);
     setLoading(true);
     try {
-      const downloadUrl = target.contentUrl ?? (await runtimeService.getArtifactDownloadUrl(target.id));
+      if (!target.contentUrl) throw new Error("artifact has no content url");
+      const downloadUrl = target.contentUrl;
       setUrl(downloadUrl);
       if (isMarkdown(target)) {
         const response = await fetch(downloadUrl);

@@ -8,7 +8,7 @@
  * 状态药丸与侧栏团队行共用同一渲染。
  */
 import { Activity, ArchiveX, CircleDashed } from "lucide-react";
-import type { AgentTeam } from "@/services/agent-teams/runtime.service";
+import type { OrchestrationTeam } from "@/services/agent-teams/orchestration.service";
 
 const STATUS_ICONS: Record<string, typeof Activity> = {
   active: Activity,
@@ -31,7 +31,7 @@ export function TeamStatusIcon({
   strokeWidth,
   style,
 }: {
-  status: AgentTeam["status"];
+  status: OrchestrationTeam["status"];
   className?: string;
   color?: string;
   strokeWidth?: number;
