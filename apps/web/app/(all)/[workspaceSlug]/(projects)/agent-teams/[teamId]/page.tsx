@@ -9,7 +9,7 @@
  * only signal-level counts. All data comes from the Agent Team Runtime API;
  * editing stays in the admin console (§12.6.1).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { observer } from "mobx-react";
 // plane imports
 import { useParams } from "react-router";
@@ -29,16 +29,17 @@ import { TeamSettingsModal } from "@/components/agent-teams/team-manage-modals";
 import { PageHead } from "@/components/core/page-title";
 import Link from "next/link";
 // services
-import runtimeService, {
-  type AgentTeam,
-  type AgentTeamActiveTask,
-  type AgentTeamMember,
-  type AgentTeamProject,
-} from "@/services/agent-teams/runtime.service";
+// 数据源切换（阶段 2′）：团队详情改走 Plane 编排域同源 API
+import {
+  orchestrationService,
+  type OrchestrationTeam,
+  type OrchestrationTeamMember,
+  type OrchestrationTeamProject,
+  type OrchestrationActiveTask,
+} from "@/services/agent-teams/orchestration.service";
 import { classifyRuntimeFailure, type RuntimeFailureKind } from "@/services/agent-teams/runtime-errors";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
-import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import type { Route } from "./+types/page";
 
 /* 莫奈清晨色板（与团队列表页同源同值）：起色/雾止色/墨色三元组。
@@ -94,14 +95,10 @@ const detailSkeleton = (
 );
 
 type TTeamDetailData = {
-  team: AgentTeam;
-  members: AgentTeamMember[];
-  activeTasks: AgentTeamActiveTask[];
+  team: OrchestrationTeam;
+  members: OrchestrationTeamMember[];
+  activeTasks: OrchestrationActiveTask[];
 };
-
-// Projects load incrementally (Plane-native load-more): pages of this size
-// append until the backend total is reached.
-const PROJECT_PAGE_SIZE = 10;
 
 function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
   const { teamId } = params;
@@ -117,11 +114,8 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
   // 失败原因分类：工作区没接入时重试永远不会成功，不能再给「重试」按钮。
   const [failure, setFailure] = useState<RuntimeFailureKind | null>(null);
 
-  const [projects, setProjects] = useState<AgentTeamProject[]>([]);
+  const [projects, setProjects] = useState<OrchestrationTeamProject[]>([]);
   const [projectTotal, setProjectTotal] = useState(0);
-  const [projectsLoading, setProjectsLoading] = useState(false);
-  const [projectsSentinel, setProjectsSentinel] = useState<HTMLDivElement | null>(null);
-  const pageRef = useRef<HTMLDivElement | null>(null);
 
   // 全员自建（设计 2026-10-19）：管理动作——viewerCanManage 由服务端按
   // principal 填充（创建者或管理员），前端只做可见性。
@@ -140,8 +134,8 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
       await action();
       await loadTeam();
     } catch (error) {
-      const status = (error as { response?: { data?: { code?: string } } })?.response;
-      if (status?.data?.code === "AGENT_TEAM_EMPTY") {
+      // orchestration.service 错误形态：message 尾带 [CODE]
+      if (/\[AGENT_TEAM_EMPTY\]/.test((error as Error).message ?? "")) {
         setActionErrorKey("agent_teams_activate_needs_member");
       } else {
         setActionErrorKey("agent_teams_action_failed");
@@ -151,52 +145,26 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
     }
   };
 
+  // 编排域关联项目全量返回（量级个位数），不再走分页 load-more
   const loadTeam = useCallback(async () => {
+    if (!workspaceSlug) return;
     setLoading(true);
     setFailure(null);
     try {
-      const [team, members, projectsPage, activeTasks] = await Promise.all([
-        runtimeService.getTeam(teamId),
-        runtimeService.listTeamMembers(teamId),
-        runtimeService.listTeamProjects(teamId, 1, PROJECT_PAGE_SIZE),
-        runtimeService.listTeamActiveTasks(teamId),
+      const [team, projectList, activeTasks] = await Promise.all([
+        orchestrationService.getTeam(workspaceSlug, teamId),
+        orchestrationService.listTeamProjects(workspaceSlug, teamId),
+        orchestrationService.listTeamActiveTasks(workspaceSlug, teamId),
       ]);
-      setData({ team, members, activeTasks });
-      setProjects(projectsPage.items);
-      setProjectTotal(projectsPage.total);
+      setData({ team, members: team.members ?? [], activeTasks });
+      setProjects(projectList);
+      setProjectTotal(projectList.length);
     } catch (error) {
       setFailure(classifyRuntimeFailure(error));
     } finally {
       setLoading(false);
     }
-  }, [teamId]);
-
-  const projectsHasMore = projects.length < projectTotal;
-
-  const loadMoreProjects = useCallback(() => {
-    if (projectsLoading || !projectsHasMore) return;
-    setProjectsLoading(true);
-    const page = Math.floor(projects.length / PROJECT_PAGE_SIZE) + 1;
-    runtimeService
-      .listTeamProjects(teamId, page, PROJECT_PAGE_SIZE)
-      .then((res) => {
-        setProjects((prev) => [...prev, ...res.items]);
-        setProjectTotal(res.total);
-        return res;
-      })
-      .catch(() => {
-        // keep the current pages; the sentinel stays so the user can retry
-        // by scrolling again or clicking the load-more row
-      })
-      .finally(() => setProjectsLoading(false));
-  }, [projectsLoading, projectsHasMore, projects.length, teamId]);
-
-  useIntersectionObserver(
-    pageRef,
-    projectsHasMore && !projectsLoading ? projectsSentinel : null,
-    loadMoreProjects,
-    "100% 0% 100% 0%"
-  );
+  }, [workspaceSlug, teamId]);
 
   useEffect(() => {
     void loadTeam();
@@ -205,7 +173,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
   const statusLabel = (key: string) => t(`agent_teams_status_${key}`);
 
   // 列表统一走 @plane/ui Table（与成员/流程子页同款：表头分隔线 + 左对齐表头）。
-  const taskColumns: TTableColumn<AgentTeamActiveTask>[] = [
+  const taskColumns: TTableColumn<OrchestrationActiveTask>[] = [
     {
       key: "work_item",
       content: t("agent_teams_column_work_item"),
@@ -274,7 +242,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
     },
   ];
 
-  const projectColumns: TTableColumn<AgentTeamProject>[] = [
+  const projectColumns: TTableColumn<OrchestrationTeamProject>[] = [
     {
       key: "project",
       content: t("agent_teams_column_project"),
@@ -322,7 +290,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
           {/* 排版节奏（2026-10-22 整改）：横幅全出血贴边，其下所有内容收进
               一条 px-6 pt-8 的内容列，块间距统一 32px（gap-8）——原 gap-10
               与区块 gap-8 混用，节奏断裂。 */}
-          <div ref={pageRef} className="flex min-h-0 w-full flex-1 flex-col">
+          <div className="flex min-h-0 w-full flex-1 flex-col">
             {loading ? (
               detailSkeleton
             ) : failure || !data ? (
@@ -403,12 +371,12 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] leading-4">
-                          {data.team.createdByDisplayName ? (
+                          {data.team.createdBy ? (
                             <span style={{ color: `${teamInk(data.team.name)}b3` }}>
-                              {t("agent_teams_created_by", { name: data.team.createdByDisplayName })}
+                              {t("agent_teams_created_by", { name: data.team.createdBy })}
                             </span>
                           ) : null}
-                          {data.team.createdByDisplayName && data.team.objective ? (
+                          {data.team.createdBy && data.team.objective ? (
                             <span aria-hidden style={{ color: `${teamInk(data.team.name)}59` }}>
                               ·
                             </span>
@@ -432,7 +400,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                             disabled={enabledMembers.length === 0}
                             title={enabledMembers.length === 0 ? t("agent_teams_activate_needs_member") : undefined}
                             onClick={() =>
-                              void runManageAction(() => runtimeService.updateTeam(teamId, { status: "active" }))
+                              void runManageAction(() => orchestrationService.activateTeam(workspaceSlug!, teamId))
                             }
                           >
                             <Power className="size-3.5" aria-hidden />
@@ -457,7 +425,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                             loading={actionBusy}
                             onClick={() => {
                               if (window.confirm(t("agent_teams_archive_confirm", { name: data.team.name }))) {
-                                void runManageAction(() => runtimeService.archiveTeam(teamId));
+                                void runManageAction(() => orchestrationService.archiveTeam(workspaceSlug!, teamId));
                               }
                             }}
                           >
@@ -520,7 +488,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                   {/* Projects — Plane-native load-more: pages append on scroll
                       (sentinel) or via the fallback row until total is reached. */}
                   <Section label={t("agent_teams_projects_title")} count={projectTotal}>
-                    {projects.length === 0 && !projectsLoading ? (
+                    {projects.length === 0 ? (
                       <EmptyRow
                         assetKey="project"
                         label={t("agent_teams_projects_empty_title")}
@@ -540,20 +508,6 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                             tdClassName="py-3"
                           />
                         </div>
-                        {projectsLoading ? (
-                          <div className="border-b border-subtle px-2.5 py-2 text-center text-13 text-tertiary">
-                            {t("agent_teams_inbox_loading")}
-                          </div>
-                        ) : projectsHasMore ? (
-                          // oxlint-disable-next-line jsx-a11y/click-events-have-key-events jsx-a11y/no-static-element-interactions
-                          <div
-                            ref={setProjectsSentinel}
-                            className="cursor-pointer border-b border-subtle px-2.5 py-2 text-center text-13 font-medium text-accent-primary hover:underline"
-                            onClick={loadMoreProjects}
-                          >
-                            {t("load_more")} &darr;
-                          </div>
-                        ) : null}
                       </>
                     )}
                   </Section>
@@ -583,15 +537,14 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                 setActionBusy(true);
                 setActionErrorKey("");
                 try {
-                  await runtimeService.updateTeam(teamId, {
+                  await orchestrationService.updateTeam(workspaceSlug!, teamId, {
                     name: patch.name || undefined,
                     objective: patch.objective || undefined,
                   });
                   setSettingsOpen(false);
                   await loadTeam();
                 } catch (error) {
-                  const status = (error as { response?: { data?: { code?: string } } })?.response;
-                  if (status?.data?.code === "AGENT_TEAM_NAME_CONFLICT") {
+                  if (/\[AGENT_TEAM_NAME_CONFLICT\]/.test((error as Error).message ?? "")) {
                     setActionErrorKey("agent_teams_create_name_conflict");
                   } else {
                     setActionErrorKey("agent_teams_action_failed");

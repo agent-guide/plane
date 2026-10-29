@@ -41,11 +41,12 @@ def _error_response(exc: TeamDomainError):
     return Response({"error": exc.message, "code": exc.code}, status=exc.status)
 
 
-def _team_json(team: AgentTeam, with_members: bool = False):
+def _team_json(team: AgentTeam, with_members: bool = False, user=None, is_admin: bool | None = None):
     data = {
         "id": team.id, "name": team.name, "objective": team.objective,
         "status": team.status,
-        "createdBy": User.objects.filter(id=team.created_by_id).values_list("username", flat=True).first(),
+        "createdBy": User.objects.filter(id=team.created_by_id)
+        .values_list("display_name", flat=True).first(),
         "createdAt": team.created_at.isoformat(), "updatedAt": team.updated_at.isoformat(),
     }
     # 列表卡信号行（与旧系统 agent_team_repository 同语义）：
@@ -55,6 +56,11 @@ def _team_json(team: AgentTeam, with_members: bool = False):
         data["memberCount"] = team.member_count
         data["activeTaskCount"] = team.active_task_count
         data["runningRunCount"] = team.running_run_count
+    # 管理动作可见性（前端只做展示，安全边界仍在服务层谓词）；
+    # user/is_admin 由端点成对传入
+    if user is not None and is_admin is not None:
+        data["viewerCanManage"] = bool(is_admin) or team.created_by_id == user.id
+        data["viewerIsAdmin"] = bool(is_admin)
     if with_members:
         data["members"] = [_member_json(m) for m in team.members.order_by("sequence", "created_at")]
     return data
@@ -120,10 +126,12 @@ class TeamsEndpoint(BaseAPIView):
             )
             .order_by("-created_at")
         )
-        return Response([_team_json(t) for t in teams])
+        is_admin = _is_workspace_admin(request.user, slug)
+        return Response([_team_json(t, user=request.user, is_admin=is_admin) for t in teams])
 
     def post(self, request, slug):
         try:
+            is_admin = _is_workspace_admin(request.user, slug)
             team = services.create_team(
                 workspace_id=Workspace.objects.get(slug=slug).id,
                 user_id=request.user.id,
@@ -131,7 +139,7 @@ class TeamsEndpoint(BaseAPIView):
                 name=request.data.get("name", ""),
                 objective=request.data.get("objective", ""),
             )
-            return Response(_team_json(team), status=201)
+            return Response(_team_json(team, user=request.user, is_admin=is_admin), status=201)
         except TeamDomainError as exc:
             return _error_response(exc)
         except Workspace.DoesNotExist:
@@ -163,7 +171,9 @@ class TeamDetailEndpoint(BaseAPIView):
         team = self._get(slug, team_id)
         if not team:
             return Response({"error": "not found"}, status=404)
-        return Response(_team_json(team, with_members=True))
+        return Response(_team_json(
+            team, with_members=True, user=request.user,
+            is_admin=_is_workspace_admin(request.user, slug)))
 
     def patch(self, request, slug, team_id):
         team = self._get(slug, team_id)
@@ -195,7 +205,7 @@ class TeamLifecycleEndpoint(BaseAPIView):
                 services.archive_team(team=team, is_admin=is_admin)
             else:
                 return Response({"error": "unknown action"}, status=400)
-            return Response(_team_json(team))
+            return Response(_team_json(team, user=request.user, is_admin=is_admin))
         except TeamDomainError as exc:
             return _error_response(exc)
 
@@ -257,7 +267,57 @@ class TeamMemberDetailEndpoint(BaseAPIView):
             return _error_response(exc)
 
 
-# ---------------------------------------------------------------- 流程与绑定
+class TeamProjectsEndpoint(BaseAPIView):
+    """团队详情页「关联项目」：绑定全量返回（测试环境量级个位数，不分页）。"""
+
+    def get(self, request, slug, team_id):
+        bindings = ProjectTeamBinding.objects.filter(
+            team__workspace__slug=slug, team_id=team_id,
+        ).select_related("project", "workflow_version", "workflow_version__workflow").order_by("-created_at")
+        return Response([{
+            "projectId": b.id,
+            "externalProjectId": str(b.project_id),
+            "projectName": b.project.name,
+            "workflowName": b.workflow_version.workflow.name if b.workflow_version else None,
+            "workflowVersion": b.workflow_version.version if b.workflow_version else None,
+            "status": b.status,
+        } for b in bindings])
+
+
+class TeamActiveTasksEndpoint(BaseAPIView):
+    """团队详情页「进行中工作项」：本团队绑定下的非终态执行。
+
+    字段对齐旧 AgentTeamActiveTask 消费面（taskBindingId 作 key、
+    external* 供 Plane 路由跳转、controlStatus 即 business_status）。
+    """
+
+    def get(self, request, slug, team_id):
+        from .state_machine import TERMINAL_STATUSES
+        executions = WorkItemExecution.objects.filter(
+            binding__team__workspace__slug=slug, binding__team_id=team_id,
+        ).exclude(business_status__in=list(TERMINAL_STATUSES)).select_related(
+            "issue", "issue__project", "current_member", "current_member__user",
+        ).order_by("-updated_at")
+        items = []
+        for e in executions:
+            member = e.current_member
+            member_name = None
+            if member is not None:
+                # 人类成员取 Plane 显示名；数字成员暂无本地名称源（阶段 4 接 agwmngr 目录后补）
+                member_name = (member.user.display_name if member.user else None) if member.kind == "human" else None
+            items.append({
+                "taskBindingId": e.id,
+                "issueId": e.issue_id,
+                "externalProjectId": str(e.issue.project_id),
+                "externalItemId": str(e.issue_id),
+                "taskName": e.issue.name,
+                "controlStatus": e.business_status,
+                "projectName": e.issue.project.name,
+                "activeMemberName": member_name,
+                "updatedAt": e.updated_at.isoformat(),
+            })
+        return Response(items)
+
 
 
 class ProjectWorkflowsEndpoint(BaseAPIView):

@@ -7,7 +7,7 @@ from django.urls import path
 from .views import (
     ApprovalsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
     EngineEventEndpoint, ProjectBindingsEndpoint, ProjectExecutionsEndpoint,
-    StartExecutionEndpoint, TeamQuotaEndpoint,
+    StartExecutionEndpoint, TeamQuotaEndpoint, TeamProjectsEndpoint, TeamActiveTasksEndpoint,
     ProjectWorkflowDetailEndpoint, ProjectWorkflowsEndpoint, TeamDetailEndpoint,
     TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint,
     TeamsEndpoint, WorkflowPublishEndpoint, WorkflowVersionsEndpoint,
@@ -22,6 +22,8 @@ urlpatterns = [
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/", TeamDetailEndpoint.as_view(), name="orchestration-team-detail"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/members/", TeamMembersEndpoint.as_view(), name="orchestration-team-members"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/members/<str:member_id>/", TeamMemberDetailEndpoint.as_view(), name="orchestration-team-member-detail"),
+    path("workspaces/<str:slug>/agent-teams/<str:team_id>/projects/", TeamProjectsEndpoint.as_view(), name="orchestration-team-projects"),
+    path("workspaces/<str:slug>/agent-teams/<str:team_id>/active-tasks/", TeamActiveTasksEndpoint.as_view(), name="orchestration-team-active-tasks"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/<str:action>/", TeamLifecycleEndpoint.as_view(), name="orchestration-team-lifecycle"),
     path("workspaces/<str:slug>/projects/<uuid:project_id>/workflows/", ProjectWorkflowsEndpoint.as_view(), name="orchestration-workflows"),
     path("workspaces/<str:slug>/projects/<uuid:project_id>/workflows/<str:workflow_id>/", ProjectWorkflowDetailEndpoint.as_view(), name="orchestration-workflow-detail"),

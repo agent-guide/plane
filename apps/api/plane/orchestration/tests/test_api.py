@@ -107,6 +107,51 @@ class OrchestrationAPITest(TestCase):
         self.assertEqual(body["owned"], 0)
         self.assertEqual(body["remaining"], body["quota"])
 
+    def test_team_detail_projects_and_active_tasks(self):
+        """详情页三端点：viewer 标志 / 关联项目 / 进行中工作项。"""
+        from plane.orchestration import services
+        from plane.orchestration.models import WorkflowDefinition, WorkflowVersion, ProjectTeamBinding
+        team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="详情团队")
+        member = services.add_member(team=team, user_id=self.owner.id, is_admin=True, kind="human", role="approver", user_ref=self.human.id)
+        services.activate_team(team=team, user_id=self.owner.id, is_admin=True)
+        wf = WorkflowDefinition.objects.create(project=self.project, name="详情流程", created_by=self.owner)
+        version = WorkflowVersion.objects.create(workflow=wf, version=1, status=WorkflowVersion.Status.PUBLISHED)
+        binding = ProjectTeamBinding.objects.create(
+            project=self.project, team=team, workflow_version=version,
+            status=ProjectTeamBinding.Status.ACTIVE)
+        issue = Issue.objects.create(project=self.project, name="详情工作项", created_by=self.owner)
+        execution = WorkItemExecution.objects.create(
+            issue=issue, binding=binding, business_status="running", current_member=member)
+
+        # 详情：viewer 标志（owner=管理员）
+        r = self.client.get(f"/api/workspaces/aws-orch/agent-teams/{team.id}/")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["viewerCanManage"])
+        self.assertTrue(r.json()["viewerIsAdmin"])
+
+        # 关联项目：项目名 + 流程名/版本
+        r = self.client.get(f"/api/workspaces/aws-orch/agent-teams/{team.id}/projects/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.json()), 1)
+        entry = r.json()[0]
+        self.assertEqual(entry["projectName"], self.project.name)
+        self.assertEqual(entry["workflowName"], "详情流程")
+        self.assertEqual(entry["workflowVersion"], 1)
+
+        # 进行中工作项：running 执行 + 当前成员名
+        r = self.client.get(f"/api/workspaces/aws-orch/agent-teams/{team.id}/active-tasks/")
+        self.assertEqual(r.status_code, 200)
+        task = r.json()[0]
+        self.assertEqual(task["taskName"], "详情工作项")
+        self.assertEqual(task["controlStatus"], "running")
+        self.assertEqual(task["activeMemberName"], self.human.display_name)
+
+        # 终态后不出现
+        execution.business_status = "completed"
+        execution.save(update_fields=["business_status"])
+        r = self.client.get(f"/api/workspaces/aws-orch/agent-teams/{team.id}/active-tasks/")
+        self.assertEqual(r.json(), [])
+
     def test_member_cannot_touch_others_team(self):
         self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "归属"}, content_type="application/json")
         other_client = Client()

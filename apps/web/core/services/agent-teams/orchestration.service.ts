@@ -10,8 +10,7 @@
  */
 
 const WS = (workspaceSlug: string) => `/api/workspaces/${workspaceSlug}`;
-const PJ = (workspaceSlug: string, projectId: string) =>
-  `${WS(workspaceSlug)}/projects/${projectId}`;
+const PJ = (workspaceSlug: string, projectId: string) => `${WS(workspaceSlug)}/projects/${projectId}`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -57,7 +56,33 @@ export interface OrchestrationTeam {
   memberCount?: number;
   activeTaskCount?: number;
   runningRunCount?: number;
+  // 管理动作可见性（详情/列表端点按请求者填充；前端只做展示）
+  viewerCanManage?: boolean;
+  viewerIsAdmin?: boolean;
   members?: OrchestrationTeamMember[];
+}
+
+/** 团队详情页「关联项目」（绑定全量返回，测试环境量级个位数）。 */
+export interface OrchestrationTeamProject {
+  projectId: string;
+  externalProjectId: string;
+  projectName: string;
+  workflowName: string | null;
+  workflowVersion: number | null;
+  status: string;
+}
+
+/** 团队详情页「进行中工作项」——字段对齐旧 AgentTeamActiveTask 消费面。 */
+export interface OrchestrationActiveTask {
+  taskBindingId: string;
+  issueId: string;
+  externalProjectId: string;
+  externalItemId: string;
+  taskName: string;
+  controlStatus: string;
+  projectName: string;
+  activeMemberName: string | null;
+  updatedAt: string;
 }
 
 export interface OrchestrationTeamMember {
@@ -82,15 +107,19 @@ export async function getTeam(workspace: string, teamId: string): Promise<Orches
 
 export async function createTeam(
   workspace: string,
-  data: { name: string; objective?: string },
+  data: { name: string; objective?: string }
 ): Promise<OrchestrationTeam> {
-  return request(`${WS(workspace)}/agent-teams/`, { method: "POST", body: JSON.stringify(data), headers: csrfHeaders() });
+  return request(`${WS(workspace)}/agent-teams/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: csrfHeaders(),
+  });
 }
 
 export async function updateTeam(
   workspace: string,
   teamId: string,
-  data: { name?: string; objective?: string },
+  data: { name?: string; objective?: string }
 ): Promise<OrchestrationTeam> {
   return request(`${WS(workspace)}/agent-teams/${teamId}/`, {
     method: "PATCH",
@@ -119,6 +148,14 @@ export async function getTeamQuota(workspace: string): Promise<OrchestrationTeam
   return request(`${WS(workspace)}/agent-teams/quota/`);
 }
 
+export async function listTeamProjects(workspace: string, teamId: string): Promise<OrchestrationTeamProject[]> {
+  return request(`${WS(workspace)}/agent-teams/${teamId}/projects/`);
+}
+
+export async function listTeamActiveTasks(workspace: string, teamId: string): Promise<OrchestrationActiveTask[]> {
+  return request(`${WS(workspace)}/agent-teams/${teamId}/active-tasks/`);
+}
+
 // ---------------------------------------------------------------- 成员域
 
 export async function listMembers(workspace: string, teamId: string): Promise<OrchestrationTeamMember[]> {
@@ -135,7 +172,7 @@ export async function addMember(
     role: string;
     capabilities?: string[];
     sequence?: number;
-  },
+  }
 ): Promise<OrchestrationTeamMember> {
   return request(`${WS(workspace)}/agent-teams/${teamId}/members/`, {
     method: "POST",
@@ -148,7 +185,7 @@ export async function updateMember(
   workspace: string,
   teamId: string,
   memberId: string,
-  data: { role?: string; capabilities?: string[]; sequence?: number; enabled?: boolean },
+  data: { role?: string; capabilities?: string[]; sequence?: number; enabled?: boolean }
 ): Promise<OrchestrationTeamMember> {
   return request(`${WS(workspace)}/agent-teams/${teamId}/members/${memberId}/`, {
     method: "PATCH",
@@ -192,7 +229,7 @@ export async function listWorkflows(workspace: string, projectId: string): Promi
 export async function getWorkflow(
   workspace: string,
   projectId: string,
-  workflowId: string,
+  workflowId: string
 ): Promise<OrchestrationWorkflow> {
   return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/`);
 }
@@ -200,7 +237,7 @@ export async function getWorkflow(
 export async function createWorkflow(
   workspace: string,
   projectId: string,
-  data: { name: string; description?: string },
+  data: { name: string; description?: string }
 ): Promise<OrchestrationWorkflow> {
   return request(`${PJ(workspace, projectId)}/workflows/`, {
     method: "POST",
@@ -213,7 +250,7 @@ export async function saveDraft(
   workspace: string,
   projectId: string,
   workflowId: string,
-  draft: Record<string, unknown>,
+  draft: Record<string, unknown>
 ): Promise<OrchestrationWorkflow> {
   return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/`, {
     method: "PATCH",
@@ -225,7 +262,7 @@ export async function saveDraft(
 export async function saveDraftVersion(
   workspace: string,
   projectId: string,
-  workflowId: string,
+  workflowId: string
 ): Promise<OrchestrationWorkflowVersion> {
   return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/versions/`, {
     method: "POST",
@@ -237,12 +274,12 @@ export async function publishVersion(
   workspace: string,
   projectId: string,
   workflowId: string,
-  versionId: string,
+  versionId: string
 ): Promise<OrchestrationWorkflowVersion> {
-  return request(
-    `${PJ(workspace, projectId)}/workflows/${workflowId}/versions/${versionId}/publish/`,
-    { method: "POST", headers: csrfHeaders() },
-  );
+  return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/versions/${versionId}/publish/`, {
+    method: "POST",
+    headers: csrfHeaders(),
+  });
 }
 
 // ---------------------------------------------------------------- 绑定域
@@ -263,7 +300,7 @@ export async function listBindings(workspace: string, projectId: string): Promis
 export async function bindProject(
   workspace: string,
   projectId: string,
-  data: { teamId: string; workflowVersionId: string },
+  data: { teamId: string; workflowVersionId: string }
 ): Promise<OrchestrationBinding> {
   return request(`${PJ(workspace, projectId)}/team-bindings/`, {
     method: "POST",
@@ -275,7 +312,7 @@ export async function bindProject(
 export async function upgradeBinding(
   workspace: string,
   projectId: string,
-  workflowVersionId: string,
+  workflowVersionId: string
 ): Promise<OrchestrationBinding> {
   return request(`${PJ(workspace, projectId)}/team-bindings/`, {
     method: "PATCH",
@@ -305,7 +342,7 @@ export async function listExecutions(workspace: string, projectId: string): Prom
 export async function startExecution(
   workspace: string,
   projectId: string,
-  issueId: string,
+  issueId: string
 ): Promise<OrchestrationExecution> {
   return request(`${PJ(workspace, projectId)}/executions/start/`, {
     method: "POST",
@@ -332,7 +369,7 @@ export async function answerApproval(
   workspace: string,
   approvalId: string,
   decision: "approved" | "rejected",
-  reason?: string,
+  reason?: string
 ): Promise<{ id: string; result: string }> {
   return request(`${WS(workspace)}/agent-teams/approvals/${approvalId}/`, {
     method: "POST",
@@ -350,6 +387,8 @@ export const orchestrationService = {
   activateTeam,
   archiveTeam,
   getTeamQuota,
+  listTeamProjects,
+  listTeamActiveTasks,
   listMembers,
   addMember,
   updateMember,
