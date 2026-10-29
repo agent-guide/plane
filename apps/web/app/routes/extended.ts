@@ -41,6 +41,15 @@ export const extendedRoutes: RouteConfigEntry[] = [
             ":workspaceSlug/projects/:projectId/overview",
             "./(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/overview/page.tsx"
           ),
+          // 项目流程库 + 画布（流程归项目，2026-10-29 方案 A，自团队路由迁移）
+          route(
+            ":workspaceSlug/projects/:projectId/workflows",
+            "./(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/workflows/page.tsx"
+          ),
+          route(
+            ":workspaceSlug/projects/:projectId/workflows/:workflowId",
+            "./(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/workflows/[workflowId]/page.tsx"
+          ),
         ]),
       ]),
     ]),
