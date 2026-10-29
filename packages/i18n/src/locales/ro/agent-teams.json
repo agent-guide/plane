@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Încercați din nou peste puțin timp. Dacă eșuează în continuare, cereți unui administrator să confirme că serviciul este configurat și funcționează.",
   "agent_teams_status_queued": "În coadă",
   "agent_teams_status_running": "În curs",
+  "agent_teams_status_success": "Succes",
+  "agent_teams_status_skipped": "Omis",
   "agent_teams_status_waiting_human": "Așteaptă confirmare",
   "agent_teams_status_blocked": "Blocat",
   "agent_teams_status_failed": "Eșuat",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Niciun membru sau flux",
   "agent_teams_member_kind": "Tip",
   "agent_teams_member_status": "Stare",
-  "agent_teams_workflows_col_name": "Flux"
+  "agent_teams_workflows_col_name": "Flux",
+  "agent_teams_timeline_approval": "Aprobare"
 }

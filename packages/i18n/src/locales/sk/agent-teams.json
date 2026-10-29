@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Skúste to o chvíľu znova. Ak to stále zlyháva, požiadajte správcu o overenie, či je služba nakonfigurovaná a beží.",
   "agent_teams_status_queued": "Vo fronte",
   "agent_teams_status_running": "Prebieha",
+  "agent_teams_status_success": "Úspech",
+  "agent_teams_status_skipped": "Preskočené",
   "agent_teams_status_waiting_human": "Čaká na potvrdenie",
   "agent_teams_status_blocked": "Blokované",
   "agent_teams_status_failed": "Zlyhalo",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Zatiaľ žiadni členovia ani toky",
   "agent_teams_member_kind": "Typ",
   "agent_teams_member_status": "Stav",
-  "agent_teams_workflows_col_name": "Tok"
+  "agent_teams_workflows_col_name": "Tok",
+  "agent_teams_timeline_approval": "Schválenie"
 }

@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Hãy thử lại sau giây lát. Nếu vẫn lỗi, hãy nhờ quản trị viên kiểm tra dịch vụ đã được cấu hình và đang chạy chưa.",
   "agent_teams_status_queued": "Đang chờ",
   "agent_teams_status_running": "Đang chạy",
+  "agent_teams_status_success": "Thành công",
+  "agent_teams_status_skipped": "Đã bỏ qua",
   "agent_teams_status_waiting_human": "Chờ xác nhận",
   "agent_teams_status_blocked": "Bị chặn",
   "agent_teams_status_failed": "Thất bại",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Chưa có thành viên hoặc luồng",
   "agent_teams_member_kind": "Loại",
   "agent_teams_member_status": "Trạng thái",
-  "agent_teams_workflows_col_name": "Luồng"
+  "agent_teams_workflows_col_name": "Luồng",
+  "agent_teams_timeline_approval": "Phê duyệt"
 }

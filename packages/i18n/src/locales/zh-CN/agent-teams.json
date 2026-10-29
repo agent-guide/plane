@@ -60,6 +60,8 @@
   "agent_teams_runtime_unavailable_hint": "稍后重试一般就能恢复；如果一直失败，请联系管理员确认团队运行服务已配置并正常运行。",
   "agent_teams_status_queued": "排队中",
   "agent_teams_status_running": "执行中",
+  "agent_teams_status_success": "成功",
+  "agent_teams_status_skipped": "已跳过",
   "agent_teams_status_waiting_human": "等待确认",
   "agent_teams_status_blocked": "已阻塞",
   "agent_teams_status_failed": "失败",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "暂无成员与流程",
   "agent_teams_member_kind": "类型",
   "agent_teams_member_status": "状态",
-  "agent_teams_workflows_col_name": "流程名"
+  "agent_teams_workflows_col_name": "流程名",
+  "agent_teams_timeline_approval": "人工审批"
 }

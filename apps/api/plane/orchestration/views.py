@@ -595,6 +595,120 @@ class ApprovalsEndpoint(BaseAPIView):
         return Response({"id": approval.id, "result": approval.result})
 
 
+class WorkItemRuntimeEndpoint(BaseAPIView):
+    """工作项详情运行时面板（§12.3）：执行摘要 + 结构化时间线，一次给全。
+
+    时间线给结构化事件（kind + 上下文），文案归前端 i18n——修复旧链
+    服务端中文硬编码的 i18n 缺口。未绑定（无执行记录）204。
+    """
+
+    def get(self, request, slug, project_id, issue_id):
+        from .state_machine import TERMINAL_STATUSES
+        from django.utils import timezone as dj_tz
+        execution = WorkItemExecution.objects.filter(
+            binding__project__workspace__slug=slug, binding__project_id=project_id,
+            issue_id=issue_id,
+        ).select_related("binding", "binding__team", "current_member", "current_member__user").order_by("-created_at").first()
+        if not execution:
+            return Response(status=204)
+
+        team = execution.binding.team
+        names = _agent_names_for(team)
+        member_name = None
+        if execution.current_member is not None:
+            if execution.current_member.kind == "human":
+                member_name = execution.current_member.user.display_name if execution.current_member.user else None
+            else:
+                member_name = names.get(execution.current_member.agent_definition_id)
+
+        # 当前步骤：最新 running 节点，缺省回执行状态
+        step = None
+        running_node = execution.node_records.exclude(
+            status__in=["success", "failed", "skipped", "cancelled"]).order_by("-updated_at").first()
+        if running_node is not None:
+            step = running_node.node_key
+        elif execution.business_status == "waiting_human":
+            pending_node = execution.node_records.filter(status="success").order_by("-updated_at").first()
+            step = "human"
+
+        artifacts = [{
+            "id": a.id, "name": (a.storage_ref.rsplit("/", 1)[-1] or a.content_hash[:12]),
+            "version": a.version, "sizeBytes": None, "contentUrl": a.storage_ref,
+        } for a in execution.artifacts.order_by("version")]
+
+        pending = execution.approvals.filter(
+            result=BusinessApproval.Result.PENDING, assignee=request.user).first()
+
+        # 时间线：执行创建 → 节点记录 → 审批 → 终态（按时间归并）
+        events = [{
+            "id": f"start:{execution.id}", "kind": "execution",
+            "status": "queued", "memberName": None, "nodeKey": None,
+            "createdAt": execution.created_at.isoformat(),
+        }]
+        for n in execution.node_records.order_by("updated_at"):
+            events.append({
+                "id": f"node:{n.id}:{n.status}", "kind": "node",
+                "status": n.status, "nodeKey": n.node_key, "memberName": member_name,
+                "createdAt": n.updated_at.isoformat(),
+            })
+        for a in execution.approvals.order_by("created_at"):
+            events.append({
+                "id": f"approval:{a.id}:{a.result}", "kind": "approval",
+                "status": a.result, "nodeKey": a.node_ref, "memberName": None,
+                "createdAt": (a.answered_at or a.created_at).isoformat(),
+            })
+        if execution.business_status in TERMINAL_STATUSES and execution.completed_at:
+            events.append({
+                "id": f"terminal:{execution.id}", "kind": "execution",
+                "status": execution.business_status, "memberName": None, "nodeKey": None,
+                "createdAt": execution.completed_at.isoformat(),
+            })
+        events.sort(key=lambda e: e["createdAt"])
+
+        duration = None
+        if execution.completed_at:
+            duration = (execution.completed_at - execution.created_at).total_seconds()
+        elif execution.business_status != "queued":
+            duration = (dj_tz.now() - execution.created_at).total_seconds()
+
+        return Response({
+            "executionId": execution.id,
+            "businessStatus": execution.business_status,
+            "teamId": team.id, "teamName": team.name,
+            "currentMemberName": member_name,
+            "workflowStep": step,
+            "durationSeconds": duration,
+            "engineRunRef": execution.engine_run_ref,
+            "retryable": execution.business_status in TERMINAL_STATUSES,
+            "artifacts": artifacts,
+            "pendingApproval": _approval_json(pending) if pending else None,
+            "timeline": events,
+        })
+
+    def post(self, request, slug, project_id, issue_id):
+        """取消当前执行（非终态）：置 cancelled + outbox engine.cancel（worker 转投引擎）。"""
+        import hashlib, json as _json
+        from .models import OrchestrationOutbox
+        from .state_machine import TERMINAL_STATUSES
+        execution = WorkItemExecution.objects.filter(
+            binding__project__workspace__slug=slug, binding__project_id=project_id,
+            issue_id=issue_id).order_by("-created_at").first()
+        if not execution:
+            return Response({"error": "not found"}, status=404)
+        if execution.business_status in TERMINAL_STATUSES:
+            return Response({"error": "already terminal", "code": "EXECUTION_ALREADY_TERMINAL"}, status=409)
+        execution.business_status = "cancelled"
+        execution.completed_at = timezone.now()
+        execution.transition_version += 1
+        execution.save(update_fields=["business_status", "completed_at", "transition_version", "updated_at"])
+        payload = {"executionId": execution.id}
+        OrchestrationOutbox.objects.get_or_create(
+            idempotency_key=f"cancel:{execution.id}",
+            defaults={"command_type": "engine.cancel", "payload": payload,
+                      "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest()})
+        return Response({"executionId": execution.id, "businessStatus": execution.business_status})
+
+
 class StartExecutionEndpoint(BaseAPIView):
     def post(self, request, slug, project_id):
         """受控启动：校验 + 冻结上下文 + outbox 启动命令。"""

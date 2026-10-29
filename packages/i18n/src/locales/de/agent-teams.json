@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Versuche es gleich noch einmal. Wenn es weiterhin fehlschlägt, prüfe mit einem Administrator, ob der Dienst eingerichtet ist und läuft.",
   "agent_teams_status_queued": "In Warteschlange",
   "agent_teams_status_running": "Läuft",
+  "agent_teams_status_success": "Erfolg",
+  "agent_teams_status_skipped": "Übersprungen",
   "agent_teams_status_waiting_human": "Wartet auf Bestätigung",
   "agent_teams_status_blocked": "Blockiert",
   "agent_teams_status_failed": "Fehlgeschlagen",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Noch keine Mitglieder oder Abläufe",
   "agent_teams_member_kind": "Typ",
   "agent_teams_member_status": "Status",
-  "agent_teams_workflows_col_name": "Ablauf"
+  "agent_teams_workflows_col_name": "Ablauf",
+  "agent_teams_timeline_approval": "Freigabe"
 }

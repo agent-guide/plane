@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "しばらくしてから再試行してください。改善しない場合は、管理者にサービスの設定と稼働状況の確認を依頼してください。",
   "agent_teams_status_queued": "待機中",
   "agent_teams_status_running": "実行中",
+  "agent_teams_status_success": "成功",
+  "agent_teams_status_skipped": "スキップ",
   "agent_teams_status_waiting_human": "確認待ち",
   "agent_teams_status_blocked": "ブロック中",
   "agent_teams_status_failed": "失敗",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "メンバーとフローはまだありません",
   "agent_teams_member_kind": "種類",
   "agent_teams_member_status": "状態",
-  "agent_teams_workflows_col_name": "フロー名"
+  "agent_teams_workflows_col_name": "フロー名",
+  "agent_teams_timeline_approval": "承認"
 }

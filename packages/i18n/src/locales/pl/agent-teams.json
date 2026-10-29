@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Spróbuj ponownie za chwilę. Jeśli błąd się powtarza, poproś administratora o sprawdzenie, czy usługa jest skonfigurowana i działa.",
   "agent_teams_status_queued": "W kolejce",
   "agent_teams_status_running": "W toku",
+  "agent_teams_status_success": "Sukces",
+  "agent_teams_status_skipped": "Pominięto",
   "agent_teams_status_waiting_human": "Oczekuje na potwierdzenie",
   "agent_teams_status_blocked": "Zablokowane",
   "agent_teams_status_failed": "Niepowodzenie",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Brak członków i przepływów",
   "agent_teams_member_kind": "Typ",
   "agent_teams_member_status": "Status",
-  "agent_teams_workflows_col_name": "Przepływ"
+  "agent_teams_workflows_col_name": "Przepływ",
+  "agent_teams_timeline_approval": "Zatwierdzenie"
 }

@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Спробуйте ще раз трохи згодом. Якщо помилка повторюється, попросіть адміністратора перевірити, чи налаштовано службу та чи працює вона.",
   "agent_teams_status_queued": "У черзі",
   "agent_teams_status_running": "Виконується",
+  "agent_teams_status_success": "Успіх",
+  "agent_teams_status_skipped": "Пропущено",
   "agent_teams_status_waiting_human": "Очікує підтвердження",
   "agent_teams_status_blocked": "Заблоковано",
   "agent_teams_status_failed": "Помилка",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Немає учасників і потоків",
   "agent_teams_member_kind": "Тип",
   "agent_teams_member_status": "Статус",
-  "agent_teams_workflows_col_name": "Потік"
+  "agent_teams_workflows_col_name": "Потік",
+  "agent_teams_timeline_approval": "Схвалення"
 }

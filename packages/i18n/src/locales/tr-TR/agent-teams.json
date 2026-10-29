@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Birazdan tekrar deneyin. Sorun sürerse, bir yöneticiden hizmetin yapılandırıldığını ve çalıştığını doğrulamasını isteyin.",
   "agent_teams_status_queued": "Sırada",
   "agent_teams_status_running": "Çalışıyor",
+  "agent_teams_status_success": "Başarılı",
+  "agent_teams_status_skipped": "Atlandı",
   "agent_teams_status_waiting_human": "Onay bekliyor",
   "agent_teams_status_blocked": "Engellendi",
   "agent_teams_status_failed": "Başarısız",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Henüz üye veya akış yok",
   "agent_teams_member_kind": "Tür",
   "agent_teams_member_status": "Durum",
-  "agent_teams_workflows_col_name": "Akış"
+  "agent_teams_workflows_col_name": "Akış",
+  "agent_teams_timeline_approval": "Onay"
 }

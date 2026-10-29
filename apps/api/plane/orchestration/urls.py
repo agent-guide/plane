@@ -8,7 +8,7 @@ from .views import (
     ApprovalsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
     EngineEventEndpoint, ProjectBindingsEndpoint, ProjectExecutionsEndpoint,
     StartExecutionEndpoint, TeamQuotaEndpoint, TeamProjectsEndpoint, TeamActiveTasksEndpoint,
-    TeamAgentCatalogEndpoint, ProjectTeamPanelEndpoint,
+    TeamAgentCatalogEndpoint, ProjectTeamPanelEndpoint, WorkItemRuntimeEndpoint,
     ProjectWorkflowDetailEndpoint, ProjectWorkflowsEndpoint, TeamDetailEndpoint,
     TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint,
     TeamsEndpoint, WorkflowPublishEndpoint, WorkflowVersionsEndpoint,
@@ -35,6 +35,7 @@ urlpatterns = [
     path("workspaces/<str:slug>/projects/<uuid:project_id>/team-panel/", ProjectTeamPanelEndpoint.as_view(), name="orchestration-team-panel"),
     path("workspaces/<str:slug>/projects/<uuid:project_id>/executions/", ProjectExecutionsEndpoint.as_view(), name="orchestration-executions"),
     path("workspaces/<str:slug>/projects/<uuid:project_id>/executions/start/", StartExecutionEndpoint.as_view(), name="orchestration-execution-start"),
+    path("workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/runtime/", WorkItemRuntimeEndpoint.as_view(), name="orchestration-work-item-runtime"),
     path("internal/agent-teams/events/", EngineEventEndpoint.as_view(http_method_names=["post"]), name="orchestration-engine-events"),
 ]
 

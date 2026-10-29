@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "잠시 후 다시 시도하세요. 계속 실패하면 관리자에게 서비스 설정과 구동 여부를 확인해 달라고 요청하세요.",
   "agent_teams_status_queued": "대기 중",
   "agent_teams_status_running": "실행 중",
+  "agent_teams_status_success": "성공",
+  "agent_teams_status_skipped": "건너뜀",
   "agent_teams_status_waiting_human": "확인 대기",
   "agent_teams_status_blocked": "차단됨",
   "agent_teams_status_failed": "실패",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "멤버와 플로가 없습니다",
   "agent_teams_member_kind": "유형",
   "agent_teams_member_status": "상태",
-  "agent_teams_workflows_col_name": "플로 이름"
+  "agent_teams_workflows_col_name": "플로 이름",
+  "agent_teams_timeline_approval": "승인"
 }

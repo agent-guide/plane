@@ -60,6 +60,8 @@
   "agent_teams_runtime_unavailable_hint": "Try again in a moment. If it keeps failing, ask an admin to confirm the service is configured and running.",
   "agent_teams_status_queued": "Queued",
   "agent_teams_status_running": "Running",
+  "agent_teams_status_success": "Success",
+  "agent_teams_status_skipped": "Skipped",
   "agent_teams_status_waiting_human": "Awaiting confirmation",
   "agent_teams_status_blocked": "Blocked",
   "agent_teams_status_failed": "Failed",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "No members or workflows yet",
   "agent_teams_member_kind": "Type",
   "agent_teams_member_status": "Status",
-  "agent_teams_workflows_col_name": "Workflow"
+  "agent_teams_workflows_col_name": "Workflow",
+  "agent_teams_timeline_approval": "Approval"
 }

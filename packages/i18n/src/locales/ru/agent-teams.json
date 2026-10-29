@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Повторите попытку чуть позже. Если ошибка сохраняется, попросите администратора проверить, настроена ли служба и работает ли она.",
   "agent_teams_status_queued": "В очереди",
   "agent_teams_status_running": "Выполняется",
+  "agent_teams_status_success": "Успех",
+  "agent_teams_status_skipped": "Пропущено",
   "agent_teams_status_waiting_human": "Ожидает подтверждения",
   "agent_teams_status_blocked": "Заблокировано",
   "agent_teams_status_failed": "Ошибка",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Нет участников и потоков",
   "agent_teams_member_kind": "Тип",
   "agent_teams_member_status": "Статус",
-  "agent_teams_workflows_col_name": "Поток"
+  "agent_teams_workflows_col_name": "Поток",
+  "agent_teams_timeline_approval": "Согласование"
 }

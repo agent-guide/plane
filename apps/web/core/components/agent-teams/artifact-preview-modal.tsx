@@ -33,11 +33,12 @@ import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 import runtimeService, { type RuntimeArtifact } from "@/services/agent-teams/runtime.service";
 
 type TAgentArtifactPreviewModalProps = {
-  artifact: RuntimeArtifact | null;
+  // contentUrl：编排域直接给存储引用时跳过签名 URL 取数（旧链走签名端点）
+  artifact: (RuntimeArtifact & { contentUrl?: string }) | null;
   onClose: () => void;
 };
 
-const isMarkdown = (artifact: RuntimeArtifact) =>
+const isMarkdown = (artifact: RuntimeArtifact & { contentUrl?: string }) =>
   (artifact.mimeType ?? "").includes("markdown") || artifact.name.toLowerCase().endsWith(".md");
 
 export const AgentArtifactPreviewModal = function AgentArtifactPreviewModal({
@@ -51,13 +52,13 @@ export const AgentArtifactPreviewModal = function AgentArtifactPreviewModal({
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const load = useCallback(async (target: RuntimeArtifact) => {
+  const load = useCallback(async (target: RuntimeArtifact & { contentUrl?: string }) => {
     setUrl(null);
     setContent(null);
     setError(false);
     setLoading(true);
     try {
-      const downloadUrl = await runtimeService.getArtifactDownloadUrl(target.id);
+      const downloadUrl = target.contentUrl ?? (await runtimeService.getArtifactDownloadUrl(target.id));
       setUrl(downloadUrl);
       if (isMarkdown(target)) {
         const response = await fetch(downloadUrl);
@@ -98,82 +99,79 @@ export const AgentArtifactPreviewModal = function AgentArtifactPreviewModal({
     // the modal down. data-prevent-outside-click is Plane's sanctioned
     // escape hatch; stopping mousedown/click propagation covers any other
     // document-level detector that doesn't honor the attribute.
-    <div
-      data-prevent-outside-click
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-    <ModalCore isOpen={!!artifact} handleClose={() => {}} position={EModalPosition.CENTER} width={EModalWidth.XXL}>
-      {artifact && (
-        <div className="flex flex-col gap-3 p-5">
-          {/* header — node-name + version is the artifact's user-facing identity */}
-          <div className="flex items-center gap-2">
-            <div className="flex size-8 flex-shrink-0 items-center justify-center rounded-lg border border-subtle bg-layer-2">
-              <FileBox className="size-4 text-secondary" aria-hidden />
-            </div>
-            <div className="min-w-0 flex-grow">
-              <p className="truncate text-body-sm-medium text-primary">
-                {artifact.name} · v{artifact.version}
-              </p>
-            </div>
-            {content != null && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void handleCopy()}
-                className={cn("gap-1.5", copied && "text-success-primary")}
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events jsx-a11y/no-static-element-interactions
+    <div data-prevent-outside-click onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      <ModalCore isOpen={!!artifact} handleClose={() => {}} position={EModalPosition.CENTER} width={EModalWidth.XXL}>
+        {artifact && (
+          <div className="flex flex-col gap-3 p-5">
+            {/* header — node-name + version is the artifact's user-facing identity */}
+            <div className="flex items-center gap-2">
+              <div className="flex size-8 flex-shrink-0 items-center justify-center rounded-lg border border-subtle bg-layer-2">
+                <FileBox className="size-4 text-secondary" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-grow">
+                <p className="truncate text-body-sm-medium text-primary">
+                  {artifact.name} · v{artifact.version}
+                </p>
+              </div>
+              {content != null && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void handleCopy()}
+                  className={cn("gap-1.5", copied && "text-success-primary")}
+                >
+                  {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+                  {copied ? t("agent_teams_artifact_copied") : t("agent_teams_artifact_copy")}
+                </Button>
+              )}
+              {url && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => window.open(url, "_blank", "noreferrer")}
+                >
+                  <Download className="size-3.5" aria-hidden />
+                  {t("agent_teams_artifact_download")}
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="close"
+                className="grid size-7 flex-shrink-0 place-items-center rounded text-tertiary hover:bg-layer-3 hover:text-primary"
               >
-                {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
-                {copied ? t("agent_teams_artifact_copied") : t("agent_teams_artifact_copy")}
-              </Button>
-            )}
-            {url && (
-              <Button
-                variant="primary"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => window.open(url, "_blank", "noreferrer")}
-              >
-                <Download className="size-3.5" aria-hidden />
-                {t("agent_teams_artifact_download")}
-              </Button>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="close"
-              className="grid size-7 flex-shrink-0 place-items-center rounded text-tertiary hover:bg-layer-3 hover:text-primary"
-            >
-              <X className="size-4" aria-hidden />
-            </button>
-          </div>
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
 
-          {/* body — markdown rendered in-page; other types offer download only */}
-          {error ? (
-            <div className="flex flex-col items-center gap-2 py-10">
-              <p className="text-body-sm-regular text-tertiary">{t("agent_teams_artifact_preview_failed")}</p>
-              <Button variant="secondary" size="sm" onClick={() => void load(artifact)}>
-                <RefreshCw className="size-3.5" aria-hidden />
-                {t("agent_teams_artifact_retry")}
-              </Button>
-            </div>
-          ) : content != null ? (
-            <div className="max-h-[65vh] overflow-y-auto rounded-lg border border-subtle bg-layer-1 px-6 py-4">
-              <MarkdownPreview content={content} />
-            </div>
-          ) : !loading && url ? (
-            <div className="flex flex-col items-center gap-2 py-10">
-              <p className="text-body-sm-regular text-tertiary">{t("agent_teams_artifact_unsupported")}</p>
-            </div>
-          ) : (
-            <div className="space-y-2 py-10">
-              <div className="mx-auto h-4 w-1/2 animate-pulse rounded bg-layer-3" />
-              <div className="mx-auto h-4 w-1/3 animate-pulse rounded bg-layer-3" />
-            </div>
-          )}
-        </div>
-      )}
-    </ModalCore>
+            {/* body — markdown rendered in-page; other types offer download only */}
+            {error ? (
+              <div className="flex flex-col items-center gap-2 py-10">
+                <p className="text-body-sm-regular text-tertiary">{t("agent_teams_artifact_preview_failed")}</p>
+                <Button variant="secondary" size="sm" onClick={() => void load(artifact)}>
+                  <RefreshCw className="size-3.5" aria-hidden />
+                  {t("agent_teams_artifact_retry")}
+                </Button>
+              </div>
+            ) : content != null ? (
+              <div className="max-h-[65vh] overflow-y-auto rounded-lg border border-subtle bg-layer-1 px-6 py-4">
+                <MarkdownPreview content={content} />
+              </div>
+            ) : !loading && url ? (
+              <div className="flex flex-col items-center gap-2 py-10">
+                <p className="text-body-sm-regular text-tertiary">{t("agent_teams_artifact_unsupported")}</p>
+              </div>
+            ) : (
+              <div className="space-y-2 py-10">
+                <div className="mx-auto h-4 w-1/2 animate-pulse rounded bg-layer-3" />
+                <div className="mx-auto h-4 w-1/3 animate-pulse rounded bg-layer-3" />
+              </div>
+            )}
+          </div>
+        )}
+      </ModalCore>
     </div>,
     document.body
   );

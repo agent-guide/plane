@@ -394,6 +394,62 @@ export async function listExecutions(workspace: string, projectId: string): Prom
   return request(`${PJ(workspace, projectId)}/executions/`);
 }
 
+// ------------------------------------------------- 工作项运行时面板（§12.3）
+
+export interface OrchestrationRuntimeArtifact {
+  id: string;
+  name: string;
+  version: number;
+  sizeBytes: number | null;
+  contentUrl: string;
+}
+
+/** 结构化时间线事件——文案归前端 i18n（修复旧链服务端中文硬编码）。 */
+export interface OrchestrationTimelineEvent {
+  id: string;
+  kind: "execution" | "node" | "approval";
+  status: string;
+  nodeKey: string | null;
+  memberName: string | null;
+  createdAt: string;
+}
+
+export interface OrchestrationWorkItemRuntime {
+  executionId: string;
+  businessStatus: string;
+  teamId: string;
+  teamName: string;
+  currentMemberName: string | null;
+  workflowStep: string | null;
+  durationSeconds: number | null;
+  engineRunRef: string;
+  retryable: boolean;
+  artifacts: OrchestrationRuntimeArtifact[];
+  pendingApproval: OrchestrationApproval | null;
+  timeline: OrchestrationTimelineEvent[];
+}
+
+/** 工作项运行时面板数据；未绑定（无执行记录）返回 null。 */
+export async function getWorkItemRuntime(
+  workspace: string,
+  projectId: string,
+  issueId: string
+): Promise<OrchestrationWorkItemRuntime | null> {
+  return (
+    (await request<OrchestrationWorkItemRuntime | undefined>(
+      `${PJ(workspace, projectId)}/work-items/${issueId}/runtime/`
+    )) ?? null
+  );
+}
+
+/** 取消当前执行（非终态；终态 409）。 */
+export async function cancelWorkItemExecution(workspace: string, projectId: string, issueId: string): Promise<void> {
+  await request(`${PJ(workspace, projectId)}/work-items/${issueId}/runtime/`, {
+    method: "POST",
+    headers: csrfHeaders(),
+  });
+}
+
 export async function startExecution(
   workspace: string,
   projectId: string,
@@ -479,6 +535,8 @@ export const orchestrationService = {
   listExecutions,
   startExecution,
   getProjectTeamPanel,
+  getWorkItemRuntime,
+  cancelWorkItemExecution,
   listMyApprovals,
   answerApproval,
 };

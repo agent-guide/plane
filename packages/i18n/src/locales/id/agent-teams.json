@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Coba lagi beberapa saat lagi. Jika terus gagal, minta admin memastikan layanan sudah dikonfigurasi dan berjalan.",
   "agent_teams_status_queued": "Dalam antrean",
   "agent_teams_status_running": "Berjalan",
+  "agent_teams_status_success": "Berhasil",
+  "agent_teams_status_skipped": "Dilewati",
   "agent_teams_status_waiting_human": "Menunggu konfirmasi",
   "agent_teams_status_blocked": "Diblokir",
   "agent_teams_status_failed": "Gagal",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Belum ada anggota atau alur",
   "agent_teams_member_kind": "Jenis",
   "agent_teams_member_status": "Status",
-  "agent_teams_workflows_col_name": "Alur"
+  "agent_teams_workflows_col_name": "Alur",
+  "agent_teams_timeline_approval": "Persetujuan"
 }

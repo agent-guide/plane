@@ -197,6 +197,59 @@ class OrchestrationAPITest(TestCase):
         r = self.client.get(f"/api/workspaces/aws-orch/projects/{self.project.id}/team-panel/")
         self.assertEqual(r.status_code, 204)
 
+    def test_work_item_runtime_view_and_cancel(self):
+        """工作项运行时面板：摘要+结构化时间线一体；未绑定 204；取消置终态+outbox。"""
+        from plane.orchestration import services
+        from plane.orchestration.models import (
+            WorkflowDefinition, WorkflowVersion, ProjectTeamBinding, BusinessApproval, OrchestrationOutbox)
+
+        # 未绑定：204
+        issue0 = Issue.objects.create(project=self.project, name="未绑定项", created_by=self.owner)
+        r = self.client.get(
+            f"/api/workspaces/aws-orch/projects/{self.project.id}/work-items/{issue0.id}/runtime/")
+        self.assertEqual(r.status_code, 204)
+
+        team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="面板团队")
+        member = services.add_member(team=team, user_id=self.owner.id, is_admin=True, kind="human", role="approver", user_ref=self.human.id)
+        services.activate_team(team=team, user_id=self.owner.id, is_admin=True)
+        wf = WorkflowDefinition.objects.create(project=self.project, name="面板流程", created_by=self.owner)
+        version = WorkflowVersion.objects.create(workflow=wf, version=1, status=WorkflowVersion.Status.PUBLISHED)
+        binding = ProjectTeamBinding.objects.create(
+            project=self.project, team=team, workflow_version=version,
+            status=ProjectTeamBinding.Status.ACTIVE)
+        issue = Issue.objects.create(project=self.project, name="面板工作项", created_by=self.owner)
+        from plane.orchestration.execution import start_execution, on_engine_started, on_human_handoff
+        execution = start_execution(issue=issue, binding=binding, user_id=self.owner.id)
+        on_engine_started(execution_id=execution.id, event_id="e0", engine_run_ref="r0")
+        on_human_handoff(execution_id=execution.id, event_id="e1", member=member)
+
+        human_client = Client()
+        WorkspaceMember.objects.get_or_create(workspace=self.ws, member=self.human, defaults={"role": 15})
+        human_client.force_login(self.human)
+        r = human_client.get(
+            f"/api/workspaces/aws-orch/projects/{self.project.id}/work-items/{issue.id}/runtime/")
+        self.assertEqual(r.status_code, 200, r.content)
+        body = r.json()
+        self.assertEqual(body["businessStatus"], "waiting_human")
+        self.assertEqual(body["teamName"], "面板团队")
+        self.assertIsNotNone(body["pendingApproval"])  # 人工成员视角有待办
+        self.assertTrue(any(e["kind"] == "approval" for e in body["timeline"]))
+
+        # 取消：终态 + outbox engine.cancel
+        r = self.client.post(
+            f"/api/workspaces/aws-orch/projects/{self.project.id}/work-items/{issue.id}/runtime/",
+            content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        execution.refresh_from_db()
+        self.assertEqual(execution.business_status, "cancelled")
+        self.assertTrue(OrchestrationOutbox.objects.filter(
+            command_type="engine.cancel", idempotency_key=f"cancel:{execution.id}").exists())
+        # 终态后再取消 → 409
+        r = self.client.post(
+            f"/api/workspaces/aws-orch/projects/{self.project.id}/work-items/{issue.id}/runtime/",
+            content_type="application/json")
+        self.assertEqual(r.status_code, 409)
+
     def test_member_cannot_touch_others_team(self):
         self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "归属"}, content_type="application/json")
         other_client = Client()

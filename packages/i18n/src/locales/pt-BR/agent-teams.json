@@ -62,6 +62,8 @@
   "agent_teams_runtime_unavailable_hint": "Tente novamente em instantes. Se continuar falhando, peça a um administrador para confirmar se o serviço está configurado e funcionando.",
   "agent_teams_status_queued": "Na fila",
   "agent_teams_status_running": "Em andamento",
+  "agent_teams_status_success": "Sucesso",
+  "agent_teams_status_skipped": "Ignorado",
   "agent_teams_status_waiting_human": "Aguardando confirmação",
   "agent_teams_status_blocked": "Bloqueado",
   "agent_teams_status_failed": "Falhou",
@@ -277,5 +279,6 @@
   "agent_teams_sidebar_empty_team": "Nenhum membro ou fluxo ainda",
   "agent_teams_member_kind": "Tipo",
   "agent_teams_member_status": "Status",
-  "agent_teams_workflows_col_name": "Fluxo"
+  "agent_teams_workflows_col_name": "Fluxo",
+  "agent_teams_timeline_approval": "Aprovação"
 }
