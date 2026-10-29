@@ -90,11 +90,24 @@ export interface OrchestrationTeamMember {
   kind: "human" | "agent";
   userId: string | null;
   agentDefinitionId: string;
+  // 显示名：人类=Plane 显示名；数字员工=agwmngr 目录读时聚合（不可达为 null）
+  displayName: string | null;
   role: string;
   capabilities: string[];
   sequence: number;
   enabled: boolean;
   updatedAt: string;
+}
+
+/** 加成员候选：租户 agent 目录（draft.name，缺名回退 slug）。 */
+export interface OrchestrationAgentCatalogEntry {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export async function listAgentCatalog(workspace: string): Promise<OrchestrationAgentCatalogEntry[]> {
+  return request(`${WS(workspace)}/agent-teams/agent-catalog/`);
 }
 
 export async function listTeams(workspace: string): Promise<OrchestrationTeam[]> {
@@ -390,6 +403,7 @@ export const orchestrationService = {
   listTeamProjects,
   listTeamActiveTasks,
   listMembers,
+  listAgentCatalog,
   addMember,
   updateMember,
   removeMember,

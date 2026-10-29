@@ -152,6 +152,20 @@ class OrchestrationAPITest(TestCase):
         r = self.client.get(f"/api/workspaces/aws-orch/agent-teams/{team.id}/active-tasks/")
         self.assertEqual(r.json(), [])
 
+    def test_member_display_name_degrades_and_catalog(self):
+        """成员显示名（agwmngr 目录未配置→人类有名、数字降级 None）与目录端点空态。"""
+        from plane.orchestration import services
+        team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="成员团队")
+        services.add_member(team=team, user_id=self.owner.id, is_admin=True, kind="human", role="approver", user_ref=self.human.id)
+        # 未配置 AGWMNGR_* env（测试环境即如此）：agent 成员名降级 None
+        r = self.client.get(f"/api/workspaces/aws-orch/agent-teams/{team.id}/members/")
+        self.assertEqual(r.status_code, 200)
+        human_entry = r.json()[0]
+        self.assertEqual(human_entry["displayName"], self.human.display_name)
+        # 目录端点：未配置时 503 语义（前端空态）
+        r = self.client.get("/api/workspaces/aws-orch/agent-teams/agent-catalog/")
+        self.assertEqual(r.status_code, 503)
+
     def test_member_cannot_touch_others_team(self):
         self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "归属"}, content_type="application/json")
         other_client = Client()

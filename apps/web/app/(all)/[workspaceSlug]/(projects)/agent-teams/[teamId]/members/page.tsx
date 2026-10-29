@@ -13,7 +13,7 @@ import { observer } from "mobx-react";
 import { useParams } from "react-router";
 import Link from "next/link";
 import { useTranslation } from "@plane/i18n";
-import { Bot, MessageSquare, Power, User, UserMinus } from "lucide-react";
+import { Bot, Power, User, UserMinus } from "lucide-react";
 import { Button as PropelButton } from "@plane/propel/button";
 import { EmptyStateDetailed } from "@plane/propel/empty-state";
 import { Breadcrumbs, ContentWrapper, Header, Table } from "@plane/ui";
@@ -22,12 +22,15 @@ import type { TTableColumn } from "@plane/ui";
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
-import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { AddMemberModal } from "@/components/agent-teams/team-manage-modals";
 import { MemberAvatar } from "@/components/agent-teams/member-avatar";
 // services
-import { setExpertsWorkspaceSlug } from "@/services/agent-teams/experts-auth";
-import runtimeService, { type AgentTeam, type AgentTeamMember } from "@/services/agent-teams/runtime.service";
+// 数据源切换（阶段 2′）：成员管理改走 Plane 编排域同源 API
+import {
+  orchestrationService,
+  type OrchestrationTeam,
+  type OrchestrationTeamMember,
+} from "@/services/agent-teams/orchestration.service";
 import { classifyRuntimeFailure, type RuntimeFailureKind } from "@/services/agent-teams/runtime-errors";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
@@ -37,10 +40,9 @@ const MemberListPage = observer(function MemberListPage() {
   const { workspaceSlug: wsSlugParam, teamId } = useParams<{ workspaceSlug: string; teamId: string }>();
   const workspaceSlug = wsSlugParam ?? "";
   const { currentWorkspace } = useWorkspace();
-  const { memberChatPath } = useAgentTeamsLinks();
 
-  const [team, setTeam] = useState<AgentTeam | null>(null);
-  const [members, setMembers] = useState<AgentTeamMember[]>([]);
+  const [team, setTeam] = useState<OrchestrationTeam | null>(null);
+  const [members, setMembers] = useState<OrchestrationTeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   // 失败原因分类：工作区没接入时重试永远不会成功，不能再给「重试」按钮。
   const [failure, setFailure] = useState<RuntimeFailureKind | null>(null);
@@ -50,9 +52,11 @@ const MemberListPage = observer(function MemberListPage() {
   const canManage = team?.viewerCanManage === true && team.status !== "archived";
 
   const load = () => {
-    if (!teamId) return;
-    setExpertsWorkspaceSlug(workspaceSlug);
-    Promise.all([runtimeService.getTeam(teamId), runtimeService.listTeamMembers(teamId)])
+    if (!teamId || !workspaceSlug) return;
+    Promise.all([
+      orchestrationService.getTeam(workspaceSlug, teamId),
+      orchestrationService.listMembers(workspaceSlug, teamId),
+    ])
       .then(([teamInfo, memberItems]) => {
         setTeam(teamInfo);
         setMembers(memberItems);
@@ -75,22 +79,22 @@ const MemberListPage = observer(function MemberListPage() {
 
   const pageTitle = currentWorkspace?.name ? `${currentWorkspace?.name} - Team Members` : undefined;
 
-  const columns: TTableColumn<AgentTeamMember>[] = [
+  const columns: TTableColumn<OrchestrationTeamMember>[] = [
     {
       key: "member",
       content: t("agent_teams_members_title"),
       tdRender: (member) => (
         <div className="flex items-center gap-3">
           <MemberAvatar member={member} />
-          {member.planeUserId ? (
+          {member.userId ? (
             <Link
-              href={`/${workspaceSlug}/profile/${member.planeUserId}`}
+              href={`/${workspaceSlug}/profile/${member.userId}`}
               className="text-primary hover:text-accent-primary hover:underline"
             >
-              {member.displayName}
+              {member.displayName ?? member.role}
             </Link>
           ) : (
-            <span className="text-primary">{member.displayName}</span>
+            <span className="text-primary">{member.displayName ?? member.role}</span>
           )}
         </div>
       ),
@@ -142,15 +146,8 @@ const MemberListPage = observer(function MemberListPage() {
       content: "",
       tdRender: (member) => (
         <div className="flex items-center justify-end gap-1">
-          {member.kind === "agent" && member.expertId ? (
-            <Link
-              href={memberChatPath(member.expertId, member.displayName)}
-              className="flex items-center rounded p-1 text-secondary hover:bg-layer-2-hover hover:text-accent-primary"
-              title={t("agent_teams_chat_with", { name: member.displayName })}
-            >
-              <MessageSquare className="size-3.5" aria-hidden />
-            </Link>
-          ) : null}
+          {/* 聊天入口已退役（聊天页终局为团队助手，§3 盘点）；数字成员
+              显示名经 agwmngr 目录读时聚合，不可达时回退 role */}
           {canManage ? (
             <>
               <button
@@ -158,7 +155,9 @@ const MemberListPage = observer(function MemberListPage() {
                 disabled={busy}
                 onClick={() =>
                   runAction(() =>
-                    runtimeService.updateTeamMember(teamId, member.id, { enabled: member.enabled === false })
+                    orchestrationService.updateMember(workspaceSlug, teamId!, member.id, {
+                      enabled: member.enabled === false,
+                    })
                   )
                 }
                 className="rounded p-1 text-secondary hover:bg-layer-2-hover hover:text-accent-primary disabled:opacity-50"
@@ -170,8 +169,10 @@ const MemberListPage = observer(function MemberListPage() {
                 type="button"
                 disabled={busy}
                 onClick={() => {
-                  if (window.confirm(t("agent_teams_member_remove_confirm", { name: member.displayName }))) {
-                    runAction(() => runtimeService.removeTeamMember(teamId, member.id));
+                  if (
+                    window.confirm(t("agent_teams_member_remove_confirm", { name: member.displayName ?? member.role }))
+                  ) {
+                    runAction(() => orchestrationService.removeMember(workspaceSlug, teamId!, member.id));
                   }
                 }}
                 className="rounded p-1 text-secondary hover:bg-layer-2-hover hover:text-danger-primary disabled:opacity-50"
@@ -269,7 +270,13 @@ const MemberListPage = observer(function MemberListPage() {
       </div>
 
       {teamId ? (
-        <AddMemberModal isOpen={addOpen} handleClose={() => setAddOpen(false)} teamId={teamId} onAdded={load} />
+        <AddMemberModal
+          isOpen={addOpen}
+          handleClose={() => setAddOpen(false)}
+          workspaceSlug={workspaceSlug}
+          teamId={teamId}
+          onAdded={load}
+        />
       ) : null}
     </>
   );

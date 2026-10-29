@@ -13,9 +13,12 @@ import { Button as PropelButton } from "@plane/propel/button";
 import { EModalPosition, EModalWidth, Input, ModalCore, TextArea } from "@plane/ui";
 import { CustomSelect } from "@plane/ui";
 // services
-import runtimeService from "@/services/agent-teams/runtime.service";
-import workflowService, { type PublishedExpert } from "@/services/agent-teams/workflow.service";
-import { expertsAuthHeaders } from "@/services/agent-teams/experts-auth";
+// 数据源切换（阶段 2′）：加成员候选改走编排域（agent=agwmngr 目录代理、
+// human=Plane 工作区成员），不再依赖 experts-backend 专家/租户目录
+import { orchestrationService } from "@/services/agent-teams/orchestration.service";
+import { WorkspaceService } from "@/services/workspace.service";
+
+const workspaceService = new WorkspaceService();
 
 export function TeamSettingsModal({
   isOpen,
@@ -91,11 +94,13 @@ type Candidate = { id: string; name: string; hint?: string };
 export function AddMemberModal({
   isOpen,
   handleClose,
+  workspaceSlug,
   teamId,
   onAdded,
 }: {
   isOpen: boolean;
   handleClose: () => void;
+  workspaceSlug: string;
   teamId: string;
   onAdded: () => void;
 }) {
@@ -122,15 +127,15 @@ export function AddMemberModal({
       try {
         let list: Candidate[] = [];
         if (kind === "agent") {
-          const experts: PublishedExpert[] = await workflowService.listPublishedExperts();
-          list = experts.map((expert) => ({ id: expert.id, name: expert.name }));
+          const catalog = await orchestrationService.listAgentCatalog(workspaceSlug);
+          list = catalog.map((entry) => ({ id: entry.id, name: entry.name, hint: entry.description || undefined }));
         } else {
-          const headers = await expertsAuthHeaders();
-          const tenantId = headers["X-Tenant-ID"] ?? headers["x-tenant-id"];
-          if (typeof tenantId === "string" && tenantId) {
-            const members = await workflowService.listTenantMembers(tenantId);
-            list = members.map((m) => ({ id: m.userId, name: m.name || m.email || m.userId, hint: m.email }));
-          }
+          const members = await workspaceService.fetchWorkspaceMembers(workspaceSlug);
+          list = members.map((m) => ({
+            id: m.member.id,
+            name: m.member.display_name || m.member.first_name || m.member.email || m.member.id,
+            hint: m.member.email,
+          }));
         }
         if (!ignore) setCandidates(list);
       } catch {
@@ -142,7 +147,7 @@ export function AddMemberModal({
     return () => {
       ignore = true;
     };
-  }, [isOpen, kind]);
+  }, [isOpen, kind, workspaceSlug]);
 
   const submit = async () => {
     if (!selected) return;
@@ -150,17 +155,26 @@ export function AddMemberModal({
     setErrorKey("");
     try {
       if (kind === "agent") {
-        await runtimeService.addTeamMember(teamId, { kind, expertId: selected, role: role.trim() || "worker" });
+        await orchestrationService.addMember(workspaceSlug, teamId, {
+          kind,
+          agentDefinitionId: selected,
+          role: role.trim() || "worker",
+        });
       } else {
-        await runtimeService.addTeamMember(teamId, { kind, userId: selected, role: role.trim() || "approver" });
+        await orchestrationService.addMember(workspaceSlug, teamId, {
+          kind,
+          userId: selected,
+          role: role.trim() || "approver",
+        });
       }
       onAdded();
       handleClose();
     } catch (error) {
-      const status = (error as { response?: { status?: number; data?: { code?: string } } })?.response;
-      if (status?.data?.code === "AGENT_TEAM_MEMBER_CONFLICT") {
+      // orchestration.service 错误形态：message 尾带 [CODE]
+      const message = (error as Error).message ?? "";
+      if (/\[AGENT_TEAM_MEMBER_CONFLICT\]/.test(message)) {
         setErrorKey("agent_teams_member_conflict");
-      } else if (status?.status === 404) {
+      } else if ((error as { status?: number }).status === 404) {
         setErrorKey("agent_teams_member_source_missing");
       } else {
         setErrorKey("agent_teams_member_add_failed");

@@ -41,7 +41,8 @@ def _error_response(exc: TeamDomainError):
     return Response({"error": exc.message, "code": exc.code}, status=exc.status)
 
 
-def _team_json(team: AgentTeam, with_members: bool = False, user=None, is_admin: bool | None = None):
+def _team_json(team: AgentTeam, with_members: bool = False, user=None, is_admin: bool | None = None,
+               agent_names: dict[str, str] | None = None):
     data = {
         "id": team.id, "name": team.name, "objective": team.objective,
         "status": team.status,
@@ -62,14 +63,22 @@ def _team_json(team: AgentTeam, with_members: bool = False, user=None, is_admin:
         data["viewerCanManage"] = bool(is_admin) or team.created_by_id == user.id
         data["viewerIsAdmin"] = bool(is_admin)
     if with_members:
-        data["members"] = [_member_json(m) for m in team.members.order_by("sequence", "created_at")]
+        data["members"] = [
+            _member_json(m, agent_names) for m in team.members.order_by("sequence", "created_at")]
     return data
 
 
-def _member_json(m: AgentTeamMember):
+def _member_json(m: AgentTeamMember, agent_names: dict[str, str] | None = None):
+    names = agent_names or {}
+    # 显示名：人类取 Plane 用户名；数字员工经 agwmngr 目录读时聚合（失败回退 None）
+    if m.kind == "human":
+        display = User.objects.filter(id=m.user_id).values_list("display_name", flat=True).first()
+    else:
+        display = names.get(m.agent_definition_id)
     return {
         "id": m.id, "kind": m.kind,
         "userId": m.user_id, "agentDefinitionId": m.agent_definition_id,
+        "displayName": display,
         "role": m.role, "capabilities": m.capabilities, "sequence": m.sequence,
         "enabled": m.enabled, "updatedAt": m.updated_at.isoformat(),
     }
@@ -146,6 +155,17 @@ class TeamsEndpoint(BaseAPIView):
             return Response({"error": "workspace not found"}, status=404)
 
 
+class TeamAgentCatalogEndpoint(BaseAPIView):
+    """加成员候选：租户 agent 目录（经 agwmngr 读时聚合；不可达返回 503 语义空列表）。"""
+
+    def get(self, request, slug):
+        from .agent_directory import list_catalog
+        catalog = list_catalog()
+        if catalog is None:
+            return Response({"error": "agent catalog unavailable", "code": "AGENT_CATALOG_UNAVAILABLE"}, status=503)
+        return Response(catalog)
+
+
 class TeamQuotaEndpoint(BaseAPIView):
     """配额提示（新建弹层预取）：管理员 bypass，普通成员数自己非归档团队。"""
 
@@ -163,6 +183,13 @@ class TeamQuotaEndpoint(BaseAPIView):
         })
 
 
+def _agent_names_for(team: AgentTeam) -> dict[str, str]:
+    """团队的数字成员定义名（一次批量查询，读时聚合）。"""
+    from .agent_directory import resolve_agent_names
+    ids = team.members.filter(kind=AgentTeamMember.Kind.AGENT).values_list("agent_definition_id", flat=True)
+    return resolve_agent_names(ids)
+
+
 class TeamDetailEndpoint(BaseAPIView):
     def _get(self, slug, team_id) -> AgentTeam | None:
         return AgentTeam.objects.filter(workspace__slug=slug, id=team_id).first()
@@ -173,7 +200,8 @@ class TeamDetailEndpoint(BaseAPIView):
             return Response({"error": "not found"}, status=404)
         return Response(_team_json(
             team, with_members=True, user=request.user,
-            is_admin=_is_workspace_admin(request.user, slug)))
+            is_admin=_is_workspace_admin(request.user, slug),
+            agent_names=_agent_names_for(team)))
 
     def patch(self, request, slug, team_id):
         team = self._get(slug, team_id)
@@ -215,7 +243,8 @@ class TeamMembersEndpoint(BaseAPIView):
         team = AgentTeam.objects.filter(workspace__slug=slug, id=team_id).first()
         if not team:
             return Response({"error": "not found"}, status=404)
-        return Response([_member_json(m) for m in team.members.order_by("sequence", "created_at")])
+        names = _agent_names_for(team)
+        return Response([_member_json(m, names) for m in team.members.order_by("sequence", "created_at")])
 
     def post(self, request, slug, team_id):
         team = AgentTeam.objects.filter(workspace__slug=slug, id=team_id).first()
@@ -298,13 +327,19 @@ class TeamActiveTasksEndpoint(BaseAPIView):
         ).exclude(business_status__in=list(TERMINAL_STATUSES)).select_related(
             "issue", "issue__project", "current_member", "current_member__user",
         ).order_by("-updated_at")
+        # 数字成员显示名：对本团队做一次目录批量查询
+        team = AgentTeam.objects.filter(workspace__slug=slug, id=team_id).only("id").first()
+        names = _agent_names_for(team) if team else {}
         items = []
         for e in executions:
             member = e.current_member
             member_name = None
             if member is not None:
-                # 人类成员取 Plane 显示名；数字成员暂无本地名称源（阶段 4 接 agwmngr 目录后补）
-                member_name = (member.user.display_name if member.user else None) if member.kind == "human" else None
+                # 人类成员取 Plane 显示名；数字成员经 agwmngr 目录（失败为 None → 前端显「—」）
+                if member.kind == "human":
+                    member_name = member.user.display_name if member.user else None
+                else:
+                    member_name = names.get(member.agent_definition_id)
             items.append({
                 "taskBindingId": e.id,
                 "issueId": e.issue_id,

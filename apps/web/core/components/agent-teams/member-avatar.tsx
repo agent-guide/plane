@@ -7,9 +7,9 @@
  * 与项目成员列表形态一致（设计 2026-10-20 整改）。
  */
 import { useTranslation } from "@plane/i18n";
-import type { AgentTeamMember } from "@/services/agent-teams/runtime.service";
+import type { OrchestrationTeamMember } from "@/services/agent-teams/orchestration.service";
 
-export function MemberAvatar({ member }: { member: AgentTeamMember }) {
+export function MemberAvatar({ member }: { member: OrchestrationTeamMember }) {
   const { t } = useTranslation();
   return (
     <span
@@ -18,7 +18,7 @@ export function MemberAvatar({ member }: { member: AgentTeamMember }) {
       }`}
       title={member.kind === "agent" ? t("agent_teams_kind_agent") : t("agent_teams_kind_human")}
     >
-      {member.displayName.slice(0, 1).toUpperCase()}
+      {(member.displayName ?? member.role).slice(0, 1).toUpperCase()}
       <span
         className={`border-layer-1 absolute -right-0.5 -bottom-0.5 size-2 rounded-full border ${
           member.enabled === false ? "bg-tertiary" : member.kind === "agent" ? "bg-accent-primary" : "bg-secondary"

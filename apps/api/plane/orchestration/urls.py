@@ -8,6 +8,7 @@ from .views import (
     ApprovalsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
     EngineEventEndpoint, ProjectBindingsEndpoint, ProjectExecutionsEndpoint,
     StartExecutionEndpoint, TeamQuotaEndpoint, TeamProjectsEndpoint, TeamActiveTasksEndpoint,
+    TeamAgentCatalogEndpoint,
     ProjectWorkflowDetailEndpoint, ProjectWorkflowsEndpoint, TeamDetailEndpoint,
     TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint,
     TeamsEndpoint, WorkflowPublishEndpoint, WorkflowVersionsEndpoint,
@@ -17,7 +18,8 @@ urlpatterns = [
     path("workspaces/<str:slug>/agent-teams/", TeamsEndpoint.as_view(), name="orchestration-teams"),
     path("workspaces/<str:slug>/agent-teams/approvals/", ApprovalsEndpoint.as_view(), name="orchestration-approvals"),
     path("workspaces/<str:slug>/agent-teams/approvals/<str:approval_id>/", ApprovalsEndpoint.as_view(http_method_names=["post"]), name="orchestration-approval-answer"),
-    # quota 必须排在 <team_id> 通配之前，否则 "quota" 会被当成 team_id
+    # quota / agent-catalog 必须排在 <team_id> 通配之前，否则会被当成 team_id
+    path("workspaces/<str:slug>/agent-teams/agent-catalog/", TeamAgentCatalogEndpoint.as_view(), name="orchestration-agent-catalog"),
     path("workspaces/<str:slug>/agent-teams/quota/", TeamQuotaEndpoint.as_view(), name="orchestration-team-quota"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/", TeamDetailEndpoint.as_view(), name="orchestration-team-detail"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/members/", TeamMembersEndpoint.as_view(), name="orchestration-team-members"),
