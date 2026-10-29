@@ -798,6 +798,7 @@ class EngineEventEndpoint(BaseAPIView):
     """worker → Plane 引擎事件入口（服务令牌鉴权，worker 专用）。"""
 
     permission_classes = []
+    throttle_classes = []
 
     def post(self, request):
         import os, secrets
@@ -818,6 +819,7 @@ class DagNodeRuntimeBase(BaseAPIView):
     """DAG 运行时回调（令牌鉴权同 EngineEventEndpoint）。"""
 
     permission_classes = []
+    throttle_classes = []
 
     def _auth(self, request):
         import os, secrets
@@ -840,6 +842,20 @@ class DagNodeView(DagNodeRuntimeBase):
         if not execution:
             return Response({"error": "run not found"}, status=404)
         record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
+        # 人工节点自愈：start 期 handoff 失败遗留（RUNNING 且执行未进等待态）
+        # 时在 observe 补投——审批建单不可静默丢失（幂等：已等待仅补单）
+        definition = (execution.binding.workflow_version.definition or {})
+        node_type = next((n.get("type") for n in (definition.get("nodes") or [])
+                          if n.get("key") == node_key), None)
+        if (node_type == "human_approval"
+                and record.status == NodeRuntimeRecord.Status.RUNNING
+                and execution.business_status == "running"):
+            from . import execution as execution_svc
+            execution_svc.on_human_handoff(
+                execution_id=execution.id, event_id=f"observe:{node_key}:{record.id}",
+                member=None, node_ref=node_key)
+            execution.refresh_from_db()
+            record.refresh_from_db()
         return Response(record.view())
 
 
@@ -858,8 +874,18 @@ class DagNodeStartView(DagNodeRuntimeBase):
         record.attempt = int(request.data.get("attempt", 1))
         record.last_event_id = request.data.get("eventId", "")
         record.save()
-        node = next((n for n in (execution.frozen_context.get("members") or []) if n.get("kind") == "agent"), None)
-        if node and node_key != "human":
+        # 按发布版本 definition 的节点类型分派：人工节点 → handoff（waiting_human
+        # + 建待审批）；AI/条件节点 → agent.invoke 命令（worker 真调 agwmngr）
+        definition = (execution.binding.workflow_version.definition or {})
+        node_type = next((n.get("type") for n in (definition.get("nodes") or [])
+                          if n.get("key") == node_key), None)
+        if node_type == "human_approval":
+            from . import execution as execution_svc
+            execution_svc.on_human_handoff(
+                execution_id=execution.id,
+                event_id=request.data.get("eventId") or f"node:{node_key}:{record.attempt}",
+                member=None, node_ref=node_key)
+        elif node_type in ("ai", "condition"):
             payload = {"executionId": execution.id, "nodeKey": node_key, "attempt": record.attempt}
             OrchestrationOutbox.objects.get_or_create(
                 idempotency_key=f"agent_call:{execution.id}:{node_key}:{record.attempt}",

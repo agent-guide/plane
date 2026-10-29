@@ -108,6 +108,19 @@ def wait_until_ready(client: AirflowClient, *, dag_id: str, definition_hash: str
         time.sleep(0.5)
 
 
+def _post_internal_event(event: dict) -> dict:
+    """向 Plane 引擎事件端点投递（X-Orchestration-Token 服务鉴权）。"""
+    import os
+    base = os.environ.get("ORCHESTRATION_INTERNAL_BASE_URL", "http://127.0.0.1:8001").rstrip("/")
+    token = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
+    req = urllib.request.Request(
+        f"{base}/api/internal/agent-teams/events/",
+        data=json.dumps(event).encode(), method="POST",
+        headers={"Content-Type": "application/json", "X-Orchestration-Token": token})
+    with urllib.request.urlopen(req, timeout=15) as response:
+        return json.loads(response.read() or b"{}")
+
+
 def publish_workflow(*, workflow_id: str, version_number: int, definition: dict, definition_hash: str,
                      dag_root: Path) -> dict:
     """发布链（视图层调用）：渲染 → 原子落盘 → 轮询就绪 → 激活。
@@ -129,6 +142,134 @@ def publish_workflow(*, workflow_id: str, version_number: int, definition: dict,
     if not ready:
         return {"status": "failed", "reason": "dag not ready in 90s", "path": str(path)}
     return {"status": "published", "engine_deploy_ref": {"dag_id": identifier, "file": path.name}}
+
+
+def _internal_node_call(method: str, path: str, payload: dict) -> dict:
+    """worker → Plane 内部节点端点（X-Orchestration-Token）。"""
+    import os
+    base = os.environ.get("ORCHESTRATION_INTERNAL_BASE_URL", "http://127.0.0.1:8001").rstrip("/")
+    token = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
+    req = urllib.request.Request(
+        f"{base}{path}", method=method,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json", "X-Orchestration-Token": token})
+    with urllib.request.urlopen(req, timeout=30) as response:
+        return json.loads(response.read() or b"{}")
+
+
+def _agwmngr_headers() -> dict:
+    import os
+    token = os.environ.get("AGWMNGR_TENANT_TOKEN", "")
+    if not token:
+        raise RuntimeError("AGWMNGR_TENANT_TOKEN not configured")
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+
+def _agwmngr_base() -> str:
+    import os
+    base = os.environ.get("AGWMNGR_BASE_URL", "").rstrip("/")
+    tenant = os.environ.get("AGWMNGR_TENANT_ID", "")
+    if not base or not tenant:
+        raise RuntimeError("AGWMNGR_BASE_URL/TENANT_ID not configured")
+    return f"{base}/api/platform/v1/tenants/{tenant}"
+
+
+def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: str) -> str:
+    """agent 节点执行：解析部署 → 建调用上下文 → turn（SSE 聚合为完整回复）。
+
+    阶段 0/1′ 摸底验证的租户调用链；SSE 形态与旧 llm_gateway 同源
+    （data: 文本增量，[DONE] 终止）。
+    """
+    import os
+    headers = _agwmngr_headers()
+    base = _agwmngr_base()
+
+    def call(method: str, path: str, payload: dict | None = None, timeout: float = 30):
+        req = urllib.request.Request(
+            f"{base}{path}", method=method,
+            data=json.dumps(payload).encode() if payload is not None else None,
+            headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            body = response.read() or b"{}"
+            return json.loads(body) if body.strip().startswith((b"{", b"[")) else body.decode()
+
+    # ① 解析部署：agent 定义 → 最新 active 部署
+    deployments = call("GET", "/deployments")
+    items = deployments.get("items") if isinstance(deployments, dict) else deployments
+    # 部署字段：definitionId / lifecycleState（active=可调用）
+    candidates = [d for d in (items or [])
+                  if d.get("definitionId") == agent_definition_id
+                  and str(d.get("lifecycleState", "")).lower() == "active"]
+    if not candidates:
+        raise RuntimeError(f"no deployment for agent {agent_definition_id}")
+    deployment = candidates[0]
+
+    # ② 调用上下文（15 分钟有效；key 解析交平台默认）
+    context = call("POST", f"/deployments/{deployment['id']}/invocations", {})
+
+    # ③ turn：SSE 聚合（节点超时预算 + 回调余量；builtin 直答通常 <60s）
+    req = urllib.request.Request(
+        f"{base}/invocations/{context['id']}/turn", method="POST",
+        data=json.dumps({"input": prompt, "session_id": session_hint}).encode(),
+        headers=headers)
+    # SSE 信封：event: <type> / data: {json}——delta 事件取 text 聚合；
+    # error 事件显式抛错（不静默空回复）
+    pieces: list[str] = []
+    event_type = ""
+    with urllib.request.urlopen(req, timeout=600) as response:
+        for raw in response:
+            line = raw.decode("utf-8", "replace").strip()
+            if line.startswith("event: "):
+                event_type = line[len("event: "):].strip()
+                continue
+            if not line.startswith("data: "):
+                continue
+            data = line[len("data: "):].strip()
+            if data == "[DONE]":
+                break
+            try:
+                envelope = json.loads(data)
+            except ValueError:
+                continue
+            if event_type == "error":
+                raise RuntimeError(f"agent turn error: {str(envelope)[:200]}")
+            if event_type == "delta" and isinstance(envelope.get("text"), str):
+                pieces.append(envelope["text"])
+    return "".join(pieces)
+
+
+def reconcile_runs_once() -> dict:
+    """活跃执行对账：向 Airflow 查 run 终态并投 engine.terminal。
+
+    常驻 worker 周期调用（DAG 节点全部收口后 run 才终态；此处只投事件，
+    状态推进走引擎事件消费——单一事实源）。
+    """
+    from .models import WorkItemExecution
+    from .state_machine import TERMINAL_STATUSES
+    client = airflow_client_from_env()
+    stats = {"checked": 0, "settled": 0}
+    for ex in WorkItemExecution.objects.exclude(business_status__in=list(TERMINAL_STATUSES)):
+        if not ex.engine_run_ref:
+            continue
+        stats["checked"] += 1
+        dag_run_id = f"exec-{ex.id[:12]}"
+        version = ex.binding.workflow_version
+        from .dag_publication import dag_id
+        try:
+            run = client._request("GET", f"dags/{dag_id(version.workflow_id, version.version)}/dagRuns/{dag_run_id}")
+        except AirflowError as exc:
+            if exc.status == 404:
+                continue  # 引擎侧尚无 run（启动在途）
+            raise
+        state = run.get("state")
+        if state in ("success", "failed", "cancelled"):
+            _post_internal_event({
+                "externalEventId": f"engine-terminal:{ex.id}:{state}",
+                "eventType": "engine.terminal",
+                "payload": {"executionId": ex.id, "engine_status": state},
+            })
+            stats["settled"] += 1
+    return stats
 
 
 def process_outbox_once(*, dag_root: Path) -> dict:
@@ -155,21 +296,36 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                 version = WorkflowVersion.objects.select_related("workflow").get(
                     id=execution.binding.workflow_version_id)
                 from .dag_publication import dag_id
-                identifier = dag_id(version.workflow_id)
+                identifier = dag_id(version.workflow_id, version.version)
                 client.trigger_run(
                     identifier,
                     dag_run_id=f"exec-{execution.id[:12]}",
-                    conf={"backendRunId": execution.engine_run_ref or execution.id},
+                    conf={"backendRunId": execution.id},
                 )
+                # 触发即回投 engine.started：engine_run_ref = execution.id
+                # （DAG 节点回调按 run_ref 解析执行，与 conf backendRunId 同源）
+                _post_internal_event({
+                    "externalEventId": f"start:{execution.id}:started",
+                    "eventType": "engine.started",
+                    "payload": {"executionId": execution.id, "engine_run_ref": execution.id},
+                })
             elif command.command_type == "agent.invoke":
-                base = os.environ.get("AGWMNGR_BASE_URL", "").rstrip("/")
-                token = os.environ.get("AGWMNGR_TENANT_TOKEN", "")
-                if base and token:
-                    req = _rq.Request(
-                        f"{base}/api/platform/v1/tenants/{os.environ.get('AGWMNGR_TENANT_ID','')}/agents",
-                        headers={"Authorization": f"Bearer {token}"})
-                    with _rq.urlopen(req, timeout=15) as response:
-                        json.loads(response.read() or b"{}")  # 真实调用由 worker 主进程扩展（turn 端点）
+                # 真调用：发布版本 definition 的节点（key=DAG 任务 id）→ 部署 →
+                # turn 聚合 → 节点 finish 回写（DAG 轮询 observe 收口）
+                from .models import WorkflowVersion
+                execution = WorkItemExecution.objects.select_related(
+                    "binding", "binding__workflow_version").get(id=command.payload["executionId"])
+                node_key = command.payload["nodeKey"]
+                definition = execution.binding.workflow_version.definition or {}
+                node = next((n for n in (definition.get("nodes") or []) if n.get("key") == node_key), None)
+                if node is None or not node.get("expertId"):
+                    raise RuntimeError(f"node {node_key} has no agent reference")
+                prompt = (node.get("prompt") or node.get("name") or node_key)
+                reply = invoke_agent_node(
+                    agent_definition_id=node["expertId"], prompt=prompt, session_hint=f"{execution.id}:{node_key}")
+                _internal_node_call("POST", f"/api/internal/workflow-runs/{execution.engine_run_ref or execution.id}"
+                                    f"/nodes/{node_key}/finish/",
+                                    {"result": {"status": "success", "output": reply[:20000]}})
             else:
                 stats["skipped"] += 1
                 continue
@@ -185,6 +341,7 @@ def process_outbox_once(*, dag_root: Path) -> dict:
 
 
 __all__ = [
+    "invoke_agent_node",
     "AirflowClient", "AirflowError", "airflow_client_from_env",
-    "wait_until_ready", "process_outbox_once", "publish_workflow",
+    "wait_until_ready", "process_outbox_once", "publish_workflow", "reconcile_runs_once",
 ]

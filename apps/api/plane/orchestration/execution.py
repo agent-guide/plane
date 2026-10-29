@@ -68,9 +68,15 @@ def _load_active(execution_id: str) -> WorkItemExecution:
 
 
 def on_engine_started(*, execution_id: str, event_id: str, engine_run_ref: str) -> WorkItemExecution:
-    """调用点 1/2：受控启动/恢复 → queued→running（附引擎运行引用）。"""
+    """调用点 1/2：受控启动/恢复 → queued→running（附引擎运行引用）。
+
+    幂等：已在 running（引擎重投 started）时只补 run_ref 不再转移。
+    """
     ex = _load_active(execution_id)
-    WorkItemExecution.objects.filter(id=ex.id).update(engine_run_ref=engine_run_ref)
+    if engine_run_ref:
+        WorkItemExecution.objects.filter(id=ex.id).update(engine_run_ref=engine_run_ref)
+    if ex.business_status == "running":
+        return ex
     return transition_execution(execution=ex, target="running", event_id=event_id)
 
 
@@ -134,11 +140,19 @@ def _as_uuid(value):
 
 
 def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
-    """调用点 4：人工答复 → waiting_human→running + 清成员（等下个 agent 分派再设）。"""
+    """调用点 4：人工答复 → waiting_human→running + 清成员 + 人工节点收口 success
+    （引擎 sensor 轮询 observe 到 success 才放行后续节点）。"""
     ex = _load_active(execution_id)
     if ex.business_status != "waiting_human":
         raise TeamDomainError(409, "EXECUTION_RESUME_CONFLICT", "Execution is not waiting for a human")
-    return transition_execution(execution=ex, target="running", event_id=event_id, member=None)
+    resumed = transition_execution(execution=ex, target="running", event_id=event_id, member=None)
+    from .node_runtime import NodeRuntimeRecord
+    definition = (ex.binding.workflow_version.definition or {})
+    human_keys = {n.get("key") for n in (definition.get("nodes") or []) if n.get("type") == "human_approval"}
+    NodeRuntimeRecord.objects.filter(
+        execution=ex, node_key__in=human_keys, status=NodeRuntimeRecord.Status.RUNNING,
+    ).update(status=NodeRuntimeRecord.Status.SUCCESS, result={"resumedBy": event_id})
+    return resumed
 
 
 def on_engine_terminal(*, execution_id: str, event_id: str, engine_status: str) -> WorkItemExecution:

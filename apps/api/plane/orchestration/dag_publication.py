@@ -64,7 +64,7 @@ def observe_human_node(node: dict) -> PokeReturnValue:
     """Start once and reschedule durable observations without occupying a worker slot."""
     context = get_current_context()
     run_id = context["dag_run"].conf["backendRunId"]
-    path = f"/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}"
+    path = f"/api/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/"
     # Human approval can wait for hours; the backend restarting or a network
     # blip during that window must NOT fail the run (design §2.6 durable
     # wait). Transient probe errors keep the sensor waiting; only an explicit
@@ -78,7 +78,7 @@ def observe_human_node(node: dict) -> PokeReturnValue:
         try:
             _internal_request(
                 "POST",
-                f"{{path}}/start",
+                f"{{path}}start/",
                 json={{
                     "eventId": f"{{run_id}}:{{node['key']}}:{{context['ti'].try_number}}:start",
                     "eventType": "node.started",
@@ -112,7 +112,7 @@ def execute_node(node: dict) -> dict:
     start_timeout = int(node.get("effectiveTimeoutSeconds") or 900) + 30
     _internal_request(
         "POST",
-        f"/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/start",
+        f"/api/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/start/",
         json=event,
         timeout_seconds=start_timeout,
     )
@@ -120,7 +120,7 @@ def execute_node(node: dict) -> dict:
         while True:
             result = _internal_request(
                 "GET",
-                f"/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}",
+                f"/api/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/",
             )
             status = result.get("status")
             # A condition node upstream chose another branch, so the backend pruned this node.
@@ -140,7 +140,7 @@ def execute_node(node: dict) -> dict:
     except Exception as exc:
         _internal_request(
             "POST",
-            f"/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/fail",
+            f"/api/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/fail/",
             json={{
                 "eventId": f"{{run_id}}:{{node['key']}}:{{uuid4()}}:failure",
                 "eventType": "node.failed",
