@@ -13,12 +13,12 @@ import { Button as PropelButton } from "@plane/propel/button";
 import { EModalPosition, EModalWidth, ModalCore, Table } from "@plane/ui";
 import { format, parseISO } from "date-fns";
 import { WorkflowStatus } from "./workflow-status";
-import type { TeamWorkflow, TeamWorkflowVersion } from "@/services/agent-teams/workflow.service";
+import type { OrchestrationWorkflow, OrchestrationWorkflowVersion } from "@/services/agent-teams/orchestration.service";
 
 type Props = {
   isOpen: boolean;
-  workflow: TeamWorkflow | null;
-  versions: TeamWorkflowVersion[];
+  workflow: OrchestrationWorkflow | null;
+  versions: OrchestrationWorkflowVersion[];
   loading: boolean;
   onClose: () => void;
 };
@@ -31,7 +31,7 @@ export function WorkflowHistoryModal({ isOpen, workflow, versions, loading, onCl
       {
         key: "version",
         content: t("agent_teams_wf_col_version"),
-        tdRender: (row: TeamWorkflowVersion) => (
+        tdRender: (row: OrchestrationWorkflowVersion) => (
           <span className="text-13 text-primary">
             v{row.version}
             {versions[0]?.id === row.id ? (
@@ -45,33 +45,17 @@ export function WorkflowHistoryModal({ isOpen, workflow, versions, loading, onCl
       {
         key: "status",
         content: t("agent_teams_wf_col_status"),
-        tdRender: (row: TeamWorkflowVersion) => (
-          <span>
-            <WorkflowStatus status={row.status} />
-            {row.publishError ? (
-              <span className="ml-1 text-11 text-danger-primary" title={row.publishError}>
-                ⚠
-              </span>
-            ) : null}
-          </span>
-        ),
+        tdRender: (row: OrchestrationWorkflowVersion) => <WorkflowStatus status={row.status} />,
       },
       {
         key: "publishedAt",
         content: t("agent_teams_wf_col_published_at"),
-        tdRender: (row: TeamWorkflowVersion) => (
+        tdRender: (row: OrchestrationWorkflowVersion) => (
           <span className="text-12 text-secondary">
             {/* renderFormattedDate 只取日期串前 10 位（时间恒 00:00），精确到
                 分钟必须 date-fns 直接解析完整 ISO（10-13 实证）。 */}
             {row.publishedAt ? format(parseISO(row.publishedAt), "yyyy-MM-dd HH:mm") : "-"}
           </span>
-        ),
-      },
-      {
-        key: "createdBy",
-        content: t("agent_teams_wf_col_created_by"),
-        tdRender: (row: TeamWorkflowVersion) => (
-          <span className="text-12 text-secondary">{row.createdByName ?? row.createdBy ?? "-"}</span>
         ),
       },
     ],

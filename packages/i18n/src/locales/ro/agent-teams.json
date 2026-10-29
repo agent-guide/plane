@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Rulezi din nou acest task? Începe o nouă execuție; istoricul rămâne.",
   "agent_teams_panel_retry_unavailable": "Nu se poate reporni acum — reîmprospătați și încercați din nou",
   "agent_teams_workflows_title": "Fluxuri de lucru",
+  "agent_teams_workflows_manage": "Gestionează",
   "agent_teams_workflows_empty": "Nu există încă fluxuri de lucru în această echipă — creează unul",
   "agent_teams_workflows_create": "Flux de lucru nou",
   "agent_teams_workflows_open_canvas": "Orchidează",

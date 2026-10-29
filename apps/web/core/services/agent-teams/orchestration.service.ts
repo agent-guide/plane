@@ -222,6 +222,9 @@ export interface OrchestrationWorkflow {
   description: string;
   engineKind: string;
   draft: Record<string, unknown>;
+  // 列表端点摘要（with_summary）
+  status?: string;
+  currentVersion?: number | null;
   versions?: OrchestrationWorkflowVersion[];
   createdAt: string;
   updatedAt: string;
@@ -268,6 +271,28 @@ export async function saveDraft(
   return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/`, {
     method: "PATCH",
     body: JSON.stringify({ draft }),
+    headers: csrfHeaders(),
+  });
+}
+
+/** 元数据编辑（名称/描述）。 */
+export async function updateWorkflowInfo(
+  workspace: string,
+  projectId: string,
+  workflowId: string,
+  data: { name?: string; description?: string }
+): Promise<OrchestrationWorkflow> {
+  return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    headers: csrfHeaders(),
+  });
+}
+
+/** 删除流程（仍有活跃绑定引用时后端 409 WORKFLOW_IN_USE）。 */
+export async function deleteWorkflow(workspace: string, projectId: string, workflowId: string): Promise<void> {
+  await request(`${PJ(workspace, projectId)}/workflows/${workflowId}/`, {
+    method: "DELETE",
     headers: csrfHeaders(),
   });
 }
@@ -411,6 +436,8 @@ export const orchestrationService = {
   getWorkflow,
   createWorkflow,
   saveDraft,
+  updateWorkflowInfo,
+  deleteWorkflow,
   saveDraftVersion,
   publishVersion,
   listBindings,

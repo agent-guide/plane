@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Eseguire di nuovo questo task? Parte una nuova esecuzione; la cronologia resta.",
   "agent_teams_panel_retry_unavailable": "Impossibile riavviare ora: aggiorna e riprova",
   "agent_teams_workflows_title": "Flussi di lavoro",
+  "agent_teams_workflows_manage": "Gestisci",
   "agent_teams_workflows_empty": "Nessun flusso di lavoro in questo team: creane uno per iniziare",
   "agent_teams_workflows_create": "Nuovo flusso di lavoro",
   "agent_teams_workflows_open_canvas": "Orchestrare",

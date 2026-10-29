@@ -15,7 +15,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Disclosure, Transition } from "@headlessui/react";
 import { useTranslation } from "@plane/i18n";
-import { BotIcon, ChevronRightIcon, PlusIcon, UserIcon } from "lucide-react";
+import { ChevronRightIcon, PlusIcon, UserIcon } from "lucide-react";
 import { IconButton } from "@plane/propel/icon-button";
 import { Tooltip } from "@plane/ui";
 import { cn } from "@plane/utils";
@@ -175,7 +175,6 @@ export function SidebarAgentTeamsList({ workspaceSlug }: { workspaceSlug: string
               {visible.map((team, index) => {
                 const href = agentTeamDetailPath(workspaceSlug, team.id);
                 const membersHref = `/${workspaceSlug}/agent-teams/${team.id}/members`;
-                const processesHref = `/${workspaceSlug}/agent-teams/${team.id}/processes`;
                 const statusIcon = <TeamStatusIcon status={team.status} className="size-3.5" />;
                 return (
                   <SidebarDraggableRow
@@ -197,20 +196,13 @@ export function SidebarAgentTeamsList({ workspaceSlug }: { workspaceSlug: string
                     }
                     submenu={
                       <>
-                        {/* 子项：两个固定分组入口——成员 / 流程（跳详情页对应区块）。 */}
+                        {/* 子项：成员（流程入口已退役——流程归项目所有，随项目
+                            流程页管理，2026-10-29 方案 A）。 */}
                         <Link href={membersHref} className="block">
                           <SidebarNavItem isActive={path === membersHref}>
                             <div className="flex w-full items-center gap-1.5 py-[1px]">
                               <UserIcon className="size-4 flex-shrink-0" aria-hidden />
                               <span className="text-11 font-medium">{t("agent_teams_members_title")}</span>
-                            </div>
-                          </SidebarNavItem>
-                        </Link>
-                        <Link href={processesHref} className="block">
-                          <SidebarNavItem isActive={path === processesHref}>
-                            <div className="flex w-full items-center gap-1.5 py-[1px]">
-                              <BotIcon className="size-4 flex-shrink-0" aria-hidden />
-                              <span className="text-11 font-medium">{t("agent_teams_workflows_title")}</span>
                             </div>
                           </SidebarNavItem>
                         </Link>

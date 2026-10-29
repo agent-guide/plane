@@ -167,6 +167,7 @@
   "agent_teams_empty_tasks": "暫無進行中的工作項",
   "agent_teams_empty_tasks_hint": "所屬專案裡的工作項會自動進入團隊執行，完成後歸檔回專案。",
   "agent_teams_workflows_title": "流程",
+  "agent_teams_workflows_manage": "管理流程",
   "agent_teams_workflows_empty": "此團隊還沒有流程，建立一個開始",
   "agent_teams_workflows_create": "新建流程",
   "agent_teams_workflows_open_canvas": "編排",

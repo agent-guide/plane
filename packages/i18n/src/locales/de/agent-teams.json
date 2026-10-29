@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Diese Aufgabe erneut ausführen? Es startet eine neue Ausführung; der Verlauf bleibt erhalten.",
   "agent_teams_panel_retry_unavailable": "Neustart derzeit nicht möglich — bitte neu laden und erneut versuchen",
   "agent_teams_workflows_title": "Workflows",
+  "agent_teams_workflows_manage": "Verwalten",
   "agent_teams_workflows_empty": "In diesem Team gibt es noch keine Workflows – erstellen Sie einen, um zu beginnen",
   "agent_teams_workflows_create": "Neuer Workflow",
   "agent_teams_workflows_open_canvas": "Orchestrieren",

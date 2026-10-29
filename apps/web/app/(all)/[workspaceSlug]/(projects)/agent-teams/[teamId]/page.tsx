@@ -268,10 +268,21 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
       content: t("agent_teams_workflow"),
       tdRender: (project) =>
         project.workflowName ? (
-          <span className="text-tertiary">
-            {project.workflowName}
-            {project.workflowVersion != null ? ` v${project.workflowVersion}` : ""}
-          </span>
+          // 流程归项目所有（2026-10-29 方案 A）：流程名直达项目流程库
+          project.externalProjectId && workspaceSlug ? (
+            <Link
+              href={`/${workspaceSlug}/projects/${project.externalProjectId}/workflows`}
+              className="text-tertiary hover:text-accent-primary hover:underline"
+            >
+              {project.workflowName}
+              {project.workflowVersion != null ? ` v${project.workflowVersion}` : ""}
+            </Link>
+          ) : (
+            <span className="text-tertiary">
+              {project.workflowName}
+              {project.workflowVersion != null ? ` v${project.workflowVersion}` : ""}
+            </span>
+          )
         ) : (
           <span className="text-tertiary">—</span>
         ),

@@ -1,11 +1,11 @@
 /**
  * Copyright © 2026 agent-guide contributors
  * SPDX-License-Identifier: AGPL-3.0-only
- * See the LICENSE.txt file in the repository root for details.
  *
- * Agent Teams extension — team workflow canvas (设计修订 2026-10-08 阶段 3)。
- * 与管理端画布同一模式：画布独占视口，元数据在区块抽屉，发布在头栏
- * （Dify/n8n pattern）。数据经 runtime-token 通道，权威在 Agent Team Runtime。
+ * Agent Teams extension — 项目流程画布（流程归项目，2026-10-29 方案 A，自
+ * /agent-teams/[teamId]/workflows/[workflowId] 迁移）。画布独占视口，元数据在
+ * 区块抽屉，发布在头栏（Dify/n8n pattern）。数据走编排域同源 API：草稿=画布
+ * graph，存版本时后端编译为可执行 definition。
  */
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router";
@@ -14,17 +14,23 @@ import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { Button } from "@plane/propel/button";
 import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
 import { Input, TextArea } from "@plane/ui";
-import { Rocket, Users } from "lucide-react";
+import { Rocket, Workflow } from "lucide-react";
 // services
-import runtimeService from "@/services/agent-teams/runtime.service";
-import workflowService, {
-  type WorkflowGraph,
-  type TeamWorkflow,
-  type WorkflowToolCatalogEntry,
-} from "@/services/agent-teams/workflow.service";
+import {
+  orchestrationService,
+  type OrchestrationAgentCatalogEntry,
+  type OrchestrationWorkflow,
+} from "@/services/agent-teams/orchestration.service";
+import { WorkspaceService } from "@/services/workspace.service";
 // components
 import { WorkflowCanvasEditor } from "@/components/agent-teams/workflow-canvas";
 import type { WorkflowCanvasEditorLabels } from "@/components/agent-teams/workflow-canvas";
+// 画布 graph 形状（编辑态契约）仍在 workflow.service 导出——纯类型引用，不触发旧数据链
+import type { WorkflowGraph } from "@/services/agent-teams/workflow.service";
+// hooks
+import { useProject } from "@/hooks/store/use-project";
+
+const workspaceService = new WorkspaceService();
 
 // 画布文案双语文料（与管理端 adminWorkflowCanvas 同源）：画布是专用编辑面，
 // 文案随组件内联避免 40+ 键 × 全语言铺开；zh 之外回退英文。
@@ -46,7 +52,7 @@ const CANVAS_LABELS_ZH: WorkflowCanvasEditorLabels = {
   nodePanelTitle: "节点属性",
   fieldName: "节点名称 *",
   fieldEmployee: "负责员工",
-  fieldEmployeeEmptyHint: "团队暂无在编数字员工，请先在团队详情添加成员",
+  fieldEmployeeEmptyHint: "数字员工目录暂不可用，可先手填标识后保存",
   genericAgent: "通用 Agent（不绑定员工）",
   employeePersonaInjected: "能力介绍已自动注入",
   addNode: "添加节点",
@@ -60,8 +66,8 @@ const CANVAS_LABELS_ZH: WorkflowCanvasEditorLabels = {
   fieldParams: "参数（JSON）",
   fieldMessage: "确认提示 *",
   fieldApprover: "审批人 *",
-  fieldApproverPlaceholder: "选择审批人（租户用户）",
-  fieldApproverEmptyHint: "团队暂无人类成员，请先在团队详情添加成员",
+  fieldApproverPlaceholder: "选择审批人（工作区成员）",
+  fieldApproverEmptyHint: "工作区成员目录暂不可用，可先手填用户标识后保存",
   fieldFreeText: "自由文本答复（不提供选项，答复任意内容继续流程）",
   fieldOptions: "选项（自定义）",
   fieldOptionsHint: "留空 = 默认「通过并继续 / 驳回」。勾选「终止」的选项会结束流程，其余带着所选文案继续执行。",
@@ -88,13 +94,17 @@ const CANVAS_LABELS_EN: WorkflowCanvasEditorLabels = {
   deleteNode: "Delete node",
 };
 
-function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; workflowId: string } }) {
+function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; workflowId: string } }) {
   const routeParams = useParams<{ workspaceSlug: string }>();
   const workspaceSlug = routeParams.workspaceSlug ?? "";
-  const { teamId, workflowId } = params;
+  const { projectId, workflowId } = params;
+  const { currentProjectDetails: project } = useProject();
 
-  const [workflow, setWorkflow] = useState<TeamWorkflow | null>(null);
-  const [teamName, setTeamName] = useState<string | null>(null);
+  const [workflow, setWorkflow] = useState<OrchestrationWorkflow | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
+  useEffect(() => {
+    if (project?.name) setProjectName(project.name);
+  }, [project?.name]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -104,10 +114,9 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
 
-  // 画布目录：专家（agent 节点）/工具/连接/审批人（租户成员）。
+  // 画布目录：数字员工（agent 目录代理）/ 审批人（工作区成员）。
+  // 工具/连接目录暂空（终局 env 承载引擎连接；工具注册表后续随执行域补）。
   const [experts, setExperts] = useState<Array<{ id: string; name: string }>>([]);
-  const [tools, setTools] = useState<WorkflowToolCatalogEntry[]>([]);
-  const [connections, setConnections] = useState<Array<{ name: string; type: string }>>([]);
   const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
 
   const zh = typeof navigator !== "undefined" && navigator.language?.startsWith("zh");
@@ -116,7 +125,7 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
     setLoading(true);
     setLoadError("");
     try {
-      const loaded = await workflowService.getTeamWorkflow(teamId, workflowId);
+      const loaded = await orchestrationService.getWorkflow(workspaceSlug, projectId, workflowId);
       setWorkflow(loaded);
       setForm({ name: loaded.name, description: loaded.description ?? "" });
     } catch {
@@ -124,81 +133,55 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
     } finally {
       setLoading(false);
     }
-  }, [teamId, workflowId]);
+  }, [workspaceSlug, projectId, workflowId]);
 
   useEffect(() => {
-    if (!teamId || !workflowId) return;
+    if (!projectId || !workflowId) return;
     void reload();
-    runtimeService
-      .getTeam(teamId)
-      .then((team) => setTeamName(team.name))
-      .catch(() => undefined);
-  }, [reload, teamId, workflowId]);
+  }, [reload, projectId, workflowId]);
 
-  // 目录懒加载：进画布才取，失败静默降级为手填 id（与管理端同策略）。
+  // 目录懒加载：进画布才取，失败静默降级为手填 id。
   useEffect(() => {
-    if (!teamId) return;
+    if (!workspaceSlug) return;
     let ignore = false;
-    // 负责员工候选 = 本团队在编数字员工（验收修正 2026-10-15）。不回退
-    // 全租户目录：下拉里出现的必须是真团队成员；团队未配数字员工时
-    // 保持空列表，由下拉空态文案引导去团队详情配置（错误选项比空更糟）。
-    runtimeService
-      .listTeamMembers(teamId)
-      .then((members) => {
-        if (ignore) return;
-        setExperts(
-          members
-            .filter((m) => m.kind === "agent" && m.expertId)
-            .map((m) => ({ id: m.expertId as string, name: m.displayName || m.role }))
-        );
-        return;
+    orchestrationService
+      .listAgentCatalog(workspaceSlug)
+      .then((entries: OrchestrationAgentCatalogEntry[]) => {
+        if (!ignore) setExperts(entries.map((e) => ({ id: e.id, name: e.name })));
+        return null;
       })
       .catch(() => undefined);
-    workflowService
-      .listWorkflowTools()
-      .then((res) => !ignore && setTools(res.items ?? []))
-      .catch(() => undefined);
-    workflowService
-      .listEngineConnections()
-      .then(
-        (items) =>
-          !ignore &&
-          setConnections(items.filter((c) => c.status === "active").map((c) => ({ name: c.name, type: c.engineType })))
-      )
-      .catch(() => undefined);
-    // 审批人候选 = 团队内人类成员（验收修正 2026-10-15：谁的事谁审）。
-    // 不回退全租户成员——下拉里出现的必须是真团队成员；未配人类成员时
-    // 空列表 + 下拉空态文案引导。approverUserId 契约=租户用户 id，
-    // 团队成员经 identity 富化取 planeUserId。
-    runtimeService
-      .listTeamMembers(teamId)
+    workspaceService
+      .fetchWorkspaceMembers(workspaceSlug)
       .then((members) => {
-        if (ignore) return;
-        setUsers(
-          members
-            .filter((m) => m.kind === "human" && m.planeUserId)
-            .map((m) => ({ id: m.planeUserId as string, name: m.displayName || m.role }))
-        );
-        return;
+        if (!ignore) {
+          setUsers(
+            members.map((m) => ({
+              id: m.member.id,
+              name: m.member.display_name || m.member.first_name || m.member.email || m.member.id,
+            }))
+          );
+        }
+        return null;
       })
       .catch(() => undefined);
     return () => {
       ignore = true;
     };
-  }, [teamId]);
+  }, [workspaceSlug]);
 
-  async function saveGraph(graph: WorkflowGraph) {
-    await workflowService.updateTeamWorkflow(teamId, workflowId, { graph });
-    setWorkflow((prev) => (prev ? { ...prev, graph } : prev));
+  async function saveGraph(graph: Record<string, unknown>) {
+    const saved = await orchestrationService.saveDraft(workspaceSlug, projectId, workflowId, graph);
+    setWorkflow((prev) => (prev ? { ...prev, draft: saved.draft } : prev));
   }
 
   async function saveInfo() {
     if (!form.name.trim()) return;
     setSavingInfo(true);
     try {
-      const saved = await workflowService.updateTeamWorkflow(teamId, workflowId, {
+      const saved = await orchestrationService.updateWorkflowInfo(workspaceSlug, projectId, workflowId, {
         name: form.name.trim(),
-        description: form.description.trim() || undefined,
+        description: form.description.trim() || "",
       });
       setWorkflow((prev) => (prev ? { ...prev, name: saved.name } : prev));
       setSettingsOpen(false);
@@ -212,32 +195,18 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
     setActionError("");
     setActionMessage("");
     try {
-      const version = await workflowService.publishTeamWorkflow(teamId, workflowId);
-      // 串行间隔轮询（2s/最长 300s）——then 链表达，超时收敛。
-      const deadline = Date.now() + 300_000;
-      const tick = (): Promise<void> =>
-        new Promise((resolve) => setTimeout(resolve, 2000))
-          .then(() => workflowService.getTeamWorkflowVersion(teamId, workflowId, version.id))
-          .then((polled) => {
-            if (polled.status === "published") {
-              setActionMessage(`已发布 v${polled.version} / Published v${polled.version}`);
-              return reload();
-            }
-            if (polled.status === "failed") {
-              setActionError(`发布失败 / Publish failed${polled.publishError ? `：${polled.publishError}` : ""}`);
-              return;
-            }
-            if (Date.now() >= deadline) {
-              setActionError("发布超时，请稍后刷新查看结果 / Publish timed out");
-              return;
-            }
-            return tick();
-          });
-      await tick();
+      const version = await orchestrationService.saveDraftVersion(workspaceSlug, projectId, workflowId);
+      const published = await orchestrationService.publishVersion(workspaceSlug, projectId, workflowId, version.id);
+      if (published.status === "published") {
+        setActionMessage(`已发布 v${published.version} / Published v${published.version}`);
+        await reload();
+      } else {
+        setActionError(`发布失败 / Publish failed：${published.status}`);
+      }
     } catch (err) {
-      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+      const message = (err as Error).message ?? "";
       setActionError(
-        code === "WORKFLOW_DRAFT_NOT_FOUND"
+        /\[WORKFLOW_DRAFT_NOT_FOUND\]|\[WORKFLOW_DRAFT_EMPTY\]/.test(message)
           ? "没有待发布的新改动 / No new draft to publish"
           : "发布失败，请稍后重试 / Publish failed"
       );
@@ -246,7 +215,10 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
     }
   }
 
-  const backPath = `/${workspaceSlug}/agent-teams/${teamId}`;
+  const backPath = `/${workspaceSlug}/projects/${projectId}/workflows`;
+
+  // 发布态徽标：详情响应带版本列表，取最新已发布版本
+  const publishedVersion = workflow?.versions?.find((v) => v.status === "published");
 
   return (
     <div className="flex h-full w-full flex-col bg-canvas">
@@ -259,24 +231,24 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
           <div className="text-sm text-red-500 grid h-full place-items-center">{loadError}</div>
         ) : workflow ? (
           <WorkflowCanvasEditor
-            initialGraph={workflow.graph ?? null}
+            initialGraph={(workflow.draft as unknown as WorkflowGraph | null) ?? null}
             headerLeft={
               <>
                 <Breadcrumbs>
                   <Breadcrumbs.Item
                     component={
                       <BreadcrumbLink
-                        label={teamName ?? teamId}
+                        label={projectName ?? projectId}
                         href={backPath}
-                        icon={<Users className="size-4 text-tertiary" />}
+                        icon={<Workflow className="size-4 text-tertiary" />}
                       />
                     }
                   />
                   <Breadcrumbs.Item component={<BreadcrumbLink label={workflow.name} disableTooltip />} />
                 </Breadcrumbs>
-                {workflow.status === "published" && workflow.currentVersion != null ? (
+                {publishedVersion ? (
                   <span className="bg-green-500/15 text-green-600 rounded-full px-2 py-0.5 text-11">
-                    v{workflow.currentVersion}
+                    v{publishedVersion.version}
                   </span>
                 ) : null}
               </>
@@ -294,12 +266,8 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
                 </Button>
               </>
             }
-            toolCatalog={tools.map((tool) => ({
-              tool_name: tool.name,
-              description: tool.description ?? "",
-              connection_type: tool.connectionType,
-            }))}
-            connections={connections}
+            toolCatalog={[]}
+            connections={[]}
             employees={experts}
             users={users}
             onSave={saveGraph}
@@ -356,4 +324,4 @@ function AgentTeamWorkflowCanvasPage({ params }: { params: { teamId: string; wor
   );
 }
 
-export default AgentTeamWorkflowCanvasPage;
+export default ProjectWorkflowCanvasPage;

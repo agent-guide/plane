@@ -1,11 +1,10 @@
 /**
  * Copyright © 2026 agent-guide contributors
  * SPDX-License-Identifier: AGPL-3.0-only
- * See the LICENSE.txt file in the repository root for details.
  *
- * Agent Teams extension — 团队流程管理页（侧边栏子项落点，全功能）。
- * 编排/发布/元数据编辑/版本历史都在本页完成（原团队详情流程区块退役后，
- * 迁移到此处）。行与弹层拆分见 workflows/ 目录。
+ * Agent Teams extension — 项目流程库页（流程归项目所有、团队负责执行：
+ * 2026-10-29 方案 A，自团队路由 /agent-teams/[teamId]/processes 迁移）。
+ * 编排/发布/元数据编辑/版本历史都在本页完成；行与弹层拆分见 workflows/ 目录。
  */
 import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
@@ -17,32 +16,23 @@ import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
-import { TeamWorkflowsManager, type TeamWorkflowsManagerHandle } from "@/components/agent-teams/workflows/manager";
-// services
-import { setExpertsWorkspaceSlug } from "@/services/agent-teams/experts-auth";
-import runtimeService, { type AgentTeam } from "@/services/agent-teams/runtime.service";
+import { ProjectWorkflowsManager, type WorkflowsManagerHandle } from "@/components/agent-teams/workflows/manager";
 // hooks
-import { useWorkspace } from "@/hooks/store/use-workspace";
+import { useProject } from "@/hooks/store/use-project";
 
-const ProcessListPage = observer(function ProcessListPage() {
+const ProjectWorkflowsPage = observer(function ProjectWorkflowsPage() {
   const { t } = useTranslation();
-  const { workspaceSlug: wsSlugParam, teamId } = useParams<{ workspaceSlug: string; teamId: string }>();
+  const { workspaceSlug: wsSlugParam, projectId } = useParams<{ workspaceSlug: string; projectId: string }>();
   const workspaceSlug = wsSlugParam ?? "";
-  const { currentWorkspace } = useWorkspace();
-  const managerRef = useRef<TeamWorkflowsManagerHandle>(null);
+  const { currentProjectDetails: project } = useProject();
+  const managerRef = useRef<WorkflowsManagerHandle>(null);
 
-  const [team, setTeam] = useState<AgentTeam | null>(null);
-
+  const [projectName, setProjectName] = useState<string | null>(null);
   useEffect(() => {
-    if (!teamId) return;
-    setExpertsWorkspaceSlug(workspaceSlug);
-    runtimeService
-      .getTeam(teamId)
-      .then(setTeam)
-      .catch(() => undefined);
-  }, [teamId, workspaceSlug]);
+    if (project?.name) setProjectName(project.name);
+  }, [project?.name]);
 
-  const pageTitle = currentWorkspace?.name ? `${currentWorkspace?.name} - Team Workflows` : undefined;
+  const pageTitle = project?.name ? `${project.name} - ${t("agent_teams_workflows_title")}` : undefined;
 
   return (
     <>
@@ -55,7 +45,10 @@ const ProcessListPage = observer(function ProcessListPage() {
                 <Breadcrumbs>
                   <Breadcrumbs.Item
                     component={
-                      <BreadcrumbLink label={team?.name ?? teamId} href={`/${workspaceSlug}/agent-teams/${teamId}`} />
+                      <BreadcrumbLink
+                        label={projectName ?? projectId ?? ""}
+                        href={`/${workspaceSlug}/projects/${projectId}`}
+                      />
                     }
                   />
                   <Breadcrumbs.Item
@@ -74,7 +67,7 @@ const ProcessListPage = observer(function ProcessListPage() {
         <ContentWrapper>
           {/* flex-1：整页空态要占满剩余高度才能垂直居中（同 Plane 整页列表）。 */}
           <div className="flex min-h-0 w-full flex-1 flex-col gap-4 pb-10">
-            <TeamWorkflowsManager ref={managerRef} teamId={teamId} />
+            {projectId ? <ProjectWorkflowsManager ref={managerRef} projectId={projectId} /> : null}
           </div>
         </ContentWrapper>
       </div>
@@ -82,4 +75,4 @@ const ProcessListPage = observer(function ProcessListPage() {
   );
 });
 
-export default ProcessListPage;
+export default ProjectWorkflowsPage;

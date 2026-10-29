@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "このタスクを再実行しますか？新しい実行が開始され、履歴は保持されます。",
   "agent_teams_panel_retry_unavailable": "現在再実行できません。更新して再試行してください",
   "agent_teams_workflows_title": "ワークフロー",
+  "agent_teams_workflows_manage": "管理",
   "agent_teams_workflows_empty": "このチームにはまだワークフローがありません。新規作成して編成を始めましょう",
   "agent_teams_workflows_create": "新規ワークフロー",
   "agent_teams_workflows_open_canvas": "編成",

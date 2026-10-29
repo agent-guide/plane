@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Uruchomić to zadanie ponownie? Rozpocznie się nowe wykonanie; historia zostanie zachowana.",
   "agent_teams_panel_retry_unavailable": "Nie można teraz uruchomić ponownie — odśwież i spróbuj ponownie",
   "agent_teams_workflows_title": "Przepływy pracy",
+  "agent_teams_workflows_manage": "Zarządzaj",
   "agent_teams_workflows_empty": "W tym zespole nie ma jeszcze przepływów pracy — utwórz pierwszy",
   "agent_teams_workflows_create": "Nowy przepływ pracy",
   "agent_teams_workflows_open_canvas": "Orkiestruj",

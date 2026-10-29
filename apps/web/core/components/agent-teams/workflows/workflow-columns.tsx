@@ -12,16 +12,16 @@ import Link from "next/link";
 import { CustomMenu } from "@plane/ui";
 import type { TTableColumn } from "@plane/ui";
 import { WorkflowStatus } from "./workflow-status";
-import type { TeamWorkflow } from "@/services/agent-teams/workflow.service";
+import type { OrchestrationWorkflow } from "@/services/agent-teams/orchestration.service";
 
 type Params = {
   canvasPath: (workflowId: string) => string;
   publishingId: string;
   busy: boolean;
-  onOpenHistory: (workflow: TeamWorkflow) => void;
-  onOpenEdit: (workflow: TeamWorkflow) => void;
-  onPublish: (workflow: TeamWorkflow) => void;
-  onDelete: (workflow: TeamWorkflow) => void;
+  onOpenHistory: (workflow: OrchestrationWorkflow) => void;
+  onOpenEdit: (workflow: OrchestrationWorkflow) => void;
+  onPublish: (workflow: OrchestrationWorkflow) => void;
+  onDelete: (workflow: OrchestrationWorkflow) => void;
 };
 
 export function useWorkflowColumns({
@@ -32,7 +32,7 @@ export function useWorkflowColumns({
   onOpenEdit,
   onPublish,
   onDelete,
-}: Params): TTableColumn<TeamWorkflow>[] {
+}: Params): TTableColumn<OrchestrationWorkflow>[] {
   const { t } = useTranslation();
   return [
     {

@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Executar esta tarefa novamente? Uma nova execução inicia; o histórico é mantido.",
   "agent_teams_panel_retry_unavailable": "Não é possível reiniciar agora — atualize e tente novamente",
   "agent_teams_workflows_title": "Fluxos de trabalho",
+  "agent_teams_workflows_manage": "Gerenciar",
   "agent_teams_workflows_empty": "Ainda não há fluxos de trabalho nesta equipe — crie um para começar",
   "agent_teams_workflows_create": "Novo fluxo de trabalho",
   "agent_teams_workflows_open_canvas": "Orquestrar",

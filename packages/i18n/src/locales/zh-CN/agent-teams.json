@@ -167,6 +167,7 @@
   "agent_teams_empty_tasks": "暂无进行中的工作项",
   "agent_teams_empty_tasks_hint": "所属项目里的工作项会自动进入团队执行，完成后归档回项目。",
   "agent_teams_workflows_title": "流程",
+  "agent_teams_workflows_manage": "管理流程",
   "agent_teams_workflows_empty": "该团队还没有流程，新建一个开始编排",
   "agent_teams_workflows_create": "新建流程",
   "agent_teams_workflows_open_canvas": "编排",

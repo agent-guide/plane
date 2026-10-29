@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Relancer cette tâche ? Une nouvelle exécution démarre ; l'historique est conservé.",
   "agent_teams_panel_retry_unavailable": "Impossible de relancer pour le moment — actualisez puis réessayez",
   "agent_teams_workflows_title": "Flux de travail",
+  "agent_teams_workflows_manage": "Gérer",
   "agent_teams_workflows_empty": "Aucun flux de travail dans cette équipe — créez-en un pour commencer",
   "agent_teams_workflows_create": "Nouveau flux de travail",
   "agent_teams_workflows_open_canvas": "Orchestrer",

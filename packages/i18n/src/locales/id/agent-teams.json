@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Jalankan tugas ini lagi? Eksekusi baru dimulai; riwayat tetap tersimpan.",
   "agent_teams_panel_retry_unavailable": "Tidak dapat menjalankan ulang sekarang — muat ulang dan coba lagi",
   "agent_teams_workflows_title": "Alur kerja",
+  "agent_teams_workflows_manage": "Kelola",
   "agent_teams_workflows_empty": "Belum ada alur kerja di tim ini — buat satu untuk mulai",
   "agent_teams_workflows_create": "Alur kerja baru",
   "agent_teams_workflows_open_canvas": "Orkestrasi",

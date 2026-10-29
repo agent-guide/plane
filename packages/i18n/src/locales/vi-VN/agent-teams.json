@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Chạy lại tác vụ này? Một lần thực thi mới bắt đầu; lịch sử được giữ lại.",
   "agent_teams_panel_retry_unavailable": "Hiện không thể chạy lại — tải lại trang và thử lại",
   "agent_teams_workflows_title": "Quy trình",
+  "agent_teams_workflows_manage": "Quản lý",
   "agent_teams_workflows_empty": "Chưa có quy trình nào trong nhóm này — hãy tạo một quy trình",
   "agent_teams_workflows_create": "Quy trình mới",
   "agent_teams_workflows_open_canvas": "Soạn thảo",

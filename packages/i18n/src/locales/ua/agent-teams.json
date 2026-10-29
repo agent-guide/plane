@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Запустити це завдання знову? Почнеться нове виконання; історія зберігається.",
   "agent_teams_panel_retry_unavailable": "Зараз не вдалося перезапустити — оновіть сторінку та спробуйте ще раз",
   "agent_teams_workflows_title": "Робочі процеси",
+  "agent_teams_workflows_manage": "Керувати",
   "agent_teams_workflows_empty": "У цій команді ще немає робочих процесів — створіть перший",
   "agent_teams_workflows_create": "Новий робочий процес",
   "agent_teams_workflows_open_canvas": "Оркеструвати",

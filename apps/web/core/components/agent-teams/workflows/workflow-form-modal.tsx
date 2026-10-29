@@ -1,43 +1,43 @@
 /**
  * Copyright © 2026 agent-guide contributors
  * SPDX-License-Identifier: AGPL-3.0-only
- * See the LICENSE.txt file in the repository root for details.
  *
- * Agent Teams extension — 流程建/改弹层（从 team-workflows-section 拆出）。
+ * Agent Teams extension — 流程建/改弹层（流程归项目，2026-10-29 方案 A）。
  * 逐字对齐 Plane 周期创建表单（cycles/form.tsx）：p-5/space-y-5 外层、
  * text-18 标题、竖排 space-y-3 字段、Input md + text-14、错误 text-11 红字、
  * border-t-[0.5px] 页脚 + propel Button secondary/primary size lg。
+ * 引擎连接字段已退役（终局 env 承载，引擎连接页删除方案）。
  */
 import { useTranslation } from "@plane/i18n";
 import { Button as PropelButton } from "@plane/propel/button";
 import { EModalPosition, EModalWidth, Input, ModalCore, TextArea } from "@plane/ui";
 import { FormSelect } from "@/components/agent-teams/form-select";
-import type { EngineConnectionOption, PublishedExpert, TeamWorkflow } from "@/services/agent-teams/workflow.service";
+import type {
+  OrchestrationAgentCatalogEntry,
+  OrchestrationWorkflow,
+} from "@/services/agent-teams/orchestration.service";
 
 export type WorkflowForm = {
   name: string;
   description: string;
-  ownerExpertId: string;
-  engineConnectionId: string;
+  expertId: string;
   singleAgentPrompt: string;
 };
 
 export const EMPTY_WORKFLOW_FORM: WorkflowForm = {
   name: "",
   description: "",
-  ownerExpertId: "",
-  engineConnectionId: "",
+  expertId: "",
   singleAgentPrompt: "",
 };
 
 type Props = {
   isOpen: boolean;
-  editing: TeamWorkflow | null;
+  editing: OrchestrationWorkflow | null;
   form: WorkflowForm;
   formError: string;
   submitting: boolean;
-  experts: PublishedExpert[];
-  engines: EngineConnectionOption[];
+  experts: OrchestrationAgentCatalogEntry[];
   onClose: () => void;
   onChange: (patch: Partial<WorkflowForm>) => void;
   onSubmit: () => void;
@@ -50,7 +50,6 @@ export function WorkflowFormModal({
   formError,
   submitting,
   experts,
-  engines,
   onClose,
   onChange,
   onSubmit,
@@ -76,14 +75,16 @@ export function WorkflowFormModal({
             />
             {formError ? <span className="text-11 text-danger-primary">{formError}</span> : null}
           </div>
-          <div className="space-y-1">
-            <FormSelect
-              value={form.ownerExpertId}
-              placeholder={`${t("agent_teams_wf_field_owner")} *`}
-              options={experts.map((e) => ({ id: e.id, name: e.name }))}
-              onChange={(v) => onChange({ ownerExpertId: v })}
-            />
-          </div>
+          {!editing ? (
+            <div className="space-y-1">
+              <FormSelect
+                value={form.expertId}
+                placeholder={`${t("agent_teams_wf_field_owner")} *`}
+                options={experts.map((e) => ({ id: e.id, name: e.name }))}
+                onChange={(v) => onChange({ expertId: v })}
+              />
+            </div>
+          ) : null}
           <div className="space-y-1">
             <TextArea
               name="description"
@@ -94,15 +95,6 @@ export function WorkflowFormModal({
               value={form.description}
               onChange={(e) => onChange({ description: e.target.value })}
             />
-          </div>
-          <div className="space-y-1">
-            <FormSelect
-              value={form.engineConnectionId}
-              placeholder={t("agent_teams_wf_engine_auto")}
-              options={engines.map((e) => ({ id: e.id, name: e.name }))}
-              onChange={(v) => onChange({ engineConnectionId: v })}
-            />
-            <span className="text-11 text-tertiary">{t("agent_teams_wf_engine_auto")}</span>
           </div>
           {!editing ? (
             <div className="space-y-1">

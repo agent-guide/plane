@@ -84,12 +84,20 @@ def _member_json(m: AgentTeamMember, agent_names: dict[str, str] | None = None):
     }
 
 
-def _workflow_json(wf: WorkflowDefinition):
-    return {
+def _workflow_json(wf: WorkflowDefinition, with_summary: bool = False):
+    data = {
         "id": wf.id, "name": wf.name, "description": wf.description,
         "engineKind": wf.engine_kind, "draft": wf.draft,
         "createdAt": wf.created_at.isoformat(), "updatedAt": wf.updated_at.isoformat(),
     }
+    if with_summary:
+        # 列表卡状态：最新版本状态；currentVersion = 最新已发布版本号
+        latest = wf.versions.order_by("-version").first()
+        published = wf.versions.filter(
+            status=WorkflowVersion.Status.PUBLISHED).order_by("-version").first()
+        data["status"] = latest.status if latest else "draft"
+        data["currentVersion"] = published.version if published else None
+    return data
 
 
 def _version_json(v: WorkflowVersion):
@@ -358,7 +366,7 @@ class TeamActiveTasksEndpoint(BaseAPIView):
 class ProjectWorkflowsEndpoint(BaseAPIView):
     def get(self, request, slug, project_id):
         wfs = WorkflowDefinition.objects.filter(project__workspace__slug=slug, project_id=project_id)
-        return Response([_workflow_json(w) for w in wfs])
+        return Response([_workflow_json(wf, with_summary=True) for wf in wfs])
 
     def post(self, request, slug, project_id):
         project = Project.objects.filter(workspace__slug=slug, id=project_id).first()
@@ -394,10 +402,27 @@ class ProjectWorkflowDetailEndpoint(BaseAPIView):
             if "draft" in request.data:
                 workflows.update_draft(workflow=wf, user_id=request.user.id, draft=request.data["draft"])
             if request.data.get("name"):
-                wf.name = request.data["name"].strip(); wf.save(update_fields=["name", "updated_at"])
+                wf.name = request.data["name"].strip()
+            if "description" in request.data:
+                wf.description = request.data.get("description") or ""
+            wf.save(update_fields=["name", "description", "updated_at"])
             return Response(_workflow_json(wf))
         except TeamDomainError as exc:
             return _error_response(exc)
+
+    def delete(self, request, slug, project_id, workflow_id):
+        """删除流程定义：仍有活跃绑定引用其任一版本时拒绝（fail-closed）。"""
+        wf = self._get(slug, project_id, workflow_id)
+        if not wf:
+            return Response({"error": "not found"}, status=404)
+        from plane.orchestration.models import ProjectTeamBinding
+        referenced = ProjectTeamBinding.objects.filter(
+            workflow_version__workflow=wf, status=ProjectTeamBinding.Status.ACTIVE).exists()
+        if referenced:
+            return Response({"error": "workflow is bound to a project team",
+                             "code": "WORKFLOW_IN_USE"}, status=409)
+        wf.delete()
+        return Response(status=204)
 
 
 class WorkflowVersionsEndpoint(BaseAPIView):

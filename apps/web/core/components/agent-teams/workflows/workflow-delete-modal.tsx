@@ -8,10 +8,10 @@
  */
 import { useTranslation } from "@plane/i18n";
 import { AlertModalCore } from "@plane/ui";
-import type { TeamWorkflow } from "@/services/agent-teams/workflow.service";
+import type { OrchestrationWorkflow } from "@/services/agent-teams/orchestration.service";
 
 type Props = {
-  workflow: TeamWorkflow | null;
+  workflow: OrchestrationWorkflow | null;
   deleting: boolean;
   onClose: () => void;
   onConfirm: () => void;

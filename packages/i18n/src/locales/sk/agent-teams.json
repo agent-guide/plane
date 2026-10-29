@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Spustiť túto úlohu znova? Začne sa nové vykonanie; história sa zachová.",
   "agent_teams_panel_retry_unavailable": "Teraz nie je možné reštartovať — obnovte stránku a skúste to znova",
   "agent_teams_workflows_title": "Pracovné postupy",
+  "agent_teams_workflows_manage": "Spravovať",
   "agent_teams_workflows_empty": "V tomto tíme zatím nie sú žiadne pracovné postupy — vytvorte prvý",
   "agent_teams_workflows_create": "Nový pracovný postup",
   "agent_teams_workflows_open_canvas": "Orkestrovať",

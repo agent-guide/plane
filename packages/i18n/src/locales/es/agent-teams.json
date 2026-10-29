@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "¿Ejecutar esta tarea de nuevo? Se inicia una nueva ejecución; el historial se conserva.",
   "agent_teams_panel_retry_unavailable": "No se puede reiniciar ahora: actualiza e inténtalo de nuevo",
   "agent_teams_workflows_title": "Flujos de trabajo",
+  "agent_teams_workflows_manage": "Gestionar",
   "agent_teams_workflows_empty": "Aún no hay flujos de trabajo en este equipo: crea uno para empezar",
   "agent_teams_workflows_create": "Nuevo flujo de trabajo",
   "agent_teams_workflows_open_canvas": "Orquestar",

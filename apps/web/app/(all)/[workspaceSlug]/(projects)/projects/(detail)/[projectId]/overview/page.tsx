@@ -463,8 +463,25 @@ function ProjectOverviewPage() {
                         <RefreshCw className="size-3" aria-hidden />
                         {t("agent_teams_wf_switch")}
                       </button>
+                      {/* 流程管理入口（流程归项目，2026-10-29 方案 A）：直达项目流程库 */}
+                      <Link
+                        href={`/${workspaceSlug}/projects/${projectId}/workflows`}
+                        className="inline-flex h-6 flex-shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-medium text-secondary transition-colors hover:bg-layer-3 hover:text-accent-primary"
+                        title={t("agent_teams_workflows_title")}
+                      >
+                        {t("agent_teams_workflows_manage")}
+                      </Link>
                     </div>
-                  ) : null}
+                  ) : (
+                    /* 未绑定时同样给流程库入口：先建流程再绑团队是合法动线 */
+                    <Link
+                      href={`/${workspaceSlug}/projects/${projectId}/workflows`}
+                      className="ml-auto inline-flex h-8 flex-shrink-0 items-center gap-1.5 self-center rounded-full bg-layer-2 px-3 text-[12px] font-medium text-secondary transition-colors hover:text-accent-primary"
+                    >
+                      <Workflow className="size-3.5 flex-shrink-0 text-tertiary" aria-hidden />
+                      {t("agent_teams_workflows_manage")}
+                    </Link>
+                  )}
                 </div>
 
                 {/* ③ 最近工作项（原生数据，就地补运行时标记；列表复用 @plane/ui Table） */}

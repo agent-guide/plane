@@ -167,6 +167,7 @@
   "agent_teams_panel_retry_confirm": "Bu görev yeniden çalıştırılsın mı? Yeni bir yürütme başlar; geçmiş korunur.",
   "agent_teams_panel_retry_unavailable": "Şu anda yeniden başlatılamıyor — yenileyip tekrar deneyin",
   "agent_teams_workflows_title": "İş akışları",
+  "agent_teams_workflows_manage": "Yönet",
   "agent_teams_workflows_empty": "Bu ekipte henüz iş akışı yok — başlamak için bir tane oluşturun",
   "agent_teams_workflows_create": "Yeni iş akışı",
   "agent_teams_workflows_open_canvas": "Orkestre et",
