@@ -26,55 +26,55 @@ class OrchestrationAPITest(TestCase):
 
     def test_full_journey_over_http(self):
         """建团队→加成员→上架→建流程→存版本→发布→绑定。"""
-        r = self.client.post("/api/workspaces/aws-orch/orchestration/teams/", {"name": "HTTP 团队"}, content_type="application/json")
+        r = self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "HTTP 团队"}, content_type="application/json")
         self.assertEqual(r.status_code, 201, r.content)
         team_id = r.json()["id"]
 
-        r = self.client.get(f"/api/workspaces/aws-orch/orchestration/teams/{team_id}/")
+        r = self.client.get(f"/api/workspaces/aws-orch/agent-teams/{team_id}/")
         self.assertEqual(r.status_code, 200)
 
-        r = self.client.post(f"/api/workspaces/aws-orch/orchestration/teams/{team_id}/members/",
+        r = self.client.post(f"/api/workspaces/aws-orch/agent-teams/{team_id}/members/",
                              {"kind": "human", "userId": self.human.id, "role": "approver", "sequence": 1},
                              content_type="application/json")
         self.assertEqual(r.status_code, 201, r.content)
 
-        r = self.client.post(f"/api/workspaces/aws-orch/orchestration/teams/{team_id}/activate/", content_type="application/json")
+        r = self.client.post(f"/api/workspaces/aws-orch/agent-teams/{team_id}/activate/", content_type="application/json")
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()["status"], "active")
 
-        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/orchestration/workflows/",
+        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/workflows/",
                              {"name": "HTTP 流程"}, content_type="application/json")
         self.assertEqual(r.status_code, 201, r.content)
         wf_id = r.json()["id"]
 
-        r = self.client.patch(f"/api/workspaces/aws-orch/projects/{self.project.id}/orchestration/workflows/{wf_id}/",
+        r = self.client.patch(f"/api/workspaces/aws-orch/projects/{self.project.id}/workflows/{wf_id}/",
                               {"draft": {"nodes": [{"key": "analyze"}]}}, content_type="application/json")
         self.assertEqual(r.status_code, 200, r.content)
 
-        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/orchestration/workflows/{wf_id}/versions/",
+        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/workflows/{wf_id}/versions/",
                              content_type="application/json")
         self.assertEqual(r.status_code, 201, r.content)
         version_id = r.json()["id"]
 
         r = self.client.post(
-            f"/api/workspaces/aws-orch/projects/{self.project.id}/orchestration/workflows/{wf_id}/versions/{version_id}/publish/",
+            f"/api/workspaces/aws-orch/projects/{self.project.id}/workflows/{wf_id}/versions/{version_id}/publish/",
             content_type="application/json")
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()["status"], "published")
 
-        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/orchestration/bindings/",
+        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/team-bindings/",
                              {"teamId": team_id, "workflowVersionId": version_id}, content_type="application/json")
         self.assertEqual(r.status_code, 201, r.content)
         self.assertEqual(r.json()["status"], "active")
 
     def test_member_cannot_touch_others_team(self):
-        self.client.post("/api/workspaces/aws-orch/orchestration/teams/", {"name": "归属"}, content_type="application/json")
+        self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "归属"}, content_type="application/json")
         other_client = Client()
         WorkspaceMember.objects.create(workspace=self.ws, member=self.human, role=15)
         other_client.force_login(self.human)
-        r = other_client.get("/api/workspaces/aws-orch/orchestration/teams/")
+        r = other_client.get("/api/workspaces/aws-orch/agent-teams/")
         self.assertEqual(r.status_code, 200)  # 列表可看
-        r = other_client.post("/api/workspaces/aws-orch/orchestration/teams/", {"name": "我的也行"}, content_type="application/json")
+        r = other_client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "我的也行"}, content_type="application/json")
         self.assertEqual(r.status_code, 201)  # 成员可自建
 
     def test_approval_answer_flow(self):
@@ -96,11 +96,11 @@ class OrchestrationAPITest(TestCase):
         human_client = Client()
         WorkspaceMember.objects.get_or_create(workspace=self.ws, member=self.human, defaults={"role": 15})
         human_client.force_login(self.human)
-        r = human_client.get("/api/workspaces/aws-orch/orchestration/approvals/")
+        r = human_client.get("/api/workspaces/aws-orch/agent-teams/approvals/")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.json()), 1)
 
-        r = human_client.post(f"/api/workspaces/aws-orch/orchestration/approvals/{approval.id}/",
+        r = human_client.post(f"/api/workspaces/aws-orch/agent-teams/approvals/{approval.id}/",
                               {"decision": "approved"}, content_type="application/json")
         self.assertEqual(r.status_code, 200, r.content)
         execution.refresh_from_db()

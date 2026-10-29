@@ -9,7 +9,9 @@
  * 消费面，页面按域逐步切换 import。
  */
 
-const BASE = (workspaceSlug: string) => `/api/workspaces/${workspaceSlug}/orchestration`;
+const WS = (workspaceSlug: string) => `/api/workspaces/${workspaceSlug}`;
+const PJ = (workspaceSlug: string, projectId: string) =>
+  `${WS(workspaceSlug)}/projects/${projectId}`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -67,18 +69,18 @@ export interface OrchestrationTeamMember {
 }
 
 export async function listTeams(workspace: string): Promise<OrchestrationTeam[]> {
-  return request(`${BASE(workspace)}/teams/`);
+  return request(`${WS(workspace)}/agent-teams/`);
 }
 
 export async function getTeam(workspace: string, teamId: string): Promise<OrchestrationTeam> {
-  return request(`${BASE(workspace)}/teams/${teamId}/`);
+  return request(`${WS(workspace)}/agent-teams/${teamId}/`);
 }
 
 export async function createTeam(
   workspace: string,
   data: { name: string; objective?: string },
 ): Promise<OrchestrationTeam> {
-  return request(`${BASE(workspace)}/teams/`, { method: "POST", body: JSON.stringify(data), headers: csrfHeaders() });
+  return request(`${WS(workspace)}/agent-teams/`, { method: "POST", body: JSON.stringify(data), headers: csrfHeaders() });
 }
 
 export async function updateTeam(
@@ -86,7 +88,7 @@ export async function updateTeam(
   teamId: string,
   data: { name?: string; objective?: string },
 ): Promise<OrchestrationTeam> {
-  return request(`${BASE(workspace)}/teams/${teamId}/`, {
+  return request(`${WS(workspace)}/agent-teams/${teamId}/`, {
     method: "PATCH",
     body: JSON.stringify(data),
     headers: csrfHeaders(),
@@ -94,17 +96,17 @@ export async function updateTeam(
 }
 
 export async function activateTeam(workspace: string, teamId: string): Promise<OrchestrationTeam> {
-  return request(`${BASE(workspace)}/teams/${teamId}/activate/`, { method: "POST", headers: csrfHeaders() });
+  return request(`${WS(workspace)}/agent-teams/${teamId}/activate/`, { method: "POST", headers: csrfHeaders() });
 }
 
 export async function archiveTeam(workspace: string, teamId: string): Promise<OrchestrationTeam> {
-  return request(`${BASE(workspace)}/teams/${teamId}/archive/`, { method: "POST", headers: csrfHeaders() });
+  return request(`${WS(workspace)}/agent-teams/${teamId}/archive/`, { method: "POST", headers: csrfHeaders() });
 }
 
 // ---------------------------------------------------------------- 成员域
 
 export async function listMembers(workspace: string, teamId: string): Promise<OrchestrationTeamMember[]> {
-  return request(`${BASE(workspace)}/teams/${teamId}/members/`);
+  return request(`${WS(workspace)}/agent-teams/${teamId}/members/`);
 }
 
 export async function addMember(
@@ -119,7 +121,7 @@ export async function addMember(
     sequence?: number;
   },
 ): Promise<OrchestrationTeamMember> {
-  return request(`${BASE(workspace)}/teams/${teamId}/members/`, {
+  return request(`${WS(workspace)}/agent-teams/${teamId}/members/`, {
     method: "POST",
     body: JSON.stringify(data),
     headers: csrfHeaders(),
@@ -132,7 +134,7 @@ export async function updateMember(
   memberId: string,
   data: { role?: string; capabilities?: string[]; sequence?: number; enabled?: boolean },
 ): Promise<OrchestrationTeamMember> {
-  return request(`${BASE(workspace)}/teams/${teamId}/members/${memberId}/`, {
+  return request(`${WS(workspace)}/agent-teams/${teamId}/members/${memberId}/`, {
     method: "PATCH",
     body: JSON.stringify(data),
     headers: csrfHeaders(),
@@ -140,7 +142,7 @@ export async function updateMember(
 }
 
 export async function removeMember(workspace: string, teamId: string, memberId: string): Promise<void> {
-  await request(`${BASE(workspace)}/teams/${teamId}/members/${memberId}/`, {
+  await request(`${WS(workspace)}/agent-teams/${teamId}/members/${memberId}/`, {
     method: "DELETE",
     headers: csrfHeaders(),
   });
@@ -168,7 +170,7 @@ export interface OrchestrationWorkflowVersion {
 }
 
 export async function listWorkflows(workspace: string, projectId: string): Promise<OrchestrationWorkflow[]> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/`);
+  return request(`${PJ(workspace, projectId)}/workflows/`);
 }
 
 export async function getWorkflow(
@@ -176,7 +178,7 @@ export async function getWorkflow(
   projectId: string,
   workflowId: string,
 ): Promise<OrchestrationWorkflow> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/${workflowId}/`);
+  return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/`);
 }
 
 export async function createWorkflow(
@@ -184,7 +186,7 @@ export async function createWorkflow(
   projectId: string,
   data: { name: string; description?: string },
 ): Promise<OrchestrationWorkflow> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/`, {
+  return request(`${PJ(workspace, projectId)}/workflows/`, {
     method: "POST",
     body: JSON.stringify(data),
     headers: csrfHeaders(),
@@ -197,7 +199,7 @@ export async function saveDraft(
   workflowId: string,
   draft: Record<string, unknown>,
 ): Promise<OrchestrationWorkflow> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/${workflowId}/`, {
+  return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/`, {
     method: "PATCH",
     body: JSON.stringify({ draft }),
     headers: csrfHeaders(),
@@ -209,7 +211,7 @@ export async function saveDraftVersion(
   projectId: string,
   workflowId: string,
 ): Promise<OrchestrationWorkflowVersion> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/workflows/${workflowId}/versions/`, {
+  return request(`${PJ(workspace, projectId)}/workflows/${workflowId}/versions/`, {
     method: "POST",
     headers: csrfHeaders(),
   });
@@ -222,7 +224,7 @@ export async function publishVersion(
   versionId: string,
 ): Promise<OrchestrationWorkflowVersion> {
   return request(
-    `${BASE(workspace)}/projects/${projectId}/orchestration/workflows/${workflowId}/versions/${versionId}/publish/`,
+    `${PJ(workspace, projectId)}/workflows/${workflowId}/versions/${versionId}/publish/`,
     { method: "POST", headers: csrfHeaders() },
   );
 }
@@ -239,7 +241,7 @@ export interface OrchestrationBinding {
 }
 
 export async function listBindings(workspace: string, projectId: string): Promise<OrchestrationBinding[]> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/bindings/`);
+  return request(`${PJ(workspace, projectId)}/team-bindings/`);
 }
 
 export async function bindProject(
@@ -247,7 +249,7 @@ export async function bindProject(
   projectId: string,
   data: { teamId: string; workflowVersionId: string },
 ): Promise<OrchestrationBinding> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/bindings/`, {
+  return request(`${PJ(workspace, projectId)}/team-bindings/`, {
     method: "POST",
     body: JSON.stringify(data),
     headers: csrfHeaders(),
@@ -259,7 +261,7 @@ export async function upgradeBinding(
   projectId: string,
   workflowVersionId: string,
 ): Promise<OrchestrationBinding> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/bindings/`, {
+  return request(`${PJ(workspace, projectId)}/team-bindings/`, {
     method: "PATCH",
     body: JSON.stringify({ workflowVersionId }),
     headers: csrfHeaders(),
@@ -281,7 +283,7 @@ export interface OrchestrationExecution {
 }
 
 export async function listExecutions(workspace: string, projectId: string): Promise<OrchestrationExecution[]> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/executions/`);
+  return request(`${PJ(workspace, projectId)}/executions/`);
 }
 
 export async function startExecution(
@@ -289,7 +291,7 @@ export async function startExecution(
   projectId: string,
   issueId: string,
 ): Promise<OrchestrationExecution> {
-  return request(`${BASE(workspace)}/projects/${projectId}/orchestration/executions/start/`, {
+  return request(`${PJ(workspace, projectId)}/executions/start/`, {
     method: "POST",
     body: JSON.stringify({ issueId }),
     headers: csrfHeaders(),
@@ -307,7 +309,7 @@ export interface OrchestrationApproval {
 }
 
 export async function listMyApprovals(workspace: string): Promise<OrchestrationApproval[]> {
-  return request(`${BASE(workspace)}/approvals/`);
+  return request(`${WS(workspace)}/agent-teams/approvals/`);
 }
 
 export async function answerApproval(
@@ -316,7 +318,7 @@ export async function answerApproval(
   decision: "approved" | "rejected",
   reason?: string,
 ): Promise<{ id: string; result: string }> {
-  return request(`${BASE(workspace)}/approvals/${approvalId}/`, {
+  return request(`${WS(workspace)}/agent-teams/approvals/${approvalId}/`, {
     method: "POST",
     body: JSON.stringify({ decision, reason }),
     headers: csrfHeaders(),

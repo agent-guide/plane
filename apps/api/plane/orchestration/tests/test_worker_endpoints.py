@@ -76,7 +76,7 @@ class EngineEventEndpointTests(StartExecutionTestBase):
         self.user_client.force_login(self.owner)
 
     def test_token_required(self):
-        r = self.internal.post("/api/internal/orchestration/events/", {"eventType": "engine.started"}, content_type="application/json")
+        r = self.internal.post("/api/internal/agent-teams/events/", {"eventType": "engine.started"}, content_type="application/json")
         self.assertIn(r.status_code, (401, 403))
 
     def test_with_token_full_flow(self):
@@ -85,7 +85,7 @@ class EngineEventEndpointTests(StartExecutionTestBase):
             os.environ["ORCHESTRATION_INTERNAL_TOKEN"] = "test-internal-token"
             ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
             r = self.internal.post(
-                "/api/internal/orchestration/events/",
+                "/api/internal/agent-teams/events/",
                 {"externalEventId": "af-live-1", "eventType": "engine.started",
                  "payload": {"executionId": ex.id, "engine_run_ref": "af-run-9"}},
                 content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
@@ -95,7 +95,7 @@ class EngineEventEndpointTests(StartExecutionTestBase):
             self.assertEqual(ex.business_status, "running")
             # 重复投递幂等
             r2 = self.internal.post(
-                "/api/internal/orchestration/events/",
+                "/api/internal/agent-teams/events/",
                 {"externalEventId": "af-live-1", "eventType": "engine.started",
                  "payload": {"executionId": ex.id, "engine_run_ref": "af-run-9"}},
                 content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
