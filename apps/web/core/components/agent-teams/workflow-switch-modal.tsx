@@ -16,33 +16,35 @@ import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
 import { cn } from "@plane/utils";
 import { format, parseISO } from "date-fns";
 // services
-import workflowService, { type TeamWorkflow, type TeamWorkflowVersion } from "@/services/agent-teams/workflow.service";
+// 数据源切换（阶段 2′）：切换绑定改走编排域（流程归项目；版本=已发布可选）
+import {
+  orchestrationService,
+  type OrchestrationWorkflow,
+  type OrchestrationWorkflowVersion,
+} from "@/services/agent-teams/orchestration.service";
 
-const publishedVersionsOf = (map: Record<string, TeamWorkflowVersion[]>, flowId: string) =>
-  // 有效引擎为空的已发布版本是历史未迁移数据：切换绑定会 fail-closed
-  // （WORKFLOW_ENGINE_CONNECTION_UNRESOLVED），从源头不给选项。
-  (map[flowId] ?? []).filter((v) => v.status === "published" && v.engineConnectionId);
+const publishedVersionsOf = (map: Record<string, OrchestrationWorkflowVersion[]>, flowId: string) =>
+  (map[flowId] ?? []).filter((v) => v.status === "published");
 
 export function WorkflowSwitchModal({
   isOpen,
   handleClose,
-  teamId,
+  workspaceSlug,
+  projectId,
   currentWorkflowVersionId,
-  externalProjectId,
   onSwitched,
 }: {
   isOpen: boolean;
   handleClose: () => void;
-  teamId: string;
+  workspaceSlug: string;
+  projectId: string;
   /** 当前绑定的 workflow_version id（高亮当前 + 默认展开其所属流程）。 */
   currentWorkflowVersionId: string | null;
-  /** Plane 项目 UUID（绑定更新走 idKind=external）。 */
-  externalProjectId: string;
   onSwitched: () => void;
 }) {
   const { t } = useTranslation();
-  const [workflows, setWorkflows] = useState<TeamWorkflow[]>([]);
-  const [versionsByFlow, setVersionsByFlow] = useState<Record<string, TeamWorkflowVersion[]>>({});
+  const [workflows, setWorkflows] = useState<OrchestrationWorkflow[]>([]);
+  const [versionsByFlow, setVersionsByFlow] = useState<Record<string, OrchestrationWorkflowVersion[]>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,24 +53,23 @@ export function WorkflowSwitchModal({
   const [errorKey, setErrorKey] = useState("");
 
   useEffect(() => {
-    if (!isOpen || !teamId) return;
+    if (!isOpen || !projectId) return;
     let ignore = false;
     setLoading(true);
     setErrorKey("");
     (async () => {
       try {
-        const flows = await workflowService.listTeamWorkflows(teamId);
+        const flows = await orchestrationService.listWorkflows(workspaceSlug, projectId);
         const entries = await Promise.all(
-          flows
-            .filter((f) => f.status === "published")
-            .map(async (f) => [f.id, await workflowService.listTeamWorkflowVersions(teamId, f.id)] as const)
+          flows.map(
+            async (f) =>
+              [f.id, (await orchestrationService.getWorkflow(workspaceSlug, projectId, f.id)).versions ?? []] as const
+          )
         );
         if (ignore) return;
         const versionsMap = Object.fromEntries(entries);
-        // 只保留有可绑定版本（已发布且有效引擎已解析）的流程
-        const bindableFlows = flows.filter(
-          (f) => f.status === "published" && publishedVersionsOf(versionsMap, f.id).length > 0
-        );
+        // 只保留有可绑定版本（已发布）的流程
+        const bindableFlows = flows.filter((f) => publishedVersionsOf(versionsMap, f.id).length > 0);
         setWorkflows(bindableFlows);
         setVersionsByFlow(versionsMap);
         // 当前流程默认展开
@@ -86,7 +87,7 @@ export function WorkflowSwitchModal({
     return () => {
       ignore = true;
     };
-  }, [isOpen, teamId, currentWorkflowVersionId]);
+  }, [isOpen, workspaceSlug, projectId, currentWorkflowVersionId]);
 
   const submit = async () => {
     if (!selected || selected === currentWorkflowVersionId) {
@@ -96,9 +97,7 @@ export function WorkflowSwitchModal({
     setSubmitting(true);
     setErrorKey("");
     try {
-      await workflowService.updateBindingForExternalProject(externalProjectId, {
-        defaultWorkflowVersionId: selected,
-      });
+      await orchestrationService.upgradeBinding(workspaceSlug, projectId, selected);
       onSwitched();
       handleClose();
     } catch (err) {
@@ -120,7 +119,9 @@ export function WorkflowSwitchModal({
         ) : (
           <div className="space-y-2">
             {workflows.map((flow) => {
-              const versions = publishedVersionsOf(versionsByFlow, flow.id).toSorted((a, b) => b.version - a.version);
+              const versions = publishedVersionsOf(versionsByFlow, flow.id)
+                .slice()
+                .sort((a: { version: number }, b: { version: number }) => b.version - a.version);
               const isOpenGroup = expanded === flow.id;
               return (
                 <div key={flow.id} className="rounded-md border-[0.5px] border-subtle-1 bg-layer-1">

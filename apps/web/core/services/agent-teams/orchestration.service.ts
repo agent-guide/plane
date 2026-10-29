@@ -396,6 +396,41 @@ export async function listExecutions(workspace: string, projectId: string): Prom
 
 // ------------------------------------------------- 工作项运行时面板（§12.3）
 
+/** 项目概览运行时区块：绑定 + 计数 + 最近运行动态。 */
+export interface OrchestrationRuntimeBinding {
+  id: string;
+  teamId: string;
+  teamName: string;
+  workflowName: string | null;
+  workflowVersion: number | null;
+  workflowVersionId: string | null;
+  updatedAt: string;
+}
+
+export interface OrchestrationRecentRun {
+  runId: string;
+  taskId: string;
+  taskTitle: string;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export interface OrchestrationProjectRuntimeOverview {
+  binding: OrchestrationRuntimeBinding | null;
+  counts: { activeTasks: number; waitingHuman: number; runningAgents: number };
+  /** 最近工作项的运行时标记（进行中执行）。 */
+  tasks: Array<{ issueId: string; externalItemId: string; controlStatus: string }>;
+  recentRuns: OrchestrationRecentRun[];
+}
+
+export async function getProjectRuntimeOverview(
+  workspace: string,
+  projectId: string
+): Promise<OrchestrationProjectRuntimeOverview> {
+  return request(`${PJ(workspace, projectId)}/runtime-overview/`);
+}
+
 export interface OrchestrationRuntimeArtifact {
   id: string;
   name: string;
@@ -535,6 +570,7 @@ export const orchestrationService = {
   listExecutions,
   startExecution,
   getProjectTeamPanel,
+  getProjectRuntimeOverview,
   getWorkItemRuntime,
   cancelWorkItemExecution,
   listMyApprovals,

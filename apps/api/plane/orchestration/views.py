@@ -595,6 +595,52 @@ class ApprovalsEndpoint(BaseAPIView):
         return Response({"id": approval.id, "result": approval.result})
 
 
+class ProjectRuntimeOverviewEndpoint(BaseAPIView):
+    """项目概览运行时区块：绑定 + 计数 + 最近运行动态。"""
+
+    def get(self, request, slug, project_id):
+        from .state_machine import TERMINAL_STATUSES
+        binding = ProjectTeamBinding.objects.filter(
+            project__workspace__slug=slug, project_id=project_id,
+            status=ProjectTeamBinding.Status.ACTIVE).select_related("team", "workflow_version", "workflow_version__workflow").first()
+        binding_json = None
+        if binding:
+            version = binding.workflow_version
+            binding_json = {
+                "id": binding.id, "teamId": binding.team_id, "teamName": binding.team.name,
+                "workflowName": version.workflow.name if version else None,
+                "workflowVersion": version.version if version else None,
+                "workflowVersionId": str(version.id) if version else None,
+                "updatedAt": binding.updated_at.isoformat(),
+            }
+        executions = WorkItemExecution.objects.filter(
+            binding__project__workspace__slug=slug, binding__project_id=project_id,
+        ).select_related("issue").order_by("-updated_at")
+        active = [e for e in executions if e.business_status not in TERMINAL_STATUSES]
+        runs = [{
+            "runId": e.id, "taskId": e.issue_id, "taskTitle": e.issue.name,
+            "status": e.business_status,
+            "startedAt": e.created_at.isoformat(),
+            "finishedAt": e.completed_at.isoformat() if e.completed_at else None,
+        } for e in executions[:10]]
+        return Response({
+            "binding": binding_json,
+            "counts": {
+                "activeTasks": len(active),
+                "waitingHuman": BusinessApproval.objects.filter(
+                    execution__binding__project_id=project_id,
+                    result=BusinessApproval.Result.PENDING).count(),
+                "runningAgents": sum(1 for e in active if e.business_status == "running"),
+            },
+            # 最近工作项的运行时标记（进行中执行 → issue 打标）
+            "tasks": [{
+                "issueId": e.issue_id, "externalItemId": str(e.issue_id),
+                "controlStatus": e.business_status,
+            } for e in active],
+            "recentRuns": runs,
+        })
+
+
 class WorkItemRuntimeEndpoint(BaseAPIView):
     """工作项详情运行时面板（§12.3）：执行摘要 + 结构化时间线，一次给全。
 

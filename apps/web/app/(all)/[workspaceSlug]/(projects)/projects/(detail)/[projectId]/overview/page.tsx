@@ -95,7 +95,11 @@ function ProjectOverviewPage() {
 
   // SWR-backed (runtime-swr): the runtime aggregate polls only while the
   // project has something running; native issues refresh on focus/mutate.
-  const { data: overview, error: runtimeError, isLoading: runtimeLoading } = useProjectRuntimeOverview(projectId);
+  const {
+    data: overview,
+    error: runtimeError,
+    isLoading: runtimeLoading,
+  } = useProjectRuntimeOverview(workspaceSlug, projectId);
   const [issues, setIssues] = useState<TIssue[] | null>(null);
   // PROJECT_NOT_FOUND（external 寻址无 work_management 项目映射）= 项目
   // 尚未接入治理：与「未绑定团队」同态——显示绑定引导，而非加载失败。
@@ -104,7 +108,7 @@ function ProjectOverviewPage() {
     (runtimeError as { response?: { data?: { code?: string } } } | null)?.response?.data?.code === "PROJECT_NOT_FOUND";
   const runtimeFailed = !!runtimeError && !overview && !runtimeUnmapped;
   const [switchOpen, setSwitchOpen] = useState(false);
-  const { mutate: mutateRuntimeOverview } = useProjectRuntimeOverview(projectId);
+  const { mutate: mutateRuntimeOverview } = useProjectRuntimeOverview(workspaceSlug, projectId);
 
   // 团队区块已并入横幅；未绑定/未映射/加载失败不再占页面区块，改为
   // 数据就绪后弹一次提示——文案按用户视角组织：问题是什么 + 该怎么办。
@@ -198,8 +202,9 @@ function ProjectOverviewPage() {
         row.isTeamExecuted = controlledExternalIds.has(issue.id);
         const task = overview?.tasks.find((item) => item.externalItemId === issue.id);
         row.controlStatus = task?.controlStatus ?? null;
-        row.stateName = task?.stateName ?? null;
-        row.stateColor = task?.stateColor ?? null;
+        // 编排域无状态视图映射：显示走 Plane 原生状态（stateName/Color 置空由状态视图回退 i18n）
+        row.stateName = null;
+        row.stateColor = null;
         return row;
       }),
     [issues, controlledExternalIds, overview]
@@ -546,9 +551,9 @@ function ProjectOverviewPage() {
           <WorkflowSwitchModal
             isOpen={switchOpen}
             handleClose={() => setSwitchOpen(false)}
-            teamId={binding?.teamId ?? ""}
+            workspaceSlug={workspaceSlug ?? ""}
+            projectId={projectId}
             currentWorkflowVersionId={binding?.workflowVersionId ?? null}
-            externalProjectId={projectId}
             onSwitched={() => void mutateRuntimeOverview()}
           />
         </ContentWrapper>
