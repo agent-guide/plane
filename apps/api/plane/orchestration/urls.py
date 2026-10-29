@@ -7,7 +7,7 @@ from django.urls import path
 from .views import (
     ApprovalsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
     EngineEventEndpoint, ProjectBindingsEndpoint, ProjectExecutionsEndpoint,
-    StartExecutionEndpoint,
+    StartExecutionEndpoint, TeamQuotaEndpoint,
     ProjectWorkflowDetailEndpoint, ProjectWorkflowsEndpoint, TeamDetailEndpoint,
     TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint,
     TeamsEndpoint, WorkflowPublishEndpoint, WorkflowVersionsEndpoint,
@@ -17,6 +17,8 @@ urlpatterns = [
     path("workspaces/<str:slug>/agent-teams/", TeamsEndpoint.as_view(), name="orchestration-teams"),
     path("workspaces/<str:slug>/agent-teams/approvals/", ApprovalsEndpoint.as_view(), name="orchestration-approvals"),
     path("workspaces/<str:slug>/agent-teams/approvals/<str:approval_id>/", ApprovalsEndpoint.as_view(http_method_names=["post"]), name="orchestration-approval-answer"),
+    # quota 必须排在 <team_id> 通配之前，否则 "quota" 会被当成 team_id
+    path("workspaces/<str:slug>/agent-teams/quota/", TeamQuotaEndpoint.as_view(), name="orchestration-team-quota"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/", TeamDetailEndpoint.as_view(), name="orchestration-team-detail"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/members/", TeamMembersEndpoint.as_view(), name="orchestration-team-members"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/members/<str:member_id>/", TeamMemberDetailEndpoint.as_view(), name="orchestration-team-member-detail"),

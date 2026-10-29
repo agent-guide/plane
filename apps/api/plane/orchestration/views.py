@@ -48,6 +48,13 @@ def _team_json(team: AgentTeam, with_members: bool = False):
         "createdBy": User.objects.filter(id=team.created_by_id).values_list("username", flat=True).first(),
         "createdAt": team.created_at.isoformat(), "updatedAt": team.updated_at.isoformat(),
     }
+    # 列表卡信号行（与旧系统 agent_team_repository 同语义）：
+    # 成员数=enabled；活跃任务=非终态执行；运行中=running 执行。
+    # 仅在列表端点 annotate 过 counts 时填充（_team_json 也被无注解的详情复用）。
+    if hasattr(team, "member_count"):
+        data["memberCount"] = team.member_count
+        data["activeTaskCount"] = team.active_task_count
+        data["runningRunCount"] = team.running_run_count
     if with_members:
         data["members"] = [_member_json(m) for m in team.members.order_by("sequence", "created_at")]
     return data
@@ -97,7 +104,22 @@ def _execution_json(e: WorkItemExecution):
 
 class TeamsEndpoint(BaseAPIView):
     def get(self, request, slug):
-        teams = AgentTeam.objects.filter(workspace__slug=slug).order_by("-created_at")
+        from django.db.models import Count, Q
+        teams = (
+            AgentTeam.objects.filter(workspace__slug=slug)
+            .annotate(
+                member_count=Count("members", filter=Q(members__enabled=True), distinct=True),
+                active_task_count=Count(
+                    "project_bindings__executions",
+                    filter=~Q(project_bindings__executions__business_status__in=["failed", "completed", "cancelled"]),
+                    distinct=True),
+                running_run_count=Count(
+                    "project_bindings__executions",
+                    filter=Q(project_bindings__executions__business_status="running"),
+                    distinct=True),
+            )
+            .order_by("-created_at")
+        )
         return Response([_team_json(t) for t in teams])
 
     def post(self, request, slug):
@@ -114,6 +136,23 @@ class TeamsEndpoint(BaseAPIView):
             return _error_response(exc)
         except Workspace.DoesNotExist:
             return Response({"error": "workspace not found"}, status=404)
+
+
+class TeamQuotaEndpoint(BaseAPIView):
+    """配额提示（新建弹层预取）：管理员 bypass，普通成员数自己非归档团队。"""
+
+    def get(self, request, slug):
+        is_admin = _is_workspace_admin(request.user, slug)
+        quota = services._quota()
+        owned = AgentTeam.objects.filter(
+            workspace__slug=slug, created_by=request.user
+        ).exclude(status=AgentTeam.Status.ARCHIVED).count()
+        return Response({
+            "applies": not is_admin,
+            "quota": quota,
+            "owned": owned,
+            "remaining": max(quota - owned, 0) if not is_admin else None,
+        })
 
 
 class TeamDetailEndpoint(BaseAPIView):

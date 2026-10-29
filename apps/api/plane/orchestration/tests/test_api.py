@@ -67,6 +67,46 @@ class OrchestrationAPITest(TestCase):
         self.assertEqual(r.status_code, 201, r.content)
         self.assertEqual(r.json()["status"], "active")
 
+    def test_team_list_counts_and_quota(self):
+        """列表卡信号行计数（memberCount/activeTaskCount/runningRunCount）与配额端点。"""
+        r = self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "计数团队"}, content_type="application/json")
+        team_id = r.json()["id"]
+        self.client.post(f"/api/workspaces/aws-orch/agent-teams/{team_id}/members/",
+                         {"kind": "human", "userId": self.human.id, "role": "approver", "sequence": 1},
+                         content_type="application/json")
+        # 非终态执行一条（直接造数：执行挂在绑定上，绑定需要流程版本）
+        from plane.orchestration.models import WorkflowDefinition, WorkflowVersion, ProjectTeamBinding
+        wf = WorkflowDefinition.objects.create(project=self.project, name="计数流程", created_by=self.owner)
+        version = WorkflowVersion.objects.create(workflow=wf, version=1, status=WorkflowVersion.Status.PUBLISHED)
+        binding = ProjectTeamBinding.objects.create(
+            project=self.project, team_id=team_id, workflow_version=version,
+            status=ProjectTeamBinding.Status.ACTIVE)
+        issue = Issue.objects.create(project=self.project, name="计数工作项", created_by=self.owner)
+        execution = WorkItemExecution.objects.create(issue=issue, binding=binding, business_status="running")
+
+        r = self.client.get("/api/workspaces/aws-orch/agent-teams/")
+        self.assertEqual(r.status_code, 200)
+        entry = next(t for t in r.json() if t["id"] == team_id)
+        self.assertEqual(entry["memberCount"], 1)
+        self.assertEqual(entry["activeTaskCount"], 1)
+        self.assertEqual(entry["runningRunCount"], 1)
+
+        # 配额：owner 是管理员（bypass）；普通成员数自己的非归档团队
+        r = self.client.get("/api/workspaces/aws-orch/agent-teams/quota/")
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.json()["applies"])
+        self.assertIsNone(r.json()["remaining"])
+
+        member_client = Client()
+        WorkspaceMember.objects.create(workspace=self.ws, member=self.human, role=15)
+        member_client.force_login(self.human)
+        r = member_client.get("/api/workspaces/aws-orch/agent-teams/quota/")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertTrue(body["applies"])
+        self.assertEqual(body["owned"], 0)
+        self.assertEqual(body["remaining"], body["quota"])
+
     def test_member_cannot_touch_others_team(self):
         self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "归属"}, content_type="application/json")
         other_client = Client()

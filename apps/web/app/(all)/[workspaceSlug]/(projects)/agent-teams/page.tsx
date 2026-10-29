@@ -32,7 +32,8 @@ import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 // services
 import { TeamStatusIcon } from "@/components/agent-teams/team-status";
-import runtimeService, { type AgentTeam } from "@/services/agent-teams/runtime.service";
+// 数据源切换（阶段 2′）：团队域改走 Plane 编排域同源 API，不再经 runtime-token 换票
+import { orchestrationService, type OrchestrationTeam } from "@/services/agent-teams/orchestration.service";
 import { classifyRuntimeFailure, type RuntimeFailureKind } from "@/services/agent-teams/runtime-errors";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
@@ -67,7 +68,7 @@ function WorkspaceAgentTeamsPage() {
   // derived values
   const pageTitle = currentWorkspace?.name ? `${currentWorkspace?.name} - Agent Teams` : undefined;
 
-  const [teams, setTeams] = useState<AgentTeam[]>([]);
+  const [teams, setTeams] = useState<OrchestrationTeam[]>([]);
   const [loading, setLoading] = useState(true);
   // 失败原因分类：工作区没接入时重试永远不会成功，不能再给「重试」按钮。
   const [failure, setFailure] = useState<RuntimeFailureKind | null>(null);
@@ -86,17 +87,20 @@ function WorkspaceAgentTeamsPage() {
     remaining: number | null;
   } | null>(null);
 
+  const workspaceSlug = currentWorkspace?.slug;
+
   const loadTeams = useCallback(async () => {
+    if (!workspaceSlug) return;
     setLoading(true);
     setFailure(null);
     try {
-      setTeams(await runtimeService.listTeams());
+      setTeams(await orchestrationService.listTeams(workspaceSlug));
     } catch (error) {
       setFailure(classifyRuntimeFailure(error));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [workspaceSlug]);
 
   useEffect(() => {
     void loadTeams();
@@ -163,7 +167,7 @@ function WorkspaceAgentTeamsPage() {
     setFormErrorKey("");
     setFormErrorDetail("");
     try {
-      const created = await runtimeService.createTeam({
+      const created = await orchestrationService.createTeam(workspaceSlug!, {
         name,
         objective: form.objective.trim() || undefined,
       });
@@ -172,13 +176,13 @@ function WorkspaceAgentTeamsPage() {
       // 成功动线：直进详情（先配成员再上架，§4 空态引导承接）。
       router.push(agentTeamDetailPath(created.id));
     } catch (error) {
-      const status = (
-        error as { response?: { status?: number; data?: { code?: string; details?: { quota?: number } } } }
-      )?.response;
-      if (status?.data?.code === "AGENT_TEAM_QUOTA_EXCEEDED") {
+      // orchestration.service 的错误形态：Error + status 属性，message 尾带 [CODE]
+      const err = error as { status?: number; message?: string };
+      if (/\[AGENT_TEAM_QUOTA_EXCEEDED\]/.test(err.message ?? "")) {
         setFormErrorKey("agent_teams_quota_exceeded");
-        setFormErrorDetail(String(status.data.details?.quota ?? ""));
-      } else if (status?.status === 409) {
+        // 配额数字从错误 message（"Team quota (N) reached"）里取，取不到留空
+        setFormErrorDetail(err.message?.match(/\((\d+)\)/)?.[1] ?? "");
+      } else if (err.status === 409) {
         setFormErrorKey("agent_teams_create_name_conflict");
         setFormErrorDetail("");
       } else {
@@ -217,10 +221,12 @@ function WorkspaceAgentTeamsPage() {
   const openCreate = () => {
     setFormErrorKey("");
     setFormErrorDetail("");
-    runtimeService
-      .getTeamQuota()
-      .then((info) => setQuota(info))
-      .catch(() => setQuota(null));
+    if (workspaceSlug) {
+      orchestrationService
+        .getTeamQuota(workspaceSlug)
+        .then((info) => setQuota(info))
+        .catch(() => setQuota(null));
+    }
     setCreateOpen(true);
   };
 

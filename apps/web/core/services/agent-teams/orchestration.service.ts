@@ -18,7 +18,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
+      ...init?.headers,
     },
     credentials: "same-origin",
   });
@@ -53,6 +53,10 @@ export interface OrchestrationTeam {
   createdBy?: string | null;
   createdAt: string;
   updatedAt: string;
+  // 列表端点 annotate 的信号行计数（详情响应不含）
+  memberCount?: number;
+  activeTaskCount?: number;
+  runningRunCount?: number;
   members?: OrchestrationTeamMember[];
 }
 
@@ -101,6 +105,18 @@ export async function activateTeam(workspace: string, teamId: string): Promise<O
 
 export async function archiveTeam(workspace: string, teamId: string): Promise<OrchestrationTeam> {
   return request(`${WS(workspace)}/agent-teams/${teamId}/archive/`, { method: "POST", headers: csrfHeaders() });
+}
+
+export interface OrchestrationTeamQuota {
+  applies: boolean;
+  quota: number;
+  owned: number;
+  remaining: number | null;
+}
+
+/** 配额提示（新建弹层预取，设计 §1.2 钩子②）：管理员 bypass，返回 applies=false。 */
+export async function getTeamQuota(workspace: string): Promise<OrchestrationTeamQuota> {
+  return request(`${WS(workspace)}/agent-teams/quota/`);
 }
 
 // ---------------------------------------------------------------- 成员域
@@ -333,6 +349,7 @@ export const orchestrationService = {
   updateTeam,
   activateTeam,
   archiveTeam,
+  getTeamQuota,
   listMembers,
   addMember,
   updateMember,

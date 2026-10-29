@@ -15,9 +15,12 @@
 export type RuntimeFailureKind = "not_connected" | "unavailable" | "unknown";
 
 export function classifyRuntimeFailure(error: unknown): RuntimeFailureKind {
+  // 两种错误形态都认：axios（response.status + response.data.error，走
+  // runtime-token 的旧链）与 orchestration.service 的 fetch 形态
+  // （顶层 status + message，message 尾部带 [CODE]）。
   const response = (error as { response?: { status?: number; data?: { error?: string } } })?.response;
-  const status = response?.status;
-  const detail = response?.data?.error ?? "";
+  const status = response?.status ?? (error as { status?: number })?.status;
+  const detail = response?.data?.error ?? (error as Error)?.message ?? "";
   if (status === 409 && /not connected to the runtime/i.test(detail)) return "not_connected";
   if (status === 503 || status === 502) return "unavailable";
   return "unknown";
