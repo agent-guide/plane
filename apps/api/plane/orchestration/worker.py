@@ -63,10 +63,21 @@ class AirflowClient:
         return self._request("PATCH", f"dags/{dag_id}", {"is_paused": False})
 
     def trigger_run(self, dag_id: str, *, dag_run_id: str, conf: dict) -> dict:
-        """幂等触发：dag_run_id 由调用方预生成，重放不产生第二个业务 run。"""
-        return self._request(
-            "POST", f"dags/{dag_id}/dagRuns",
-            {"dag_run_id": dag_run_id, "conf": conf})
+        """幂等触发：dag_run_id 由调用方预生成，重放不产生第二个业务 run。
+
+        Airflow 3.3 Stable API 必须带 logical_date（10-29 真机联调实证 422）；
+        同 dag_run_id 重放返回 409 —— 幂等成功（10-29 实证）。
+        """
+        from datetime import datetime, timezone
+        try:
+            return self._request(
+                "POST", f"dags/{dag_id}/dagRuns",
+                {"dag_run_id": dag_run_id, "conf": conf,
+                 "logical_date": datetime.now(timezone.utc).isoformat()})
+        except AirflowError as exc:
+            if exc.status == 409:
+                return {"dag_run_id": dag_run_id, "note": "idempotent replay"}
+            raise
 
 
 def airflow_client_from_env() -> AirflowClient:
@@ -97,6 +108,29 @@ def wait_until_ready(client: AirflowClient, *, dag_id: str, definition_hash: str
         time.sleep(0.5)
 
 
+def publish_workflow(*, workflow_id: str, version_number: int, definition: dict, definition_hash: str,
+                     dag_root: Path) -> dict:
+    """发布链（视图层调用）：渲染 → 原子落盘 → 轮询就绪 → 激活。
+
+    返回 {status: published|failed, engine_deploy_ref}；失败由调用方落 fail_publish
+    （版本可重发）。DAG 文件回调地址/TOKEN 取自 Airflow 侧 env
+    （ORCHESTRATION_INTERNAL_*，DAG 解析期读取）。
+    """
+    from .dag_publication import render_dag, publish_version
+    dag_source = render_dag(
+        workflow_id=workflow_id, version=version_number,
+        definition_hash=definition_hash, definition=definition)
+    path = publish_version(
+        dag_root=dag_root, workflow_id=workflow_id, version=version_number, dag_source=dag_source)
+    from .dag_publication import dag_id
+    identifier = dag_id(workflow_id, version_number)
+    client = airflow_client_from_env()
+    ready = wait_until_ready(client, dag_id=identifier, definition_hash=definition_hash, timeout_seconds=90)
+    if not ready:
+        return {"status": "failed", "reason": "dag not ready in 90s", "path": str(path)}
+    return {"status": "published", "engine_deploy_ref": {"dag_id": identifier, "file": path.name}}
+
+
 def process_outbox_once(*, dag_root: Path) -> dict:
     """消费一批 outbox 命令（幂等键天然防重复执行）。
 
@@ -116,10 +150,14 @@ def process_outbox_once(*, dag_root: Path) -> dict:
         try:
             if command.command_type == "engine.start":
                 client = airflow_client_from_env()
+                from .models import WorkflowVersion
                 execution = WorkItemExecution.objects.get(id=command.payload["executionId"])
-                dag_id = f"wf_{command.payload.get('workflowSuffix', 'x'*9)}_v{command.payload.get('version', 1)}"
+                version = WorkflowVersion.objects.select_related("workflow").get(
+                    id=execution.binding.workflow_version_id)
+                from .dag_publication import dag_id
+                identifier = dag_id(version.workflow_id)
                 client.trigger_run(
-                    dag_id,
+                    identifier,
                     dag_run_id=f"exec-{execution.id[:12]}",
                     conf={"backendRunId": execution.engine_run_ref or execution.id},
                 )
@@ -148,5 +186,5 @@ def process_outbox_once(*, dag_root: Path) -> dict:
 
 __all__ = [
     "AirflowClient", "AirflowError", "airflow_client_from_env",
-    "wait_until_ready", "process_outbox_once",
+    "wait_until_ready", "process_outbox_once", "publish_workflow",
 ]

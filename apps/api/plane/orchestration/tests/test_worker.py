@@ -78,16 +78,30 @@ class AirflowClientTests(TestCase):
         bodies = [c for c in FakeAirflow.calls if c[0] == "POST-BODY"]
         self.assertEqual(bodies[-1][1]["conf"]["backendRunId"], "b1")
 
+    def test_409_trigger_replay_is_idempotent_success(self):
+        """同 dag_run_id 重放 409 → 幂等成功（10-29 真机实证语义）。"""
+
+        class Always409(FakeAirflow):
+            def do_POST(self):
+                self._respond(409, {"detail": "unique constraint"})
+
+        self.server.RequestHandlerClass = Always409
+        try:
+            result = self.af_client.trigger_run("wf_x_v1", dag_run_id="r-replay", conf={})
+        finally:
+            self.server.RequestHandlerClass = FakeAirflow
+        self.assertEqual(result.get("note"), "idempotent replay")
+
     def test_4xx_not_retried(self):
         class Always400(FakeAirflow):
             def do_POST(self):
-                self._respond(409, {"error": "conflict"})
+                self._respond(400, {"error": "bad request"})
         port = self.server.server_port
         self.server.RequestHandlerClass = Always400
         try:
             with self.assertRaises(AirflowError) as ctx:
                 self.af_client.trigger_run("wf_x_v1", dag_run_id="r-2", conf={})
-            self.assertEqual(ctx.exception.status, 409)
+            self.assertEqual(ctx.exception.status, 400)
         finally:
             self.server.RequestHandlerClass = FakeAirflow
 

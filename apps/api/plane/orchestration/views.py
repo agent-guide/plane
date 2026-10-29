@@ -462,9 +462,24 @@ class WorkflowPublishEndpoint(BaseAPIView):
             return Response({"error": "not found"}, status=404)
         try:
             version = workflows.start_publish(workflow=wf, user_id=request.user.id)
-            # worker 上线前的过渡：无引擎时直接完成发布（engine_deploy_ref 占位）
-            # 终局由 worker 轮询后调 finish_publish。
-            workflows.finish_publish(version=version, engine_deploy_ref={"pending_worker": True})
+            # 引擎已配置（ORCHESTRATION_AIRFLOW_*）→ 真实发布链：渲染落盘→轮询就绪→激活
+            # 未配置（本地无引擎）→ 过渡直接 finish（engine_deploy_ref 占位）
+            import os
+            from pathlib import Path as _Path
+            if os.environ.get("ORCHESTRATION_AIRFLOW_BASE_URL") and os.environ.get("ORCHESTRATION_AIRFLOW_TOKEN"):
+                from .worker import publish_workflow
+                result = publish_workflow(
+                    workflow_id=wf.id, version_number=version.version,
+                    definition=version.definition, definition_hash=version.content_hash,
+                    dag_root=_Path(os.environ.get("ORCHESTRATION_DAG_ROOT", "/tmp/orchestration-dags")))
+                if result["status"] == "published":
+                    workflows.finish_publish(version=version, engine_deploy_ref=result["engine_deploy_ref"])
+                else:
+                    workflows.fail_publish(version=version)
+                    return Response({"error": result.get("reason", "publish failed"),
+                                     "code": "WORKFLOW_PUBLISH_FAILED"}, status=502)
+            else:
+                workflows.finish_publish(version=version, engine_deploy_ref={"pending_worker": True})
             version.refresh_from_db()
             return Response(_version_json(version))
         except TeamDomainError as exc:
