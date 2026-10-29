@@ -25,8 +25,7 @@ export const extendedRoutes: RouteConfigEntry[] = [
       ),
       layout("./(all)/[workspaceSlug]/(projects)/layout.tsx", [
         route(":workspaceSlug/agent-teams", "./(all)/[workspaceSlug]/(projects)/agent-teams/page.tsx"),
-        // Static segments "inbox"/"chat" rank above the dynamic :teamId below.
-        route(":workspaceSlug/agent-teams/inbox", "./(all)/[workspaceSlug]/(projects)/agent-teams/inbox/page.tsx"),
+        // Static segment "chat" ranks above the dynamic :teamId below.
         route(":workspaceSlug/agent-teams/chat", "./(all)/[workspaceSlug]/(projects)/agent-teams/chat/page.tsx"),
         route(":workspaceSlug/agent-teams/:teamId", "./(all)/[workspaceSlug]/(projects)/agent-teams/[teamId]/page.tsx"),
         // 团队子列表页（2026-10-22 侧边栏成员/流程子项落点）：与工作项

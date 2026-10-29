@@ -74,10 +74,44 @@ def on_engine_started(*, execution_id: str, event_id: str, engine_run_ref: str) 
     return transition_execution(execution=ex, target="running", event_id=event_id)
 
 
-def on_human_handoff(*, execution_id: str, event_id: str, member) -> WorkItemExecution:
-    """调用点 3：引擎人工节点 → running→waiting_human + 设人工成员。"""
+def on_human_handoff(*, execution_id: str, event_id: str, member, node_ref: str = "human") -> WorkItemExecution:
+    """调用点 3：引擎人工节点 → running→waiting_human + 设人工成员 + 建待审批。"""
     ex = _load_active(execution_id)
-    return transition_execution(execution=ex, target="waiting_human", event_id=event_id, member=member)
+    execution = transition_execution(execution=ex, target="waiting_human", event_id=event_id, member=member)
+    _ensure_pending_approval(execution, member, node_ref)
+    return execution
+
+
+def _ensure_pending_approval(execution, member, node_ref: str = "human") -> None:
+    """到达人工节点时落待审批（幂等：同执行同节点已有 pending 不重复建）。
+
+    问题/选项/自由文本来自发布版本 definition 的人工节点（快照语义——
+    后续画布编辑不影响已发布执行的审批内容）。
+    """
+    from .models import BusinessApproval
+    if BusinessApproval.objects.filter(
+            execution=execution, node_ref=node_ref,
+            result=BusinessApproval.Result.PENDING).exists():
+        return
+    node = None
+    try:
+        definition = execution.binding.workflow_version.definition or {}
+        candidates = [n for n in (definition.get("nodes") or []) if n.get("type") == "human_approval"]
+        node = next((n for n in candidates if n.get("key") == node_ref), candidates[0] if candidates else None)
+    except Exception:
+        node = None
+    # 默认选项英文文案（本地测试库 SQL_ASCII 不收非 ASCII JSON；label 由
+    # 画布 definition 提供，缺省时前端有 approve/reject 既有文案兜底）
+    options = (node or {}).get("options") or [
+        {"label": "Approve", "value": "approve", "terminal": False},
+        {"label": "Reject", "value": "reject", "terminal": True},
+    ]
+    BusinessApproval.objects.create(
+        execution=execution, node_ref=node_ref, options=options,
+        question=(node or {}).get("message") or "",
+        free_text=bool((node or {}).get("freeText")),
+        assignee_id=member.user_id if getattr(member, "user_id", None) else None,
+    )
 
 
 def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
@@ -133,6 +167,9 @@ def process_event(*, external_event_id: str, event_type: str, payload: dict) -> 
         for k in ("engine_run_ref", "member", "engine_status"):
             if k in payload:
                 kwargs[k] = payload[k]
+        # 人工交接事件带节点 key（缺省 "human"）
+        if "nodeKey" in payload:
+            kwargs["node_ref"] = payload["nodeKey"]
         try:
             execution = EVENT_HANDLERS[event_type](kwargs)
         except Exception:

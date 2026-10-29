@@ -221,7 +221,8 @@ class OrchestrationAPITest(TestCase):
         execution = WorkItemExecution.objects.create(issue=issue, binding=binding)
         on_engine_started(execution_id=execution.id, event_id="e0", engine_run_ref="r")
         on_human_handoff(execution_id=execution.id, event_id="e1", member=member)
-        approval = BusinessApproval.objects.create(execution=execution, node_ref="n1:1", assignee=self.human, options=["approve", "reject"])
+        # handoff 即自动建待审批（assignee=人工成员的 Plane 用户）
+        approval = BusinessApproval.objects.get(execution=execution, result=BusinessApproval.Result.PENDING)
 
         human_client = Client()
         WorkspaceMember.objects.get_or_create(workspace=self.ws, member=self.human, defaults={"role": 15})
@@ -229,6 +230,9 @@ class OrchestrationAPITest(TestCase):
         r = human_client.get("/api/workspaces/aws-orch/agent-teams/approvals/")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.json()), 1)
+        entry = r.json()[0]
+        self.assertEqual(entry["taskTitle"], "审批用工作项")
+        self.assertEqual(entry["teamName"], "审批团队")
 
         r = human_client.post(f"/api/workspaces/aws-orch/agent-teams/approvals/{approval.id}/",
                               {"decision": "approved"}, content_type="application/json")

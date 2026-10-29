@@ -39,49 +39,45 @@ export const AgentApprovalCardList = observer(function AgentApprovalCardList({
 
   if (isLoading && items.length === 0) {
     return (
-      <div className="px-4 py-8 text-center text-body-sm-regular text-tertiary">
-        {t("agent_teams_inbox_loading")}
-      </div>
+      <div className="px-4 py-8 text-center text-body-sm-regular text-tertiary">{t("agent_teams_inbox_loading")}</div>
     );
   }
   if (items.length === 0) {
     return (
-      <div className="px-4 py-8 text-center text-body-sm-regular text-tertiary">
-        {t("agent_teams_approvals_empty")}
-      </div>
+      <div className="px-4 py-8 text-center text-body-sm-regular text-tertiary">{t("agent_teams_approvals_empty")}</div>
     );
   }
 
   return (
     <div className="flex flex-col">
       {items.map((item) => {
-        const isSelected = selected?.requestId === item.requestId && selected?.scope === item.scope;
-        const project = item.externalProjectId ? getProjectById(item.externalProjectId) : undefined;
+        const isSelected = selected?.id === item.id;
+        const project = item.projectId ? getProjectById(item.projectId) : undefined;
         return (
           <Row
-            key={`${item.scope}:${item.requestId}`}
+            key={item.id}
             className={cn(
               "group relative flex cursor-pointer items-center gap-2 border-b border-subtle py-4 transition-all",
               // Selected: accent wash + left rail, NO hover override (hover
               // must not repaint a selected row). Unselected rows get a
               // clearly visible hover wash instead of layer-1 (same tone as
               // the surface — invisible).
-              isSelected
-                ? "bg-accent-primary/10 shadow-[inset_2px_0_0_0] shadow-accent-primary"
-                : "hover:bg-layer-3"
+              isSelected ? "shadow-accent-primary bg-accent-primary/10 shadow-[inset_2px_0_0_0]" : "hover:bg-layer-3"
             )}
             onClick={() => setSelected(item)}
           >
             <div className="relative flex size-8 flex-shrink-0 items-center justify-center rounded-lg border border-subtle bg-layer-2">
               <Bot className="size-4 text-secondary" aria-hidden />
             </div>
-            <div className="w-full min-w-0 flex flex-col gap-1">
+            <div className="flex w-full min-w-0 flex-col gap-1">
               <div className="line-clamp-1 truncate overflow-hidden text-body-xs-medium break-all whitespace-normal text-primary">
-                {item.title || t("agent_teams_panel_approve_now")}
+                {item.taskTitle || t("agent_teams_panel_approve_now")}
               </div>
-              {project?.name && <div className="line-clamp-1 text-caption-sm-regular text-secondary">{project.name}</div>}
+              {project?.name && (
+                <div className="line-clamp-1 text-caption-sm-regular text-secondary">{project.name}</div>
+              )}
               <div className="flex items-center gap-2 text-caption-sm-regular text-tertiary">
-                {item.taskTitle && <span className="line-clamp-1 truncate">{item.taskTitle}</span>}
+                {item.teamName && <span className="line-clamp-1 truncate">{item.teamName}</span>}
                 <span className="ml-auto flex-shrink-0">
                   {item.createdAt &&
                     `${renderFormattedDate(item.createdAt, "yyyy-MM-dd") ?? ""} ${renderFormattedTime(item.createdAt)}`}

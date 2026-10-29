@@ -406,14 +406,30 @@ export async function startExecution(
   });
 }
 
+/** 审批选项（definition 快照）：label 展示 / value 机器值 / terminal 终止分支。 */
+export interface OrchestrationApprovalOption {
+  label: string;
+  value: string;
+  terminal?: boolean;
+}
+
 export interface OrchestrationApproval {
   id: string;
   executionId: string;
   nodeRef: string;
-  options: string[];
+  question: string;
+  options: OrchestrationApprovalOption[];
+  freeText: boolean;
   result: "pending" | "approved" | "rejected";
   reason: string;
   answeredAt: string | null;
+  createdAt: string;
+  // 消费面上下文（卡片列表/详情头）
+  teamId: string;
+  teamName: string;
+  projectId: string;
+  issueId: string;
+  taskTitle: string;
 }
 
 export async function listMyApprovals(workspace: string): Promise<OrchestrationApproval[]> {

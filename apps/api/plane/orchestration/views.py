@@ -115,6 +115,21 @@ def _binding_json(b: ProjectTeamBinding):
     }
 
 
+def _approval_json(a: BusinessApproval):
+    """审批列表/详情一体（旧收件箱列表+详情两次取数，新域一次给全）。"""
+    e = a.execution
+    return {
+        "id": a.id, "executionId": a.execution_id, "nodeRef": a.node_ref,
+        "question": a.question, "options": a.options, "freeText": a.free_text,
+        "result": a.result, "reason": a.reason,
+        "answeredAt": a.answered_at.isoformat() if a.answered_at else None,
+        "createdAt": a.created_at.isoformat(),
+        # 消费面（卡片列表/详情头）：团队与工作项上下文
+        "teamId": e.binding.team_id, "teamName": e.binding.team.name,
+        "projectId": str(e.issue.project_id), "issueId": e.issue_id, "taskTitle": e.issue.name,
+    }
+
+
 def _execution_json(e: WorkItemExecution):
     return {
         "id": e.id, "issueId": e.issue_id, "bindingId": e.binding_id,
@@ -534,15 +549,14 @@ class ProjectExecutionsEndpoint(BaseAPIView):
 
 class ApprovalsEndpoint(BaseAPIView):
     def get(self, request, slug):
-        """当前用户的待办/已办审批（跨项目）。"""
+        """当前用户的待办/已办审批（跨项目）——列表自带详情面所需全部字段。"""
         approvals = BusinessApproval.objects.filter(
             execution__binding__project__workspace__slug=slug, assignee=request.user,
+        ).select_related(
+            "execution", "execution__issue", "execution__issue__project",
+            "execution__binding", "execution__binding__team",
         ).order_by("-created_at")
-        return Response([{
-            "id": a.id, "executionId": a.execution_id, "nodeRef": a.node_ref,
-            "options": a.options, "result": a.result, "reason": a.reason,
-            "answeredAt": a.answered_at.isoformat() if a.answered_at else None,
-        } for a in approvals])
+        return Response([_approval_json(a) for a in approvals])
 
     def post(self, request, slug, approval_id):
         """审批作答（approved/rejected + 理由）；恢复执行经 outbox 由 worker 投递。"""

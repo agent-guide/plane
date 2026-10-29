@@ -15,7 +15,8 @@ export const agentTeamsPath = (workspaceSlug: string) => `/${workspaceSlug}/agen
 export const agentTeamDetailPath = (workspaceSlug: string, teamId: string) =>
   `${agentTeamsPath(workspaceSlug)}/${teamId}`;
 
-export const approvalInboxPath = (workspaceSlug: string) => `${agentTeamsPath(workspaceSlug)}/inbox`;
+// 审批主入口=原生通知页「等待审批」标签（孤儿收件箱页已退役，2026-10-29）
+export const approvalInboxPath = (workspaceSlug: string) => `/${workspaceSlug}/notifications`;
 
 export const chatPath = (workspaceSlug: string) => `${agentTeamsPath(workspaceSlug)}/chat`;
 

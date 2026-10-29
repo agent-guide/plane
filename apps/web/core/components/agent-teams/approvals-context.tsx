@@ -10,17 +10,17 @@
  * level, carries the selected waiting decision between them.
  */
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import type { HumanInboxItem } from "@/services/agent-teams/runtime.service";
+import type { OrchestrationApproval } from "@/services/agent-teams/orchestration.service";
 
 type AgentApprovalsSelection = {
-  selected: HumanInboxItem | null;
-  setSelected: (item: HumanInboxItem | null) => void;
+  selected: OrchestrationApproval | null;
+  setSelected: (item: OrchestrationApproval | null) => void;
 };
 
 const AgentApprovalsContext = createContext<AgentApprovalsSelection | null>(null);
 
 export function AgentApprovalsProvider({ children }: { children: ReactNode }) {
-  const [selected, setSelected] = useState<HumanInboxItem | null>(null);
+  const [selected, setSelected] = useState<OrchestrationApproval | null>(null);
   const value = useMemo(() => ({ selected, setSelected }), [selected]);
   return <AgentApprovalsContext.Provider value={value}>{children}</AgentApprovalsContext.Provider>;
 }

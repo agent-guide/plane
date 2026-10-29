@@ -192,6 +192,9 @@ class BusinessApproval(OrchestrationBaseModel):
     node_ref = models.CharField(max_length=200)  # 含引擎步骤/尝试，答复绑定当前步骤
     assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="business_approvals")
     options = models.JSONField(default=list, blank=True)
+    # 审批呈现面（handoff 时自发布版本 definition 快照）
+    question = models.TextField(blank=True, default="")
+    free_text = models.BooleanField(default=False)
     result = models.CharField(max_length=16, choices=Result.choices, default=Result.PENDING)
     reason = models.TextField(blank=True, default="")
     answered_at = models.DateTimeField(null=True, blank=True)

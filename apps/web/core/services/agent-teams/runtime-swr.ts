@@ -11,12 +11,8 @@
  */
 import { useCallback } from "react";
 import useSWR from "swr";
-import runtimeService, {
-  type ProjectRuntimeOverview,
-  type WorkItemRuntimeSummary,
-  type WorkItemTimelineEntry,
-} from "./runtime.service";
-import { setExpertsWorkspaceSlug } from "./experts-auth";
+import runtimeService, { type ProjectRuntimeOverview, type WorkItemRuntimeSummary } from "./runtime.service";
+import { orchestrationService, type OrchestrationApproval } from "./orchestration.service";
 
 const ACTIVE_POLL_MS = 5000;
 // A just-created work item is bound a few seconds AFTER creation (webhook →
@@ -100,13 +96,12 @@ export function useProjectRuntimeOverview(projectId: string) {
 export function usePendingApprovals(workspaceSlug: string | undefined) {
   const swr = useSWR(
     workspaceSlug ? (["agent-teams", "inbox"] as const) : null,
-    () => {
-      setExpertsWorkspaceSlug(workspaceSlug as string);
-      return runtimeService.listHumanInbox();
-    },
+    // 数据源切换（阶段 2′）：审批改走编排域同源 API；列表含已办，取 pending
+    async () =>
+      (await orchestrationService.listMyApprovals(workspaceSlug as string)).filter((a) => a.result === "pending"),
     {
       keepPreviousData: true,
-      refreshInterval: (latest: Awaited<ReturnType<typeof runtimeService.listHumanInbox>> | undefined) =>
+      refreshInterval: (latest: OrchestrationApproval[] | undefined) =>
         (latest?.length ?? 0) > 0 ? ACTIVE_POLL_MS : 30000,
       shouldRetryOnError: false,
     }

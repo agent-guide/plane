@@ -76,7 +76,7 @@ export const ProjectTeamBadge = observer(function ProjectTeamBadge({ projectId }
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            router.push(`${approvalInboxPath}?project=${panel.projectId}`);
+            router.push(approvalInboxPath);
           }}
           className="shrink-0 cursor-pointer rounded bg-accent-subtle px-1.5 py-0.5 text-caption-sm-medium text-accent-primary hover:bg-accent-primary-hover hover:text-on-color"
         >
