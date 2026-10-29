@@ -24,8 +24,8 @@ import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 import { SidebarDraggableRow } from "@/components/sidebar/sidebar-draggable-row";
 import { TeamStatusIcon } from "@/components/agent-teams/team-status";
 import { agentTeamDetailPath, agentTeamsPath } from "@/components/agent-teams/helper";
-import { setExpertsWorkspaceSlug } from "@/services/agent-teams/experts-auth";
-import runtimeService, { type AgentTeam } from "@/services/agent-teams/runtime.service";
+// 数据源切换（阶段 2′）：团队列表改走编排域同源 API
+import { orchestrationService, type OrchestrationTeam } from "@/services/agent-teams/orchestration.service";
 
 const STORAGE_KEY = "isAgentTeamsSidebarOpen";
 /** 侧边栏直列上限（项目组同款节流；更多走"查看全部"）。 */
@@ -59,7 +59,7 @@ export function SidebarAgentTeamsList({ workspaceSlug }: { workspaceSlug: string
   const path = pathname.replace(/\/+$/, "");
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(true);
-  const [teams, setTeams] = useState<AgentTeam[]>([]);
+  const [teams, setTeams] = useState<OrchestrationTeam[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -76,16 +76,15 @@ export function SidebarAgentTeamsList({ workspaceSlug }: { workspaceSlug: string
   }, [pathname]);
 
   const load = useCallback(() => {
-    setExpertsWorkspaceSlug(workspaceSlug);
-    runtimeService
-      .listTeams()
+    orchestrationService
+      .listTeams(workspaceSlug)
       .then((items) => {
         setTeams(sortByStoredOrder(items, workspaceSlug));
         setLoaded(true);
         return null;
       })
       .catch(() => {
-        /* runtime 未接入时静默（与团队页一致），组内容保持空态 */
+        /* 编排域不可达时静默（与团队页一致），组内容保持空态 */
       });
   }, [workspaceSlug]);
 

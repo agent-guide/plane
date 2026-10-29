@@ -361,6 +361,23 @@ export async function upgradeBinding(
 
 // ---------------------------------------------------------------- 执行与审批
 
+/** 项目卡团队徽章（§12.2）：未绑定为 null。 */
+export interface OrchestrationTeamPanel {
+  projectId: string;
+  teamId: string;
+  teamName: string;
+  activeAgentCount: number;
+  waitingDecisionCount: number;
+}
+
+export async function getProjectTeamPanel(
+  workspace: string,
+  projectId: string
+): Promise<OrchestrationTeamPanel | null> {
+  // 未绑定为 204 空体 → null
+  return (await request<OrchestrationTeamPanel | undefined>(`${PJ(workspace, projectId)}/team-panel/`)) ?? null;
+}
+
 export interface OrchestrationExecution {
   id: string;
   issueId: string;
@@ -445,6 +462,7 @@ export const orchestrationService = {
   upgradeBinding,
   listExecutions,
   startExecution,
+  getProjectTeamPanel,
   listMyApprovals,
   answerApproval,
 };

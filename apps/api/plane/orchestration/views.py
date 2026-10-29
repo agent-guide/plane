@@ -501,6 +501,29 @@ class ProjectBindingsEndpoint(BaseAPIView):
 # ---------------------------------------------------------------- 执行与审批
 
 
+class ProjectTeamPanelEndpoint(BaseAPIView):
+    """项目卡团队徽章（§12.2）：绑定的团队名 + 在岗/等待计数；未绑定返回 null。"""
+
+    def get(self, request, slug, project_id):
+        binding = ProjectTeamBinding.objects.filter(
+            project__workspace__slug=slug, project_id=project_id,
+            status=ProjectTeamBinding.Status.ACTIVE).select_related("team").first()
+        if not binding:
+            # 未绑定是正常态：204 空体（前端按 null 处理），不造 {"panel": null} 包装
+            return Response(status=204)
+        from .state_machine import TERMINAL_STATUSES
+        active = WorkItemExecution.objects.filter(
+            binding=binding).exclude(business_status__in=list(TERMINAL_STATUSES))
+        return Response({
+            "projectId": str(project_id),
+            "teamId": binding.team_id,
+            "teamName": binding.team.name,
+            "activeAgentCount": active.filter(business_status="running").count(),
+            "waitingDecisionCount": BusinessApproval.objects.filter(
+                execution__binding=binding, result=BusinessApproval.Result.PENDING).count(),
+        })
+
+
 class ProjectExecutionsEndpoint(BaseAPIView):
     def get(self, request, slug, project_id):
         executions = WorkItemExecution.objects.filter(

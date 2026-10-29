@@ -18,30 +18,28 @@ import { useTranslation } from "@plane/i18n";
 import { Bot } from "lucide-react";
 // components
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
-import runtimeService, { type ProjectTeamPanel } from "@/services/agent-teams/runtime.service";
-import { setExpertsWorkspaceSlug } from "@/services/agent-teams/experts-auth";
+// 数据源切换（阶段 2′）：项目卡徽章改走编排域同源 API
+import { orchestrationService, type OrchestrationTeamPanel } from "@/services/agent-teams/orchestration.service";
 
 export const ProjectTeamBadge = observer(function ProjectTeamBadge({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const router = useRouter();
   const { agentTeamDetailPath, approvalInboxPath } = useAgentTeamsLinks();
-  const [panel, setPanel] = useState<ProjectTeamPanel | null>(null);
+  const [panel, setPanel] = useState<OrchestrationTeamPanel | null>(null);
   const routerParams = useParams<{ workspaceSlug?: string }>();
-  // §12.6.7 BFF 身份交换按 workspace 取作用域（身份映射 connection+scope）。
-  useEffect(() => {
-    if (routerParams.workspaceSlug) setExpertsWorkspaceSlug(routerParams.workspaceSlug);
-  }, [routerParams.workspaceSlug]);
 
   const load = useCallback(async () => {
+    const workspaceSlug = routerParams.workspaceSlug;
+    if (!workspaceSlug) return;
     try {
-      setPanel(await runtimeService.getProjectTeamPanel(projectId));
+      setPanel(await orchestrationService.getProjectTeamPanel(workspaceSlug, projectId));
     } catch (error) {
       // 未绑定是 200+null 的正常态（service 直取 panel）；这里仅捕获传输故障，
       // 并保留控制台痕迹——不再静默吞错（assumed-endpoint 404 数周未察觉的教训）。
       console.error("agent-team-panel load failed", error);
       setPanel(null);
     }
-  }, [projectId]);
+  }, [projectId, routerParams.workspaceSlug]);
 
   useEffect(() => {
     void load();

@@ -167,6 +167,36 @@ class OrchestrationAPITest(TestCase):
         r = self.client.get("/api/workspaces/aws-orch/agent-teams/agent-catalog/")
         self.assertEqual(r.status_code, 503)
 
+    def test_project_team_panel(self):
+        """项目卡徽章：未绑定 null；绑定后团队名+在岗/等待计数。"""
+        from plane.orchestration import services
+        from plane.orchestration.models import WorkflowDefinition, WorkflowVersion, ProjectTeamBinding, BusinessApproval
+        team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="徽章团队")
+        member = services.add_member(team=team, user_id=self.owner.id, is_admin=True, kind="human", role="approver", user_ref=self.human.id)
+        services.activate_team(team=team, user_id=self.owner.id, is_admin=True)
+        wf = WorkflowDefinition.objects.create(project=self.project, name="徽章流程", created_by=self.owner)
+        version = WorkflowVersion.objects.create(workflow=wf, version=1, status=WorkflowVersion.Status.PUBLISHED)
+        binding = ProjectTeamBinding.objects.create(
+            project=self.project, team=team, workflow_version=version,
+            status=ProjectTeamBinding.Status.ACTIVE)
+        issue = Issue.objects.create(project=self.project, name="徽章工作项", created_by=self.owner)
+        execution = WorkItemExecution.objects.create(
+            issue=issue, binding=binding, business_status="running", current_member=member)
+        BusinessApproval.objects.create(execution=execution, node_ref="n1:1", assignee=self.human, options=["ok"])
+
+        r = self.client.get(f"/api/workspaces/aws-orch/projects/{self.project.id}/team-panel/")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body["teamName"], "徽章团队")
+        self.assertEqual(body["activeAgentCount"], 1)
+        self.assertEqual(body["waitingDecisionCount"], 1)
+
+        # 解绑后（retired）返回 null
+        binding.status = ProjectTeamBinding.Status.RETIRED
+        binding.save(update_fields=["status", "updated_at"])
+        r = self.client.get(f"/api/workspaces/aws-orch/projects/{self.project.id}/team-panel/")
+        self.assertEqual(r.status_code, 204)
+
     def test_member_cannot_touch_others_team(self):
         self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "归属"}, content_type="application/json")
         other_client = Client()
