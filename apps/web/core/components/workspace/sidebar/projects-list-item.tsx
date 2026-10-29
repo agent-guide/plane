@@ -26,6 +26,7 @@ import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useProjectNavigationPreferences } from "@/hooks/use-navigation-preferences";
+import { GitBranch } from "lucide-react";
 // local imports
 import { ProjectNavigation } from "./project-navigation";
 import { SidebarDraggableRow } from "@/components/sidebar/sidebar-draggable-row";
@@ -44,6 +45,21 @@ type Props = {
   isLastChild: boolean;
   renderInExtendedSidebar?: boolean;
 };
+
+/** 项目流程库入口（Agent Teams extension，2026-10-29 方案 A）：与「工作项」
+ * 对称的子菜单项，直达项目流程库；文案复用既有 agent_teams_workflows_title。 */
+const PROJECT_WORKFLOW_NAV_ITEM = (workspaceSlug: string, projectId: string) => [
+  {
+    i18n_key: "agent_teams_workflows_title",
+    key: "workflows",
+    name: "Workflows",
+    href: `/${workspaceSlug}/projects/${projectId}/workflows`,
+    icon: GitBranch,
+    access: [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    shouldRender: true,
+    sortOrder: 1.5,
+  },
+];
 
 export const SidebarProjectsListItem = observer(function SidebarProjectsListItem(props: Props) {
   const { projectId, handleCopyText, disableDrag, disableDrop, isLastChild, handleOnProjectDrop } = props;
@@ -156,7 +172,13 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
         collapsible={isAccordionMode}
         open={isAccordionMode ? isProjectListOpen : undefined}
         onOpenChange={isAccordionMode ? setIsProjectListOpen : undefined}
-        submenu={<ProjectNavigation workspaceSlug={workspaceSlug.toString()} projectId={projectId.toString()} />}
+        submenu={
+          <ProjectNavigation
+            workspaceSlug={workspaceSlug.toString()}
+            projectId={projectId.toString()}
+            additionalNavigationItems={PROJECT_WORKFLOW_NAV_ITEM}
+          />
+        }
         actions={
           <CustomMenu
             customButton={
