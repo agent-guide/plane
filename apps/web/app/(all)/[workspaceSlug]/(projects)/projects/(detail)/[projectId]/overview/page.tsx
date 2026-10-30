@@ -506,16 +506,29 @@ function ProjectOverviewPage() {
                       assetKey="work-item"
                       label={t("agent_teams_project_no_items")}
                       action={
-                        <button
-                          type="button"
-                          onClick={() =>
-                            commandPalette.toggleCreateIssueModal(true, EIssuesStoreType.PROJECT, [projectId])
-                          }
-                          className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-[13px] font-medium text-on-color hover:bg-accent-primary-hover"
-                        >
-                          <Plus className="size-3.5" aria-hidden />
-                          {t("agent_teams_project_new_item")}
-                        </button>
+                        // 编排域闸门（2026-10-30）：未绑定项目空态给绑定 CTA
+                        // 而非新建（建了也执行不了）；已绑定恢复新建
+                        binding ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              commandPalette.toggleCreateIssueModal(true, EIssuesStoreType.PROJECT, [projectId])
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-[13px] font-medium text-on-color hover:bg-accent-primary-hover"
+                          >
+                            <Plus className="size-3.5" aria-hidden />
+                            {t("agent_teams_project_new_item")}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setSwitchOpen(true)}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-[13px] font-medium text-on-color hover:bg-accent-primary-hover"
+                          >
+                            <Plus className="size-3.5" aria-hidden />
+                            {t("agent_teams_wf_bind_title")}
+                          </button>
+                        )
                       }
                     />
                   )}

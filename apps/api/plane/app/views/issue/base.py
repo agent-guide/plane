@@ -405,6 +405,17 @@ class IssueViewSet(BaseViewSet):
     def create(self, request, slug, project_id):
         project = Project.objects.get(pk=project_id)
 
+        # Agent Teams extension（编排域闸门，2026-10-30）：工作项是执行请求，
+        # 未绑定团队/流程的项目创建工作项是无消费者的生产——fail-closed 拒绝，
+        # 错误码引导前端直达绑定弹层（覆盖全部创建路径：弹窗/内联/导入/API）
+        from plane.orchestration.models import ProjectTeamBinding
+        if not ProjectTeamBinding.objects.filter(
+                project_id=project_id, status=ProjectTeamBinding.Status.ACTIVE).exists():
+            return Response(
+                {"error": "Project has no active team binding. Assign a team before creating work items.",
+                 "code": "PROJECT_NOT_BOUND"},
+                status=status.HTTP_409_CONFLICT)
+
         serializer = IssueCreateSerializer(
             data=request.data,
             context={

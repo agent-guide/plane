@@ -264,6 +264,19 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
       })
       .catch((error) => {
         console.error(error);
+        // 编排域闸门（2026-10-30）：未绑定项目创建被拒（PROJECT_NOT_BOUND）
+        // → 显式引导绑定，而非静默失败让用户一头雾水
+        const errData = (error as { response?: { data?: { code?: string } }; message?: string }) ?? {};
+        if (
+          errData.response?.data?.code === "PROJECT_NOT_BOUND" ||
+          String(errData.message ?? "").includes("PROJECT_NOT_BOUND")
+        ) {
+          setToast({
+            type: TOAST_TYPE.ERROR,
+            title: t("agent_teams_project_unbound_title"),
+            message: t("agent_teams_wf_bind_semantics"),
+          });
+        }
       });
   };
 
