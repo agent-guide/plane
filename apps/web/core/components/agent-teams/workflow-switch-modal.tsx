@@ -19,9 +19,11 @@ import { format, parseISO } from "date-fns";
 // 数据源切换（阶段 2′）：切换绑定改走编排域（流程归项目；版本=已发布可选）
 import {
   orchestrationService,
+  type OrchestrationTeam,
   type OrchestrationWorkflow,
   type OrchestrationWorkflowVersion,
 } from "@/services/agent-teams/orchestration.service";
+import { FormSelect } from "@/components/agent-teams/form-select";
 
 const publishedVersionsOf = (map: Record<string, OrchestrationWorkflowVersion[]>, flowId: string) =>
   (map[flowId] ?? []).filter((v) => v.status === "published");
@@ -38,11 +40,15 @@ export function WorkflowSwitchModal({
   handleClose: () => void;
   workspaceSlug: string;
   projectId: string;
-  /** 当前绑定的 workflow_version id（高亮当前 + 默认展开其所属流程）。 */
+  /** 当前绑定的 workflow_version id；null = 首次绑定模式（需选团队）。 */
   currentWorkflowVersionId: string | null;
   onSwitched: () => void;
 }) {
   const { t } = useTranslation();
+  // 首次绑定（无当前版本）需同时选团队；已绑定则只换版本
+  const isBindMode = currentWorkflowVersionId === null;
+  const [teams, setTeams] = useState<OrchestrationTeam[]>([]);
+  const [teamId, setTeamId] = useState("");
   const [workflows, setWorkflows] = useState<OrchestrationWorkflow[]>([]);
   const [versionsByFlow, setVersionsByFlow] = useState<Record<string, OrchestrationWorkflowVersion[]>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -57,8 +63,13 @@ export function WorkflowSwitchModal({
     let ignore = false;
     setLoading(true);
     setErrorKey("");
+    setTeamId("");
     (async () => {
       try {
+        if (isBindMode) {
+          const teamItems = await orchestrationService.listTeams(workspaceSlug);
+          setTeams(teamItems.filter((tm) => tm.status === "active"));
+        }
         const flows = await orchestrationService.listWorkflows(workspaceSlug, projectId);
         const entries = await Promise.all(
           flows.map(
@@ -87,7 +98,8 @@ export function WorkflowSwitchModal({
     return () => {
       ignore = true;
     };
-  }, [isOpen, workspaceSlug, projectId, currentWorkflowVersionId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, workspaceSlug, projectId, isBindMode]);
 
   const submit = async () => {
     if (!selected || selected === currentWorkflowVersionId) {
@@ -97,7 +109,19 @@ export function WorkflowSwitchModal({
     setSubmitting(true);
     setErrorKey("");
     try {
-      await orchestrationService.upgradeBinding(workspaceSlug, projectId, selected);
+      if (isBindMode) {
+        if (!teamId) {
+          setErrorKey("agent_teams_wf_form_incomplete");
+          setSubmitting(false);
+          return;
+        }
+        await orchestrationService.bindProject(workspaceSlug, projectId, {
+          teamId,
+          workflowVersionId: selected,
+        });
+      } else {
+        await orchestrationService.upgradeBinding(workspaceSlug, projectId, selected);
+      }
       onSwitched();
       handleClose();
     } catch (err) {
@@ -111,7 +135,19 @@ export function WorkflowSwitchModal({
   return (
     <ModalCore isOpen={isOpen} handleClose={handleClose} position={EModalPosition.TOP} width={EModalWidth.XXL}>
       <div className="space-y-5 p-5">
-        <h3 className="text-18 font-medium text-secondary">{t("agent_teams_wf_switch_title")}</h3>
+        <h3 className="text-18 font-medium text-secondary">
+          {t(isBindMode ? "agent_teams_wf_bind_title" : "agent_teams_wf_switch_title")}
+        </h3>
+        {isBindMode ? (
+          <div className="space-y-1">
+            <FormSelect
+              value={teamId}
+              placeholder={t("agent_teams_wf_bind_pick_team")}
+              options={teams.map((tm) => ({ id: tm.id, name: tm.name }))}
+              onChange={(v) => setTeamId(v)}
+            />
+          </div>
+        ) : null}
         {loading ? (
           <div className="py-8 text-center text-13 text-tertiary">{t("agent_teams_inbox_loading")}</div>
         ) : errorKey && workflows.length === 0 ? (
@@ -121,7 +157,7 @@ export function WorkflowSwitchModal({
             {workflows.map((flow) => {
               const versions = publishedVersionsOf(versionsByFlow, flow.id)
                 .slice()
-                .sort((a: { version: number }, b: { version: number }) => b.version - a.version);
+                .toSorted((a: { version: number }, b: { version: number }) => b.version - a.version);
               const isOpenGroup = expanded === flow.id;
               return (
                 <div key={flow.id} className="rounded-md border-[0.5px] border-subtle-1 bg-layer-1">
@@ -182,8 +218,10 @@ export function WorkflowSwitchModal({
               : `${t(errorKey.split("::detail::")[0])}：${errorKey.split("::detail::")[1]}`}
           </p>
         ) : null}
-        {/* 切换语义固定告知（§4.5 定案） */}
-        <p className="text-11 text-tertiary">{t("agent_teams_wf_switch_semantics")}</p>
+        {/* 绑定/切换语义固定告知（§4.5 定案） */}
+        <p className="text-11 text-tertiary">
+          {t(isBindMode ? "agent_teams_wf_bind_semantics" : "agent_teams_wf_switch_semantics")}
+        </p>
         <div className="flex items-center justify-end gap-2 border-t-[0.5px] border-subtle px-5 py-4">
           <PropelButton variant="secondary" size="lg" onClick={handleClose}>
             {t("cancel")}
@@ -193,9 +231,9 @@ export function WorkflowSwitchModal({
             size="lg"
             onClick={() => void submit()}
             loading={submitting}
-            disabled={!selected || selected === currentWorkflowVersionId}
+            disabled={!selected || (!isBindMode && selected === currentWorkflowVersionId) || (isBindMode && !teamId)}
           >
-            {t("agent_teams_wf_switch_confirm")}
+            {t(isBindMode ? "agent_teams_wf_bind_confirm" : "agent_teams_wf_switch_confirm")}
           </PropelButton>
         </div>
       </div>

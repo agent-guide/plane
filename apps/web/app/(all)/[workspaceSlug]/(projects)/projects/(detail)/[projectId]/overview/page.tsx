@@ -469,6 +469,20 @@ function ProjectOverviewPage() {
                         {t("agent_teams_wf_switch")}
                       </button>
                     </div>
+                  ) : !runtimeFailed ? (
+                    /* 未绑定：同样给胶囊入口——选团队+流程版本完成首次绑定
+                       （建项目即绑定向导退役后的唯一绑定入口） */
+                    <div className="ml-auto inline-flex h-8 flex-shrink-0 items-center gap-1.5 self-center rounded-full bg-layer-2 px-3">
+                      <Workflow className="size-3.5 flex-shrink-0 text-tertiary" aria-hidden />
+                      <span className="text-[12px] font-medium text-tertiary">{t("agent_teams_wf_unbound")}</span>
+                      <button
+                        type="button"
+                        className="inline-flex h-6 flex-shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-medium text-accent-primary transition-colors hover:bg-accent-subtle"
+                        onClick={() => setSwitchOpen(true)}
+                      >
+                        {t("agent_teams_wf_bind_title")}
+                      </button>
+                    </div>
                   ) : null}
                 </div>
 
