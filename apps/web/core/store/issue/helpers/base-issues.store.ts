@@ -34,6 +34,7 @@ import { convertToISODateString } from "@plane/utils";
 import { CycleService } from "@/services/cycle.service";
 import { IssueArchiveService, IssueService } from "@/services/issue";
 import { ModuleService } from "@/services/module.service";
+import { isProjectNotBoundError, notifyProjectNotBound } from "@/services/agent-teams/not-bound-guard";
 // agent teams extension (§12.6.1 new-item catch-up)
 //
 import type { IIssueRootStore } from "../root.store";
@@ -532,7 +533,16 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     shouldUpdateList = true
   ) {
     // perform an API call
-    const response = await this.issueService.createIssue(workspaceSlug, projectId, data);
+    // 编排域闸门前端配套（2026-10-30）：未绑定项目 409 在此统一提示——
+    // quick-add 等路径会静默吞错，store 层是唯一全覆盖的拦截点；再抛出
+    // 保留调用方原有错误路径
+    let response;
+    try {
+      response = await this.issueService.createIssue(workspaceSlug, projectId, data);
+    } catch (error) {
+      if (isProjectNotBoundError(error)) notifyProjectNotBound();
+      throw error;
+    }
 
     // add Issue to Store
     this.addIssue(response, shouldUpdateList);

@@ -18,6 +18,7 @@ export type { TNamespace } from "./constants/namespaces";
 
 // Utilities
 export { setLanguage } from "./core/set-language";
+export { translate } from "./core/translate";
 export { initPromise } from "./core";
 
 // Constants

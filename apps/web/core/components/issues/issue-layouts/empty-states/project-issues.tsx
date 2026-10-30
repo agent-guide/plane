@@ -13,8 +13,12 @@ import { EmptyStateDetailed } from "@plane/propel/empty-state";
 import { EIssuesStoreType, EUserProjectRoles } from "@plane/types";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
+// Agent Teams extension：未绑定项目空态给绑定 CTA（编排域闸门配套）
+import { useProjectRuntimeOverview } from "@/services/agent-teams/runtime-swr";
+import { WorkflowSwitchModal } from "@/components/agent-teams/workflow-switch-modal";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useWorkItemFilterInstance } from "@/hooks/store/work-item-filters/use-work-item-filter-instance";
+import { useState } from "react";
 
 export const ProjectEmptyState = observer(function ProjectEmptyState() {
   // router
@@ -25,6 +29,10 @@ export const ProjectEmptyState = observer(function ProjectEmptyState() {
   // store hooks
   const { toggleCreateIssueModal } = useCommandPalette();
   const { allowPermissions } = useUserPermissions();
+  const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
+  const { data: runtimeOverview } = useProjectRuntimeOverview(workspaceSlug, projectId ?? "");
+  const isBound = !!runtimeOverview?.binding;
+  const [bindOpen, setBindOpen] = useState(false);
   // derived values
   const projectWorkItemFilter = useWorkItemFilterInstance(EIssuesStoreType.PROJECT, projectId);
 
@@ -55,17 +63,35 @@ export const ProjectEmptyState = observer(function ProjectEmptyState() {
           title={t("project_empty_state.work_items.title")}
           description={t("project_empty_state.work_items.description")}
           actions={[
-            {
-              label: t("project_empty_state.work_items.cta_primary"),
-              onClick: () => {
-                toggleCreateIssueModal(true, EIssuesStoreType.PROJECT);
-              },
-              disabled: !canPerformEmptyStateActions,
-              variant: "primary",
-            },
+            isBound
+              ? {
+                  label: t("project_empty_state.work_items.cta_primary"),
+                  onClick: () => {
+                    toggleCreateIssueModal(true, EIssuesStoreType.PROJECT);
+                  },
+                  disabled: !canPerformEmptyStateActions,
+                  variant: "primary" as const,
+                }
+              : {
+                  // 未绑定：先绑定团队，工作项才能被执行（编排域闸门）
+                  label: t("agent_teams_wf_bind_title"),
+                  onClick: () => setBindOpen(true),
+                  disabled: !canPerformEmptyStateActions,
+                  variant: "primary" as const,
+                },
           ]}
         />
       )}
+      {workspaceSlug && projectId ? (
+        <WorkflowSwitchModal
+          isOpen={bindOpen}
+          handleClose={() => setBindOpen(false)}
+          workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          currentWorkflowVersionId={null}
+          onSwitched={() => setBindOpen(false)}
+        />
+      ) : null}
     </div>
   );
 });
