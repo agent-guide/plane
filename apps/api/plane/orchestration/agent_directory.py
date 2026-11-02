@@ -13,6 +13,10 @@ import json
 import os
 import urllib.request
 
+# macOS 系统代理（Clash 等）会拦截 127.0.0.1 出站——本地直连必须绕过
+# （httpx 同款坑：trust_env=False）
+_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
 
 def _config() -> tuple[str, str, str] | None:
     base = os.environ.get("AGWMNGR_BASE_URL", "").rstrip("/")
@@ -39,7 +43,7 @@ def resolve_agent_names(definition_ids) -> dict[str, str]:
         req = urllib.request.Request(
             f"{base}/api/platform/v1/tenants/{tenant}/agents",
             headers={"Authorization": f"Bearer {token}"})
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with _opener.open(req, timeout=5) as response:
             items = json.loads(response.read() or b"{}").get("items") or []
     except Exception:
         return {}
@@ -62,7 +66,7 @@ def list_catalog() -> list[dict] | None:
         req = urllib.request.Request(
             f"{base}/api/platform/v1/tenants/{tenant}/agents",
             headers={"Authorization": f"Bearer {token}"})
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with _opener.open(req, timeout=5) as response:
             items = json.loads(response.read() or b"{}").get("items") or []
     except Exception:
         return None

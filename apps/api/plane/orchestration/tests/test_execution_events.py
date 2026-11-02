@@ -41,10 +41,10 @@ class ExecutionTestBase(TestCase):
         services.activate_team(team=cls.team, user_id=cls.owner.id, is_admin=True)
         cls.workflow = WorkflowDefinition.objects.create(project=cls.project, name="wf-e", created_by=cls.owner)
         cls.version = WorkflowVersion.objects.create(workflow=cls.workflow, version=1, status=WorkflowVersion.Status.PUBLISHED)
-        cls.binding = services.bind_project(
-            project=cls.project, team=cls.team, user_id=cls.owner.id, is_admin=True, workflow_version=cls.version)
         cls.issue = Issue.objects.create(
             project=cls.project, name="执行用工作项", created_by=cls.owner)  # save() 自动维护 sequence
+        cls.binding = services.bind_project(
+            project=cls.project, team=cls.team, user_id=cls.owner.id, is_admin=True, workflow_version=cls.version)
 
     def _execution(self) -> WorkItemExecution:
         return WorkItemExecution.objects.create(issue=self.issue, binding=self.binding, frozen_context={"v": 1})
@@ -178,3 +178,23 @@ class InboxTests(ExecutionTestBase):
         with self.assertRaises(TeamDomainError):
             process_event(external_event_id="ext-rc2", event_type="engine.reconcile_stale",
                           payload={"executionId": ex.id})
+
+
+class AutoStartSignalTests(ExecutionTestBase):
+    """建卡自动启动（等价旧 WorkManagementAutoStartService 事件驱动语义）。"""
+
+    def test_bound_project_create_starts_automatically(self):
+        """绑定项目建卡 → 自动受控启动（queued + outbox engine.start）。"""
+        issue = Issue.objects.create(project=self.project, name="自动启动", created_by=self.owner)
+        ex = WorkItemExecution.objects.get(issue=issue)
+        self.assertEqual(ex.business_status, "queued")
+        from plane.orchestration.models import OrchestrationOutbox
+        self.assertTrue(OrchestrationOutbox.objects.filter(
+            command_type="engine.start", payload__executionId=str(ex.id)).exists())
+
+    def test_unbound_project_does_not_start(self):
+        """未绑定项目建卡 → not_governed 不启动。"""
+        project2 = Project.objects.create(
+            name="np", identifier="NPORCH", workspace=self.ws, created_by=self.owner)
+        issue = Issue.objects.create(project=project2, name="不启动", created_by=self.owner)
+        self.assertFalse(WorkItemExecution.objects.filter(issue=issue).exists())

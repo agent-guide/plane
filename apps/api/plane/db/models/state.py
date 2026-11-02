@@ -141,7 +141,13 @@ class State(ProjectBaseModel):
                 fields=["name", "project"],
                 condition=Q(deleted_at__isnull=True),
                 name="state_unique_name_project_when_deleted_at_null",
-            )
+            ),
+            # 编排域寻址标签唯一（同项目同标签只允许一态，防脏数据导致打标随机命中）
+            models.UniqueConstraint(
+                fields=["project", "external_id"],
+                condition=Q(deleted_at__isnull=True) & ~Q(external_id="") & Q(external_id__isnull=False),
+                name="state_unique_external_id_per_project",
+            ),
         ]
         verbose_name = "State"
         verbose_name_plural = "States"

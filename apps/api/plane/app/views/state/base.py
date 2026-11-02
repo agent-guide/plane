@@ -120,6 +120,14 @@ class StateViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # 编排域运行时按 external_id 标签寻址此状态（执行状态落点），删除会
+        # 使团队执行的状态打标失去落点——同 Jira 禁删 workflow 引用态
+        if state.external_id:
+            return Response(
+                {"error": "This state is used by team execution and cannot be deleted"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Check for any issues in the state
         issue_exist = Issue.objects.filter(state=pk).exists()
 

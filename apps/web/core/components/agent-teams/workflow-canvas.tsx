@@ -323,6 +323,9 @@ export type WorkflowCanvasEditorLabels = {
   cycleError: string;
   nodePanelTitle: string;
   fieldName: string;
+  connectionsSection: string;
+  connectionSelect: string;
+  connectionHint: string;
   fieldEmployee: string;
   /** 团队暂无在编数字员工时的空态引导（不回退全租户目录，验收修正 2026-10-15）。 */
   fieldEmployeeEmptyHint?: string;
@@ -360,9 +363,12 @@ export type ToolCatalogEntry = {
   connection_type?: string;
 };
 
+const connectionTypeLabel = (type: string) =>
+  type === "zentao" ? "禅道" : type === "http_api" ? "其他系统" : type;
+
 // Available connections (name + type) for the tool-node credential dropdown —
 // filtered by the selected tool's declared connection_type when known.
-export type ConnectionEntry = { name: string; type: string };
+export type ConnectionEntry = { name: string; type: string; status?: string };
 
 // Published employees for the agent-node binding dropdown (整改一).
 export type EmployeeEntry = { id: string; name: string; categoryName?: string };
@@ -407,6 +413,18 @@ export function WorkflowCanvasEditor({
   const [error, setError] = useState("");
 
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedId) ?? null, [nodes, selectedId]);
+
+  // AI 节点的连接选择数据（设计 §5.2）：数字员工自带工具能力，按连接类型分组提供选择
+  const agentConnections = useMemo(() => {
+    if (!selectedNode || selectedNode.type !== "agent" || connections.length === 0) return [];
+    const grouped = new Map<string, ConnectionEntry[]>();
+    for (const conn of connections) {
+      if (!grouped.has(conn.type)) grouped.set(conn.type, []);
+      grouped.get(conn.type)!.push(conn);
+    }
+    return Array.from(grouped.entries()).map(([type, options]) => ({ type, options }));
+  }, [selectedNode, connections]);
+
 
   const onConnect = useCallback(
     (connection: Connection) =>
@@ -652,6 +670,36 @@ export function WorkflowCanvasEditor({
                     />
                     <span className={FIELD_HINT_CLASS}>{labels.fieldPromptHint}</span>
                   </div>
+                  {/* 连接（条件区，设计 §5.2）：所选员工携带工具时为每类工具选连接 */}
+                  {agentConnections.length > 0 ? (
+                    <div className="flex flex-col gap-2 rounded-md border border-subtle px-2.5 py-2">
+                      <span className={FIELD_LABEL_CLASS}>{labels.connectionsSection}</span>
+                      {agentConnections.map((entry) => (
+                        <div key={entry.type} className="flex flex-col gap-1">
+                          <span className="text-11 text-tertiary">{connectionTypeLabel(entry.type)}</span>
+                          <span className="flex items-center gap-1.5">
+                            <FormSelect
+                              value={((selectedNode.data.connections as Record<string, string> | undefined)?.[entry.type]) ?? ""}
+                              placeholder={labels.connectionSelect}
+                              options={entry.options.map((c) => ({
+                                id: c.name,
+                                name: c.status === "unreachable" ? `${c.name} ⚠` : c.name,
+                              }))}
+                              onChange={(v) =>
+                                patchSelected({
+                                  connections: {
+                                  ...selectedNode.data.connections,
+                                  [entry.type]: v,
+                                } as Record<string, string>,
+                                })
+                              }
+                            />
+                          </span>
+                        </div>
+                      ))}
+                      <span className={FIELD_HINT_CLASS}>{labels.connectionHint}</span>
+                    </div>
+                  ) : null}
                 </>
               ) : null}
               {selectedNode.type === "tool" ? (

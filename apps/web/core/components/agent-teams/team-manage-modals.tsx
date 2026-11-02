@@ -131,11 +131,13 @@ export function AddMemberModal({
           list = catalog.map((entry) => ({ id: entry.id, name: entry.name, hint: entry.description || undefined }));
         } else {
           const members = await workspaceService.fetchWorkspaceMembers(workspaceSlug);
-          list = members.map((m) => ({
-            id: m.member.id,
-            name: m.member.display_name || m.member.first_name || m.member.email || m.member.id,
-            hint: m.member.email,
-          }));
+          list = members
+            .filter((m) => !m.member.is_bot) // 人类候选排除 agent bot 账号
+            .map((m) => ({
+              id: m.member.id,
+              name: m.member.display_name || m.member.first_name || m.member.email || m.member.id,
+              hint: m.member.email,
+            }));
         }
         if (!ignore) setCandidates(list);
       } catch {

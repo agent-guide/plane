@@ -212,6 +212,42 @@ class AgentPermissionRequest(OrchestrationBaseModel):
     answered_at = models.DateTimeField(null=True, blank=True)
 
 
+# ---------------------------------------------------------------- 连接域
+
+
+class ExternalConnection(OrchestrationBaseModel):
+    """外部系统连接（连接管理设计 §2）：工作区级凭据实体。
+
+    config 为 Fernet 加密 JSON，API 永不回明文；删除即凭据置空（软删仅留元数据）。
+    被流程 AI 节点按名称引用；运行时工具服务经内部 resolve 回调取凭据。
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        UNREACHABLE = "unreachable", "Unreachable"
+        UNTESTED = "untested", "Untested"
+
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="external_connections")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                   related_name="created_connections")
+    name = models.CharField(max_length=100)
+    type = models.CharField(max_length=30)
+    config = models.TextField(blank=True, default="")  # Fernet 加密 JSON
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.UNTESTED)
+    status_note = models.CharField(max_length=200, blank=True, default="")  # 面向用户的失败原因
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workspace", "name"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="uniq_connection_name_per_workspace_when_not_deleted"),
+        ]
+        indexes = [models.Index(fields=["workspace", "type"])]
+        db_table = "orchestration_connections"
+
+
 # ---------------------------------------------------------------- 成果域
 
 

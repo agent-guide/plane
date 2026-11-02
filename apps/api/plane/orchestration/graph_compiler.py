@@ -114,6 +114,12 @@ def _compile_node(node: dict, key: str, order: int) -> dict:
             # 分支来自带 label 的出边，随整图拓扑校验
             compiled["expertId"] = _text(data.get("expertId"))
             compiled["prompt"] = _text(data.get("prompt"))
+            # 连接绑定（连接管理设计 §6）：仅连接名进 definition，凭据永不入
+            conn_map = data.get("connections")
+            if isinstance(conn_map, dict) and conn_map:
+                compiled["connections"] = {
+                    str(k): str(v) for k, v in conn_map.items() if str(v or "").strip()
+                }
         elif node_type == "tool":
             compiled["toolName"] = _text(data.get("toolName") or data.get("tool_name"))
             compiled["connection"] = _text(data.get("connection"))

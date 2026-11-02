@@ -22,6 +22,7 @@ import {
   type OrchestrationWorkflow,
 } from "@/services/agent-teams/orchestration.service";
 import { WorkspaceService } from "@/services/workspace.service";
+import { connectionsService } from "@/services/agent-teams/connections.service";
 // components
 import { WorkflowCanvasEditor } from "@/components/agent-teams/workflow-canvas";
 import type { WorkflowCanvasEditorLabels } from "@/components/agent-teams/workflow-canvas";
@@ -51,6 +52,9 @@ const CANVAS_LABELS_ZH: WorkflowCanvasEditorLabels = {
   cycleError: "流程中存在循环连线，请检查后再保存",
   nodePanelTitle: "节点属性",
   fieldName: "节点名称 *",
+  connectionsSection: "连接",
+  connectionSelect: "选择连接",
+  connectionHint: "选择连接后，数字员工才能访问对应系统",
   fieldEmployee: "负责员工",
   fieldEmployeeEmptyHint: "数字员工目录暂不可用，可先手填标识后保存",
   genericAgent: "通用 Agent（不绑定员工）",
@@ -118,6 +122,8 @@ function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; wo
   // 工具/连接目录暂空（终局 env 承载引擎连接；工具注册表后续随执行域补）。
   const [experts, setExperts] = useState<Array<{ id: string; name: string }>>([]);
   const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
+  // 工作区连接（AI 节点连接选择，连接管理设计 §5.2）
+  const [connections, setConnections] = useState<Array<{ name: string; type: string; status?: string }>>([]);
 
   const zh = typeof navigator !== "undefined" && navigator.language?.startsWith("zh");
 
@@ -161,6 +167,15 @@ function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; wo
               name: m.member.display_name || m.member.first_name || m.member.email || m.member.id,
             }))
           );
+        }
+        return null;
+      })
+      .catch(() => undefined);
+    connectionsService
+      .listConnections(workspaceSlug)
+      .then((items) => {
+        if (!ignore) {
+          setConnections(items.map((c) => ({ name: c.name, type: c.type as string, status: c.status })));
         }
         return null;
       })
@@ -267,7 +282,7 @@ function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; wo
               </>
             }
             toolCatalog={[]}
-            connections={[]}
+            connections={connections}
             employees={experts}
             users={users}
             onSave={saveGraph}

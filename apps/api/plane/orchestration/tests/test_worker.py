@@ -120,9 +120,9 @@ class OutboxConsumerTests(TestCase):
         v = workflows.save_draft_version(workflow=cls.wf, user_id=cls.owner.id)
         pub = workflows.start_publish(workflow=cls.wf, user_id=cls.owner.id)
         cls.version = workflows.finish_publish(version=pub, engine_deploy_ref={})
+        cls.issue = Issue.objects.create(project=cls.project, name="outbox 工作项", created_by=cls.owner)
         cls.binding = services.bind_project(
             project=cls.project, team=cls.team, user_id=cls.owner.id, is_admin=True, workflow_version=cls.version)
-        cls.issue = Issue.objects.create(project=cls.project, name="outbox 工作项", created_by=cls.owner)
 
     def test_failed_engine_start_marks_failed_not_loop(self):
         """Airflow 未配置 → 命令标记 failed，不无限重试（等价性：取消/失败分开表示）。"""

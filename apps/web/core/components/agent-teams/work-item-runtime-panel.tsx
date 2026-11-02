@@ -17,9 +17,13 @@ import useSWR from "swr";
 import { useTranslation } from "@plane/i18n";
 // plane imports
 import { Button } from "@plane/propel/button";
+import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { EModalWidth, ModalCore } from "@plane/ui";
 // icons
 import { Bot, ChevronDown, Clock, ExternalLink, FileBox, GitBranch, User, Users } from "lucide-react";
+import { StateGroupIcon } from "@plane/propel/icons";
+import type { TStateGroups } from "@plane/types";
+
 // components
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
@@ -60,7 +64,7 @@ function useTimelineLabel() {
       const statusKey = `agent_teams_status_${event.status}`;
       const statusText = t(statusKey);
       const status = statusText !== statusKey ? statusText : event.status;
-      if (event.kind === "node") return `${event.nodeKey ?? ""} · ${status}`;
+      if (event.kind === "node") return `${event.nodeName ?? event.nodeKey ?? ""} · ${status}`;
       return status;
     },
     [t]
@@ -91,6 +95,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       shouldRetryOnError: false,
     }
   );
+  const pendingStart = !!summary && (summary as { pendingStart?: boolean }).pendingStart;
   const timeline: OrchestrationTimelineEvent[] = summary?.timeline ?? [];
   const loading = isLoading && !summary;
   const [answering, setAnswering] = useState("");
@@ -137,6 +142,21 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     [summary, refresh, workspaceSlug]
   );
 
+  // 手动启动兜底（pendingStart 态）：同受控启动链
+  const [starting, setStarting] = useState(false);
+  const handleStart = useCallback(async () => {
+    setStarting(true);
+    try {
+      await orchestrationService.startExecution(workspaceSlug, projectId, issueId);
+      await refresh();
+    } catch (error) {
+      setToast({ type: TOAST_TYPE.ERROR, title: t("error"), message: String((error as Error)?.message ?? error) });
+    } finally {
+      setStarting(false);
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- t 每渲染新引用，既往教训
+  }, [refresh, workspaceSlug, projectId, issueId]);
+
   const handleCancel = useCallback(async () => {
     setCancelling(true);
     try {
@@ -147,6 +167,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     } finally {
       setCancelling(false);
     }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- t 每渲染新引用，既往教训
   }, [refresh, workspaceSlug, projectId, issueId]);
 
   // 重试=终态后重新受控启动（同工作项新执行，绑定校验链照走）
@@ -199,6 +220,19 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       <div className="mt-4 mb-2">
         {loading ? (
           <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">{t("agent_teams_inbox_loading")}</div>
+        ) : pendingStart ? (
+          // 已绑定但尚未启动（历史卡/自动启动失败）：给手动启动兜底
+          <div className="flex items-center justify-between px-0.5 py-1.5">
+            <span className="text-body-xs-regular text-placeholder">{t("agent_teams_status_queued")}</span>
+            <button
+              type="button"
+              disabled={starting}
+              onClick={() => void handleStart()}
+              className="text-caption-sm-medium text-accent-primary hover:text-accent-hover disabled:opacity-60"
+            >
+              {starting ? t("agent_teams_panel_retrying") : t("agent_teams_panel_retry")}
+            </button>
+          </div>
         ) : !summary ? (
           // 未绑定（无执行记录）：新域绑定即项目级，无旧链的投影延迟窗口
           <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">{t("agent_teams_panel_not_bound")}</div>
@@ -279,9 +313,21 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-6">
-                  <span className="inline-flex items-center rounded bg-layer-3 px-2 py-0.5 text-caption-sm-medium text-secondary">
-                    {t(`agent_teams_status_${summary.businessStatus}`)}
-                  </span>
+                  {/* 与工作项属性面板同源的状态徽章（名+色）；无状态回退执行态文本 */}
+                  {summary.issueState ? (
+                    <span className="inline-flex items-center gap-1.5 text-caption-sm-medium text-secondary">
+                      <StateGroupIcon
+                        stateGroup={(summary.issueState.group ?? "started") as TStateGroups}
+                        color={summary.issueState.color}
+                        className="size-3.5 flex-shrink-0"
+                      />
+                      {summary.issueState.name}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded bg-layer-3 px-2 py-0.5 text-caption-sm-medium text-secondary">
+                      {t(`agent_teams_status_${summary.businessStatus}`)}
+                    </span>
+                  )}
                   {summary.currentMemberName && (
                     <span className="inline-flex items-center gap-1 text-caption-sm-regular text-secondary">
                       <User className="size-3" aria-hidden />
@@ -305,7 +351,11 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                       <Clock className="size-3" aria-hidden />
                       {isTerminal
                         ? t("agent_teams_panel_minutes", { count: Math.round(summary.durationSeconds / 60) })
-                        : t("agent_teams_panel_elapsed", { count: Math.round(summary.durationSeconds / 60) })}
+                        : summary.pendingApproval
+                          // 等待审批期间计的是「等待时长」而非执行时长——避免误读为
+                          // 执行一直在跑（人工可等数小时/数天，§2.6 durable wait）
+                          ? t("agent_teams_panel_waiting_for", { count: Math.round(summary.durationSeconds / 60) })
+                          : t("agent_teams_panel_elapsed", { count: Math.round(summary.durationSeconds / 60) })}
                     </span>
                   ) : (
                     <span />

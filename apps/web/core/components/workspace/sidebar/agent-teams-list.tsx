@@ -22,7 +22,6 @@ import { cn } from "@plane/utils";
 // components
 import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 import { SidebarDraggableRow } from "@/components/sidebar/sidebar-draggable-row";
-import { TeamStatusIcon } from "@/components/agent-teams/team-status";
 import { agentTeamDetailPath, agentTeamsPath } from "@/components/agent-teams/helper";
 // 数据源切换（阶段 2′）：团队列表改走编排域同源 API
 import { orchestrationService, type OrchestrationTeam } from "@/services/agent-teams/orchestration.service";
@@ -67,12 +66,17 @@ export function SidebarAgentTeamsList({ workspaceSlug }: { workspaceSlug: string
     if (stored !== null) setIsOpen(stored === "true");
   }, []);
 
-  // 进入团队相关路由时自动展开（项目组同款行为）
+  // 进入团队相关路由时自动展开（项目组同款行为）；路由变化即刷新
+  // 列表（新建团队跳详情后侧栏即时出现，无需手动刷新页面）
   useEffect(() => {
     if (pathname.includes("/agent-teams")) {
       setIsOpen(true);
       window.localStorage.setItem(STORAGE_KEY, "true");
     }
+  }, [pathname]);
+  useEffect(() => {
+    if (isOpen && loaded) load();
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const load = useCallback(() => {
@@ -174,7 +178,6 @@ export function SidebarAgentTeamsList({ workspaceSlug }: { workspaceSlug: string
               {visible.map((team, index) => {
                 const href = agentTeamDetailPath(workspaceSlug, team.id);
                 const membersHref = `/${workspaceSlug}/agent-teams/${team.id}/members`;
-                const statusIcon = <TeamStatusIcon status={team.status} className="size-3.5" />;
                 return (
                   <SidebarDraggableRow
                     key={team.id}
@@ -186,13 +189,7 @@ export function SidebarAgentTeamsList({ workspaceSlug }: { workspaceSlug: string
                     highlight={path === href}
                     isLastChild={index === visible.length - 1}
                     onReorder={handleTeamReorder}
-                    leading={statusIcon}
-                    dragPreview={
-                      <>
-                        {statusIcon}
-                        <p className="truncate text-secondary">{team.name}</p>
-                      </>
-                    }
+                    dragPreview={<p className="truncate text-secondary">{team.name}</p>}
                     submenu={
                       <>
                         {/* 子项：成员（流程入口已退役——流程归项目所有，随项目

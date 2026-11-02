@@ -136,7 +136,7 @@ export function WorkflowSwitchModal({
     <ModalCore isOpen={isOpen} handleClose={handleClose} position={EModalPosition.TOP} width={EModalWidth.XXL}>
       <div className="space-y-5 p-5">
         <h3 className="text-18 font-medium text-secondary">
-          {t(isBindMode ? "agent_teams_wf_bind_title" : "agent_teams_wf_switch_title")}
+          {t(isBindMode ? "agent_teams_wf_bind_title" : "agent_teams_wf_switch_title_full")}
         </h3>
         {isBindMode ? (
           <div className="space-y-1">
@@ -152,12 +152,26 @@ export function WorkflowSwitchModal({
           <div className="py-8 text-center text-13 text-tertiary">{t("agent_teams_inbox_loading")}</div>
         ) : errorKey && workflows.length === 0 ? (
           <div className="py-6 text-center text-13 text-danger-primary">{t(errorKey)}</div>
+        ) : workflows.length === 0 && !loading ? (
+          <div className="flex flex-col items-center gap-2 rounded-md border border-subtle px-4 py-6 text-center">
+            <p className="text-13 text-tertiary">{t("agent_teams_wf_bind_no_flows")}</p>
+            <PropelButton
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                handleClose();
+                window.location.assign(`/${workspaceSlug}/projects/${projectId}/workflows`);
+              }}
+            >
+              {t("agent_teams_wf_bind_go_create")}
+            </PropelButton>
+          </div>
         ) : (
           <div className="space-y-2">
             {workflows.map((flow) => {
               const versions = publishedVersionsOf(versionsByFlow, flow.id)
                 .slice()
-                .toSorted((a: { version: number }, b: { version: number }) => b.version - a.version);
+                .toSorted((a: OrchestrationWorkflowVersion, b: OrchestrationWorkflowVersion) => b.version - a.version);
               const isOpenGroup = expanded === flow.id;
               return (
                 <div key={flow.id} className="rounded-md border-[0.5px] border-subtle-1 bg-layer-1">

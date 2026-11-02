@@ -59,9 +59,11 @@ export const ProjectEmptyState = observer(function ProjectEmptyState() {
         />
       ) : (
         <EmptyStateDetailed
-          assetKey="work-item"
-          title={t("project_empty_state.work_items.title")}
-          description={t("project_empty_state.work_items.description")}
+          assetKey={isBound ? "work-item" : "teamspace"}
+          title={t(isBound ? "project_empty_state.work_items.title" : "agent_teams_project_unbound_title")}
+          description={t(
+            isBound ? "project_empty_state.work_items.description" : "agent_teams_project_unbound_hint"
+          )}
           actions={[
             isBound
               ? {

@@ -132,3 +132,48 @@ class CompileErrorTests(SimpleTestCase):
         self._expect({"nodes": [{"id": "h", "type": "human_confirm",
                                  "data": {"freeText": "yes"}}], "edges": []},
                      "WORKFLOW_NODE_INVALID")
+
+
+class ExecutionContextTests(SimpleTestCase):
+    """执行上下文组装与分支判定（等价旧 _prompt / workflow_branching）。"""
+
+    def test_prompt_injects_task_and_prior_outputs(self):
+        from plane.orchestration.execution_context import build_node_prompt
+
+        class Issue:
+            name = "上线报销系统"
+            description_html = "<p>含审批流与</p><p>发票上传</p>"
+
+        prompt = build_node_prompt(
+            node={"key": "a_0", "name": "需求分析", "prompt": "整理需求"},
+            issue=Issue(),
+            prior_outputs=[{"node_key": "b_0", "output": "前置结论"}],
+        )
+        self.assertIn("任务标题：上线报销系统", prompt)
+        self.assertIn("任务描述：含审批流与 发票上传", prompt)
+        self.assertIn("前置节点 b_0 输出：前置结论", prompt)
+
+    def test_match_branch_label_exact_then_containment(self):
+        from plane.orchestration.execution_context import match_branch_label
+
+        self.assertEqual(match_branch_label("「通过」", ["通过", "驳回"]), "通过")
+        self.assertEqual(match_branch_label("我建议选择 直接发布", ["通过", "直接发布"]), "直接发布")
+        self.assertIsNone(match_branch_label("都行", ["通过", "驳回"]))  # 未选不猜
+        self.assertIsNone(match_branch_label("通过 驳回", ["通过", "驳回"]))  # 多匹配视为未选
+
+    def test_pruned_nodes_by_choice(self):
+        from plane.orchestration.execution_context import pruned_node_keys
+
+        definition = {
+            "nodes": [{"key": k, "type": "condition" if k == "c" else "ai"} for k in ("s", "c", "a", "b", "j")],
+            "edges": [
+                {"source": "s", "target": "c"},
+                {"source": "c", "target": "a", "label": "左"},
+                {"source": "c", "target": "b", "label": "右"},
+                {"source": "a", "target": "j"},
+                {"source": "b", "target": "j"},
+            ],
+        }
+        self.assertEqual(pruned_node_keys(definition, {"c": "左"}), {"b"})
+        self.assertEqual(pruned_node_keys(definition, {}), set())  # 未判定不剪
+        self.assertEqual(pruned_node_keys(definition, {"c": "不存在"}), set())  # fail-open

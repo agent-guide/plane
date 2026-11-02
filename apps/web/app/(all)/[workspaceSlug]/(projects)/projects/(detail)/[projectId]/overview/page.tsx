@@ -270,7 +270,16 @@ function ProjectOverviewPage() {
     {
       key: "result",
       content: t("agent_teams_panel_status"),
-      tdRender: (run) => <span className="text-secondary">{t(RUN_RESULT_PAST[run.status] ?? "run_unknown")}</span>,
+      tdRender: (run) =>
+        // 与工作项列表同源的状态徽章；无状态回退运行动词文本
+        run.stateName ? (
+          <span className="inline-flex items-center gap-1.5 text-caption-sm-medium text-secondary">
+            <StateGroupIcon stateGroup={(run.stateGroup ?? "started") as TStateGroups} color={run.stateColor ?? undefined} className="size-3.5 flex-shrink-0" />
+            <span className="truncate">{run.stateName}</span>
+          </span>
+        ) : (
+          <span className="text-secondary">{t(RUN_RESULT_PAST[run.status] ?? "run_unknown")}</span>
+        ),
     },
     {
       key: "updated",
@@ -504,7 +513,8 @@ function ProjectOverviewPage() {
                   ) : (
                     <EmptyRow
                       assetKey="work-item"
-                      label={t("agent_teams_project_no_items")}
+                      label={t(binding ? "agent_teams_project_no_items" : "agent_teams_project_unbound_title")}
+                      description={binding ? undefined : t("agent_teams_project_unbound_hint")}
                       action={
                         // 编排域闸门（2026-10-30）：未绑定项目空态给绑定 CTA
                         // 而非新建（建了也执行不了）；已绑定恢复新建

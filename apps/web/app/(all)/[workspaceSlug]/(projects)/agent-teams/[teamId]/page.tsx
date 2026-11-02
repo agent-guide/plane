@@ -22,10 +22,13 @@ import { ContentWrapper, ERowVariant, Table } from "@plane/ui";
 import type { TTableColumn } from "@plane/ui";
 import { calculateTimeAgo } from "@plane/utils";
 // icons
+import { StateGroupIcon } from "@plane/propel/icons";
+import type { TStateGroups as StateGroup } from "@plane/types";
 import { Archive, Power, Settings, User } from "lucide-react";
 // components
 import { EmptyRow, Section } from "@/components/agent-teams/section";
-import { TeamSettingsModal } from "@/components/agent-teams/team-manage-modals";
+import { TeamSettingsModal, AddMemberModal } from "@/components/agent-teams/team-manage-modals";
+import { UserPlus } from "lucide-react";
 import { PageHead } from "@/components/core/page-title";
 import Link from "next/link";
 // services
@@ -123,6 +126,7 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
   const isAdmin = data?.team.viewerIsAdmin === true;
   const enabledMembers = (data?.members ?? []).filter((m) => m.enabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   // 存 i18n key：t 每渲染新引用，不进状态依赖（既往教训）。
   const [actionErrorKey, setActionErrorKey] = useState("");
@@ -194,21 +198,16 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
     {
       key: "status",
       content: t("agent_teams_panel_status"),
-      tdRender: (task) => (
-        <span
-          className={`inline-flex items-center gap-1.5 ${
-            task.controlStatus === "waiting_human" ? "text-accent-primary" : "text-secondary"
-          }`}
-        >
-          <span
-            className={`size-1.5 rounded-full ${
-              task.controlStatus === "waiting_human" ? "bg-accent-primary" : "bg-secondary"
-            }`}
-            aria-hidden
-          />
-          {controlStateLabel(task, t)}
-        </span>
-      ),
+      tdRender: (task) =>
+        // 与工作项列表同源的状态徽章（名+色）；无状态视图回退控制态文本
+        task.stateName ? (
+          <span className="inline-flex items-center gap-1.5 text-caption-sm-medium text-secondary">
+            <StateGroupIcon stateGroup={(task.stateGroup ?? "started") as StateGroup} color={task.stateColor ?? undefined} className="size-3.5 flex-shrink-0" />
+            <span className="truncate">{task.stateName}</span>
+          </span>
+        ) : (
+          <span className="text-secondary">{controlStateLabel(task, t)}</span>
+        ),
     },
     {
       key: "project",
@@ -404,19 +403,33 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                     {data.team.status !== "archived" && canManage ? (
                       <div className="relative ml-auto flex flex-shrink-0 items-center gap-2">
                         {data.team.status === "draft" ? (
-                          <PropelButton
-                            variant="primary"
-                            size="lg"
-                            loading={actionBusy}
-                            disabled={enabledMembers.length === 0}
-                            title={enabledMembers.length === 0 ? t("agent_teams_activate_needs_member") : undefined}
-                            onClick={() =>
-                              void runManageAction(() => orchestrationService.activateTeam(workspaceSlug!, teamId))
-                            }
-                          >
-                            <Power className="size-3.5" aria-hidden />
-                            {t("agent_teams_activate")}
-                          </PropelButton>
+                          enabledMembers.length === 0 ? (
+                            /* 引导而非置灰：先加成员才能上架（上架后团队才可被项目
+                               绑定执行）——按钮直达加成员弹层，不让用户猜原因 */
+                            <PropelButton
+                              variant="primary"
+                              size="lg"
+                              onClick={() => {
+                                setActionErrorKey("");
+                                setAddMemberOpen(true);
+                              }}
+                            >
+                              <UserPlus className="size-3.5" aria-hidden />
+                              {t("agent_teams_activate_needs_member_cta")}
+                            </PropelButton>
+                          ) : (
+                            <PropelButton
+                              variant="primary"
+                              size="lg"
+                              loading={actionBusy}
+                              onClick={() =>
+                                void runManageAction(() => orchestrationService.activateTeam(workspaceSlug!, teamId))
+                              }
+                            >
+                              <Power className="size-3.5" aria-hidden />
+                              {t("agent_teams_activate")}
+                            </PropelButton>
+                          )
                         ) : null}
                         <PropelButton
                           variant="secondary"
@@ -536,6 +549,13 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
       {/* 设置/加成员模态（设计 §4） */}
       {data ? (
         <>
+          <AddMemberModal
+            isOpen={addMemberOpen}
+            handleClose={() => setAddMemberOpen(false)}
+            workspaceSlug={workspaceSlug ?? ""}
+            teamId={teamId}
+            onAdded={() => void loadTeam()}
+          />
           <TeamSettingsModal
             isOpen={settingsOpen}
             handleClose={() => setSettingsOpen(false)}

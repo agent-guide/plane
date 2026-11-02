@@ -17,6 +17,9 @@ import json
 import time
 import urllib.error
 import urllib.request
+
+# 本地出站（Plane 内部端点/agwmngr）绕过系统代理（macOS Clash 拦截 127.0.0.1）
+_local_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 from pathlib import Path
 
 
@@ -153,7 +156,7 @@ def _internal_node_call(method: str, path: str, payload: dict) -> dict:
         f"{base}{path}", method=method,
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json", "X-Orchestration-Token": token})
-    with urllib.request.urlopen(req, timeout=30) as response:
+    with _local_opener.open(req, timeout=30) as response:
         return json.loads(response.read() or b"{}")
 
 
@@ -216,7 +219,7 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
     # error 事件显式抛错（不静默空回复）
     pieces: list[str] = []
     event_type = ""
-    with urllib.request.urlopen(req, timeout=600) as response:
+    with _local_opener.open(req, timeout=600) as response:
         for raw in response:
             line = raw.decode("utf-8", "replace").strip()
             if line.startswith("event: "):
@@ -238,13 +241,62 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
     return "".join(pieces)
 
 
-def reconcile_runs_once() -> dict:
-    """活跃执行对账：向 Airflow 查 run 终态并投 engine.terminal。
+def reconcile_publishing_once() -> dict:
+    """发布收尾对账：publishing 版本轮询 DAG 就绪→激活→finish_publish。
 
-    常驻 worker 周期调用（DAG 节点全部收口后 run 才终态；此处只投事件，
-    状态推进走引擎事件消费——单一事实源）。
+    同步发布窗口（120s）内 dag processor 未必扫到新文件（43 文件×30s 间隔
+    一轮 ~11 分钟——2026-11-01 实证 12 分钟）；旧系统同款语义为后台轮询
+    600s。窗口超时不再 fail——留 publishing 由本对账收尾，超龄（15 分钟）
+    才判 failed。
     """
-    from .models import WorkItemExecution
+    from . import workflows as wf_svc
+    from .models import WorkflowVersion
+    from django.utils import timezone as dj_tz
+    stats = {"settled": 0, "failed": 0}
+    for version in WorkflowVersion.objects.filter(status=WorkflowVersion.Status.PUBLISHING).select_related("workflow"):
+        age = (dj_tz.now() - version.updated_at).total_seconds()
+        if age > 900:
+            wf_svc.fail_publish(version=version)
+            stats["failed"] += 1
+            continue
+        from .dag_publication import dag_id
+        identifier = dag_id(version.workflow_id, version.version)
+        try:
+            client = airflow_client_from_env()
+            if wait_until_ready(client, dag_id=identifier, definition_hash=version.content_hash, timeout_seconds=30):
+                wf_svc.finish_publish(version=version, engine_deploy_ref={"dag_id": identifier})
+                stats["settled"] += 1
+        except Exception:
+            pass  # 引擎暂不可达：下轮再试
+    return stats
+
+
+def reconcile_runs_once() -> dict:
+    """对账（常驻 worker 周期调用）：
+    ① 补启动——已绑定项目的未启动工作项（bulk 导入等信号盲区兜底；
+       幂等由 EXECUTION_CONFLICT 担任，等价旧 already_bound 闸门）
+    ② 活跃执行终态——向 Airflow 查 run 终态投 engine.terminal
+    （状态推进都走事件消费/受控启动链——单一事实源）
+    """
+    from . import execution as execution_svc
+    from .models import WorkItemExecution, ProjectTeamBinding
+    from plane.db.models.issue import Issue
+    from django.utils import timezone as dj_tz
+    # ① 补启动：活跃绑定项目的近 7 天工作项、无任何执行记录者
+    bindings = {b.project_id: b for b in ProjectTeamBinding.objects.filter(
+        status=ProjectTeamBinding.Status.ACTIVE).select_related("workflow_version")}
+    if bindings:
+        recent = Issue.objects.filter(
+            project_id__in=list(bindings), created_at__gte=dj_tz.now() - dj_tz.timedelta(days=7),
+        ).exclude(executions__isnull=False).select_related("project").order_by("created_at")[:50]
+        for issue in recent:
+            try:
+                execution_svc.start_execution(
+                    issue=issue, binding=bindings[issue.project_id], user_id=issue.created_by_id)
+            except Exception:
+                pass  # 校验链失败等下一轮/面板可见
+    # ② 终态对账
+    from .state_machine import TERMINAL_STATUSES
     from .state_machine import TERMINAL_STATUSES
     client = airflow_client_from_env()
     stats = {"checked": 0, "settled": 0}
@@ -320,12 +372,70 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                 node = next((n for n in (definition.get("nodes") or []) if n.get("key") == node_key), None)
                 if node is None or not node.get("expertId"):
                     raise RuntimeError(f"node {node_key} has no agent reference")
-                prompt = (node.get("prompt") or node.get("name") or node_key)
+                # 执行输入注入（等价旧 _prompt）：任务标题/描述 + 前置节点输出
+                from .execution_context import (
+                    build_node_prompt, build_condition_prompt, condition_branch_labels,
+                    match_branch_label, pruned_node_keys)
+                from .node_runtime import NodeRuntimeRecord
+                prior_outputs = [
+                    {"node_key": r.node_key, "output": (r.result or {}).get("output", "")}
+                    for r in NodeRuntimeRecord.objects.filter(
+                        execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
+                    ).exclude(node_key=node_key).order_by("updated_at")
+                ]
+                labels = condition_branch_labels(definition, node_key) if node.get("type") == "condition" else []
+                prompt = (build_condition_prompt(node=node, issue=execution.issue, labels=labels) if labels
+                          else build_node_prompt(node=node, issue=execution.issue, prior_outputs=prior_outputs))
                 reply = invoke_agent_node(
                     agent_definition_id=node["expertId"], prompt=prompt, session_hint=f"{execution.id}:{node_key}")
+                result = {"status": "success", "output": reply[:20000]}
+                if labels:
+                    # 条件判定（等价旧 workflow_branching）：答复→分支名；未选→节点失败
+                    # 而不是猜一条路；选中后把不可达节点标 skipped（DAG observe 剪枝）
+                    chosen = match_branch_label(reply, labels)
+                    if chosen is None:
+                        _internal_node_call("POST", f"/api/internal/workflow-runs/{execution.engine_run_ref or execution.id}"
+                                            f"/nodes/{node_key}/fail/",
+                                            {"result": {"error": f"condition reply matches no branch: {reply[:200]}"}})
+                        raise RuntimeError(f"condition node {node_key} reply matches no branch")
+                    result["chosenBranch"] = chosen
+                    choices = dict(NodeRuntimeRecord.objects.filter(
+                        execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
+                    ).values_list("node_key", "result__chosenBranch"))
+                    choices[node_key] = chosen
+                    NodeRuntimeRecord.objects.filter(
+                        execution=execution, node_key__in=pruned_node_keys(definition, choices),
+                        status=NodeRuntimeRecord.Status.PENDING,
+                    ).update(status=NodeRuntimeRecord.Status.SKIPPED)
                 _internal_node_call("POST", f"/api/internal/workflow-runs/{execution.engine_run_ref or execution.id}"
                                     f"/nodes/{node_key}/finish/",
-                                    {"result": {"status": "success", "output": reply[:20000]}})
+                                    {"result": result})
+                # 成果登记（等价旧 artifacts）：节点产出即成果事实，哈希=内容摘要
+                import hashlib as _hl
+                from .models import WorkItemArtifact
+                _digest = _hl.sha256(reply.encode()).hexdigest()
+                if not WorkItemArtifact.objects.filter(
+                        execution=execution, content_hash=_digest).exists():
+                    _last = WorkItemArtifact.objects.filter(execution=execution).order_by("-version").first()
+                    WorkItemArtifact.objects.create(
+                        execution=execution, issue_id=execution.issue_id, content_hash=_digest,
+                        version=(_last.version + 1) if _last else 1,
+                        storage_ref=f"orchestration://{execution.id}/{node_key}",
+                        source_run_ref=execution.engine_run_ref or execution.id,
+                        produced_by_id=(next((m.get("id") for m in (
+                            execution.frozen_context.get("members") or [])
+                            if m.get("kind") == "agent"), None)))
+            elif command.command_type == "engine.cancel":
+                # 取消（等价旧取消命令）：Airflow 侧同步终止 run，
+                # 执行终态已在端点置位（引擎 sensor 后续 poke 由终态判定收敛）
+                from .models import WorkItemExecution as _EX, WorkflowVersion as _WV
+                ex = _EX.objects.select_related("binding", "binding__workflow_version").get(
+                    id=command.payload["executionId"])
+                from .dag_publication import dag_id as _dag_id
+                _v = ex.binding.workflow_version
+                client._request("PATCH",
+                                f"dags/{_dag_id(_v.workflow_id, _v.version)}/dagRuns/exec-{ex.id[:12]}",
+                                {"state": "failed"})
             else:
                 stats["skipped"] += 1
                 continue
@@ -343,5 +453,5 @@ def process_outbox_once(*, dag_root: Path) -> dict:
 __all__ = [
     "invoke_agent_node",
     "AirflowClient", "AirflowError", "airflow_client_from_env",
-    "wait_until_ready", "process_outbox_once", "publish_workflow", "reconcile_runs_once",
+    "wait_until_ready", "process_outbox_once", "publish_workflow", "reconcile_runs_once", "reconcile_publishing_once",
 ]

@@ -121,8 +121,9 @@ class OrchestrationAPITest(TestCase):
             project=self.project, team=team, workflow_version=version,
             status=ProjectTeamBinding.Status.ACTIVE)
         issue = Issue.objects.create(project=self.project, name="详情工作项", created_by=self.owner)
-        execution = WorkItemExecution.objects.create(
-            issue=issue, binding=binding, business_status="running", current_member=member)
+        execution = WorkItemExecution.objects.get(issue=issue)  # 建卡自动启动
+        execution.business_status, execution.current_member = "running", member
+        execution.save(update_fields=["business_status", "current_member", "updated_at"])
 
         # 详情：viewer 标志（owner=管理员）
         r = self.client.get(f"/api/workspaces/aws-orch/agent-teams/{team.id}/")
@@ -184,8 +185,9 @@ class OrchestrationAPITest(TestCase):
             project=self.project, team=team, workflow_version=version,
             status=ProjectTeamBinding.Status.ACTIVE)
         issue = Issue.objects.create(project=self.project, name="徽章工作项", created_by=self.owner)
-        execution = WorkItemExecution.objects.create(
-            issue=issue, binding=binding, business_status="running", current_member=member)
+        execution = WorkItemExecution.objects.get(issue=issue)  # 建卡自动启动
+        execution.business_status, execution.current_member = "running", member
+        execution.save(update_fields=["business_status", "current_member", "updated_at"])
         BusinessApproval.objects.create(execution=execution, node_ref="n1:1", assignee=self.human, options=["ok"])
 
         r = self.client.get(f"/api/workspaces/aws-orch/projects/{self.project.id}/team-panel/")
@@ -222,8 +224,8 @@ class OrchestrationAPITest(TestCase):
             project=self.project, team=team, workflow_version=version,
             status=ProjectTeamBinding.Status.ACTIVE)
         issue = Issue.objects.create(project=self.project, name="面板工作项", created_by=self.owner)
-        from plane.orchestration.execution import start_execution, on_engine_started, on_human_handoff
-        execution = start_execution(issue=issue, binding=binding, user_id=self.owner.id)
+        from plane.orchestration.execution import on_engine_started, on_human_handoff
+        execution = WorkItemExecution.objects.get(issue=issue)  # 建卡自动启动
         on_engine_started(execution_id=execution.id, event_id="e0", engine_run_ref="r0")
         on_human_handoff(execution_id=execution.id, event_id="e1", member=member)
 
@@ -275,7 +277,7 @@ class OrchestrationAPITest(TestCase):
         version = WorkflowVersion.objects.create(workflow=wf, version=1, status=WorkflowVersion.Status.PUBLISHED)
         binding = services.bind_project(project=self.project, team=team, user_id=self.owner.id, is_admin=True, workflow_version=version)
         issue = Issue.objects.create(project=self.project, name="审批用工作项", created_by=self.owner)
-        execution = WorkItemExecution.objects.create(issue=issue, binding=binding)
+        execution = WorkItemExecution.objects.get(issue=issue)  # 建卡自动启动
         on_engine_started(execution_id=execution.id, event_id="e0", engine_run_ref="r")
         on_human_handoff(execution_id=execution.id, event_id="e1", member=member)
         # handoff 即自动建待审批（assignee=人工成员的 Plane 用户）

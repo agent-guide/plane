@@ -61,6 +61,13 @@ export const AgentArtifactPreviewModal = function AgentArtifactPreviewModal({
     setError(false);
     setLoading(true);
     try {
+      // 编排域工件：逻辑引用（orchestration://）→ 页内直接展示正文（content），
+      // 下载由前端 blob 生成——不存在远端下载 URL
+      if ((target.contentUrl ?? "").startsWith("orchestration://")) {
+        setUrl("about:blank");
+        setContent(target.content ?? "");
+        return;
+      }
       if (!target.contentUrl) throw new Error("artifact has no content url");
       const downloadUrl = target.contentUrl;
       setUrl(downloadUrl);
@@ -129,17 +136,26 @@ export const AgentArtifactPreviewModal = function AgentArtifactPreviewModal({
                   {copied ? t("agent_teams_artifact_copied") : t("agent_teams_artifact_copy")}
                 </Button>
               )}
-              {url && (
+              {content != null ? (
                 <Button
                   variant="primary"
                   size="sm"
                   className="gap-1.5"
-                  onClick={() => window.open(url, "_blank", "noreferrer")}
+                  onClick={() => {
+                    // 编排域工件：正文已页内加载，下载走前端 blob
+                    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+                    const href = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = href;
+                    a.download = `${artifact.name}-v${artifact.version}.md`;
+                    a.click();
+                    URL.revokeObjectURL(href);
+                  }}
                 >
                   <Download className="size-3.5" aria-hidden />
                   {t("agent_teams_artifact_download")}
                 </Button>
-              )}
+              ) : null}
               <button
                 type="button"
                 onClick={onClose}

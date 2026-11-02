@@ -5,6 +5,7 @@
 from django.urls import path
 
 from .views import (
+    ConnectionsEndpoint, ConnectionDetailEndpoint, ConnectionTestEndpoint, ConnectionResolveEndpoint,
     ApprovalsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
     EngineEventEndpoint, ProjectBindingsEndpoint, ProjectExecutionsEndpoint,
     StartExecutionEndpoint, TeamQuotaEndpoint, TeamProjectsEndpoint, TeamActiveTasksEndpoint,
@@ -22,6 +23,11 @@ urlpatterns = [
     # quota / agent-catalog 必须排在 <team_id> 通配之前，否则会被当成 team_id
     path("workspaces/<str:slug>/agent-teams/agent-catalog/", TeamAgentCatalogEndpoint.as_view(), name="orchestration-agent-catalog"),
     path("workspaces/<str:slug>/agent-teams/quota/", TeamQuotaEndpoint.as_view(), name="orchestration-team-quota"),
+    # 连接管理（工作区级外部系统凭据，设计 §4）
+    path("workspaces/<str:slug>/connections/", ConnectionsEndpoint.as_view(), name="orchestration-connections"),
+    path("workspaces/<str:slug>/connections/<str:conn_id>/", ConnectionDetailEndpoint.as_view(), name="orchestration-connection-detail"),
+    path("workspaces/<str:slug>/connections/<str:conn_id>/test/", ConnectionTestEndpoint.as_view(), name="orchestration-connection-test"),
+    path("internal/orchestration/connections/resolve/", ConnectionResolveEndpoint.as_view(http_method_names=["post"]), name="orchestration-connection-resolve"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/", TeamDetailEndpoint.as_view(), name="orchestration-team-detail"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/members/", TeamMembersEndpoint.as_view(), name="orchestration-team-members"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/members/<str:member_id>/", TeamMemberDetailEndpoint.as_view(), name="orchestration-team-member-detail"),

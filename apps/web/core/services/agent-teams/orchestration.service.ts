@@ -80,6 +80,10 @@ export interface OrchestrationActiveTask {
   externalItemId: string;
   taskName: string;
   controlStatus: string;
+  /** 工作项状态（与工作项列表显示同源）。 */
+  stateName?: string | null;
+  stateColor?: string | null;
+  stateGroup?: string | null;
   projectName: string;
   activeMemberName: string | null;
   updatedAt: string;
@@ -412,6 +416,9 @@ export interface OrchestrationRecentRun {
   taskId: string;
   taskTitle: string;
   status: string;
+  stateName?: string | null;
+  stateColor?: string | null;
+  stateGroup?: string | null;
   startedAt: string;
   finishedAt: string | null;
 }
@@ -437,6 +444,8 @@ export interface OrchestrationRuntimeArtifact {
   version: number;
   sizeBytes: number | null;
   contentUrl: string;
+  /** 节点输出正文（逻辑引用编排域工件的页内预览内容）。 */
+  content?: string;
 }
 
 /** 结构化时间线事件——文案归前端 i18n（修复旧链服务端中文硬编码）。 */
@@ -445,6 +454,8 @@ export interface OrchestrationTimelineEvent {
   kind: "execution" | "node" | "approval";
   status: string;
   nodeKey: string | null;
+  /** 节点名（definition 快照）——时间线呈现用它，机器 key 不面向用户。 */
+  nodeName?: string | null;
   memberName: string | null;
   createdAt: string;
 }
@@ -452,6 +463,7 @@ export interface OrchestrationTimelineEvent {
 export interface OrchestrationWorkItemRuntime {
   executionId: string;
   businessStatus: string;
+  issueState?: { name: string; color: string; group: string } | null;
   teamId: string;
   teamName: string;
   currentMemberName: string | null;

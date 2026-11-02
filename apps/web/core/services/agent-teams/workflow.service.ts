@@ -15,6 +15,8 @@ export type WorkflowGraphNodeData = {
   prompt?: string;
   tool_name?: string;
   connection?: string;
+  /** AI 节点连接绑定（连接管理设计 §5.2）：{连接类型: 连接名} */
+  connections?: Record<string, string>;
   params?: Record<string, unknown>;
   message?: string;
   [key: string]: unknown;

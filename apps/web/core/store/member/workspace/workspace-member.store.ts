@@ -132,8 +132,8 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       (m) => m.member !== this.userStore?.data?.id,
       (m) => this.memberRoot?.memberMap?.[m.member]?.display_name?.toLowerCase(),
     ]);
-    //filter out bots
-    const memberIds = members.filter((m) => !this.memberRoot?.memberMap?.[m.member]?.is_bot).map((m) => m.member);
+    // bot 保留在成员映射（负责人渲染需要）；选真人场景由调用方自行过滤
+    const memberIds = members.map((m) => m.member);
     return memberIds;
   });
 

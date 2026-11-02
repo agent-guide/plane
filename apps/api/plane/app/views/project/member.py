@@ -36,7 +36,7 @@ class ProjectMemberViewSet(BaseViewSet):
             .get_queryset()
             .filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
-            .filter(member__is_bot=False)
+            .filter()
             .filter()
             .select_related("project")
             .select_related("member")
@@ -159,7 +159,7 @@ class ProjectMemberViewSet(BaseViewSet):
         project_members = ProjectMember.objects.filter(
             project_id=project_id,
             workspace__slug=slug,
-            member__is_bot=False,
+            
             is_active=True,
             member__member_workspace__workspace__slug=slug,
             member__member_workspace__is_active=True,
@@ -182,7 +182,7 @@ class ProjectMemberViewSet(BaseViewSet):
                 pk=pk,
                 project_id=project_id,
                 workspace__slug=slug,
-                member__is_bot=False,
+                
                 is_active=True,
             )
             .select_related("project", "member", "workspace")
@@ -293,7 +293,7 @@ class ProjectMemberViewSet(BaseViewSet):
             workspace__slug=slug,
             project_id=project_id,
             pk=pk,
-            member__is_bot=False,
+            
             is_active=True,
         )
         # check requesting user role

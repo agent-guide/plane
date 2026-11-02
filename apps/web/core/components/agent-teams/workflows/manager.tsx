@@ -14,7 +14,6 @@ import { Table } from "@plane/ui";
 // services
 import {
   orchestrationService,
-  type OrchestrationAgentCatalogEntry,
   type OrchestrationWorkflow,
   type OrchestrationWorkflowVersion,
 } from "@/services/agent-teams/orchestration.service";
@@ -41,8 +40,7 @@ export const ProjectWorkflowsManager = forwardRef<WorkflowsManagerHandle, { proj
     const [failure, setFailure] = useState<RuntimeFailureKind | null>(null);
 
     // 目录（弹层打开时取一次——agent 目录经编排域代理 agwmngr）
-    const [experts, setExperts] = useState<OrchestrationAgentCatalogEntry[]>([]);
-
+    
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<OrchestrationWorkflow | null>(null);
     const [form, setForm] = useState<WorkflowForm>(EMPTY_WORKFLOW_FORM);
@@ -87,20 +85,6 @@ export const ProjectWorkflowsManager = forwardRef<WorkflowsManagerHandle, { proj
       void load();
     }, [load]);
 
-    // 弹层打开时懒加载 agent 目录，失败静默降级为手填。
-    useEffect(() => {
-      if (!isModalOpen) return;
-      let ignore = false;
-      orchestrationService
-        .listAgentCatalog(workspaceSlug!)
-        .then((items) => {
-          if (!ignore) setExperts(items);
-          return null;
-        })
-        .catch(() => undefined);
-      return () => {
-        ignore = true;
-      };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isModalOpen]);
 
@@ -128,8 +112,6 @@ export const ProjectWorkflowsManager = forwardRef<WorkflowsManagerHandle, { proj
       setForm({
         name: workflow.name,
         description: workflow.description ?? "",
-        expertId: "",
-        singleAgentPrompt: "",
       });
       setFormError("");
       setIsModalOpen(true);
@@ -140,7 +122,7 @@ export const ProjectWorkflowsManager = forwardRef<WorkflowsManagerHandle, { proj
     async function handleSubmit() {
       setFormError("");
       const name = form.name.trim();
-      if (!name || !form.expertId.trim()) {
+      if (!name) {
         setFormError(t("agent_teams_wf_form_incomplete"));
         return;
       }
@@ -155,26 +137,9 @@ export const ProjectWorkflowsManager = forwardRef<WorkflowsManagerHandle, { proj
           setIsModalOpen(false);
           await load();
         } else {
-          // 单 Agent 预设：创建即一个 agent 节点，多节点在画布扩展。
           const created = await orchestrationService.createWorkflow(workspaceSlug!, projectId, {
             name,
             description: form.description.trim() || undefined,
-          });
-          await orchestrationService.saveDraft(workspaceSlug!, projectId, created.id, {
-            version: 1,
-            nodes: [
-              {
-                id: "agent_1",
-                type: "agent",
-                position: { x: 240, y: 200 },
-                data: {
-                  name,
-                  prompt: form.singleAgentPrompt.trim() || undefined,
-                  expertId: form.expertId.trim(),
-                },
-              },
-            ],
-            edges: [],
           });
           setIsModalOpen(false);
           // 建完直达画布——创建只是起点，编排才是主体。
@@ -277,7 +242,6 @@ export const ProjectWorkflowsManager = forwardRef<WorkflowsManagerHandle, { proj
           form={form}
           formError={formError}
           submitting={submitting}
-          experts={experts}
           onClose={() => setIsModalOpen(false)}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           onSubmit={() => void handleSubmit()}

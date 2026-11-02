@@ -137,7 +137,7 @@ const MemberListPage = observer(function MemberListPage() {
       content: t("agent_teams_member_status"),
       tdRender: (member) => (
         <span className={`text-11 ${member.enabled === false ? "text-tertiary" : "text-accent-primary"}`}>
-          {member.enabled === false ? t("agent_teams_member_disable") : t("agent_teams_member_enable")}
+          {t(member.enabled === false ? "agent_teams_member_status_inactive" : "agent_teams_member_status_active")}
         </span>
       ),
     },

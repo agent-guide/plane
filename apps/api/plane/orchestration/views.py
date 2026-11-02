@@ -283,7 +283,8 @@ class TeamMembersEndpoint(BaseAPIView):
                 capabilities=request.data.get("capabilities", []),
                 sequence=int(request.data.get("sequence", 1)),
             )
-            return Response(_member_json(member), status=201)
+            # 建成员响应同样聚合目录名（前端即时展示不显示空名）
+            return Response(_member_json(member, _agent_names_for(team) if member.kind == "agent" else None), status=201)
         except TeamDomainError as exc:
             return _error_response(exc)
 
@@ -370,6 +371,10 @@ class TeamActiveTasksEndpoint(BaseAPIView):
                 "externalItemId": str(e.issue_id),
                 "taskName": e.issue.name,
                 "controlStatus": e.business_status,
+                # 工作项状态（与工作项列表显示同源：名+色徽章）
+                "stateName": e.issue.state.name if e.issue.state_id else None,
+                "stateColor": e.issue.state.color if e.issue.state_id else None,
+                "stateGroup": e.issue.state.group if e.issue.state_id else None,
                 "projectName": e.issue.project.name,
                 "activeMemberName": member_name,
                 "updatedAt": e.updated_at.isoformat(),
@@ -474,10 +479,8 @@ class WorkflowPublishEndpoint(BaseAPIView):
                     dag_root=_Path(os.environ.get("ORCHESTRATION_DAG_ROOT", "/tmp/orchestration-dags")))
                 if result["status"] == "published":
                     workflows.finish_publish(version=version, engine_deploy_ref=result["engine_deploy_ref"])
-                else:
-                    workflows.fail_publish(version=version)
-                    return Response({"error": result.get("reason", "publish failed"),
-                                     "code": "WORKFLOW_PUBLISH_FAILED"}, status=502)
+                # 窗口内未就绪（dag processor 扫描周期长）：不判失败——保持
+                # publishing 由 worker 对账收尾（600s 预算，超龄 15 分钟才 failed）
             else:
                 workflows.finish_publish(version=version, engine_deploy_ref={"pending_worker": True})
             version.refresh_from_db()
@@ -612,6 +615,107 @@ class ApprovalsEndpoint(BaseAPIView):
         return Response({"id": approval.id, "result": approval.result})
 
 
+class ConnectionsEndpoint(BaseAPIView):
+    """连接列表/创建（设计 §4；权限：管理员建改删、成员可读）。"""
+
+    def get(self, request, slug):
+        from .models import ExternalConnection
+        from . import connections as conn_svc
+        qs = ExternalConnection.objects.filter(workspace__slug=slug, deleted_at__isnull=True)
+        type_filter = request.GET.get("type")
+        if type_filter:
+            qs = qs.filter(type=type_filter)
+        return Response([conn_svc.connection_json(c) for c in qs.order_by("name")])
+
+    def post(self, request, slug):
+        from . import connections as conn_svc
+        if not _is_workspace_admin(request.user, slug):
+            return Response({"error": "需要工作区管理员权限", "code": "CONNECTION_FORBIDDEN"}, status=403)
+        try:
+            conn = conn_svc.create_connection(
+                workspace_slug=slug, user_id=request.user.id,
+                name=request.data.get("name", ""),
+                type_=request.data.get("type", ""),
+                config=request.data.get("config") or {})
+            return Response(conn_svc.connection_json(conn), status=201)
+        except TeamDomainError as exc:
+            return _error_response(exc)
+
+
+class ConnectionDetailEndpoint(BaseAPIView):
+    """编辑/删除（凭据留空=不修改；删除即失效，被引用则 409 带清单）。"""
+
+    def _get(self, slug, conn_id):
+        from .models import ExternalConnection
+        return ExternalConnection.objects.filter(
+            workspace__slug=slug, id=conn_id, deleted_at__isnull=True).first()
+
+    def patch(self, request, slug, conn_id):
+        from . import connections as conn_svc
+        if not _is_workspace_admin(request.user, slug):
+            return Response({"error": "需要工作区管理员权限", "code": "CONNECTION_FORBIDDEN"}, status=403)
+        conn = self._get(slug, conn_id)
+        if not conn:
+            return Response({"error": "连接不存在"}, status=404)
+        try:
+            updated = conn_svc.update_connection(
+                conn=conn, name=request.data.get("name"),
+                config_patch=request.data.get("config") or {})
+            return Response(conn_svc.connection_json(updated))
+        except TeamDomainError as exc:
+            return _error_response(exc)
+
+    def delete(self, request, slug, conn_id):
+        from . import connections as conn_svc
+        if not _is_workspace_admin(request.user, slug):
+            return Response({"error": "需要工作区管理员权限", "code": "CONNECTION_FORBIDDEN"}, status=403)
+        conn = self._get(slug, conn_id)
+        if not conn:
+            return Response({"error": "连接不存在"}, status=404)
+        try:
+            conn_svc.delete_connection(conn=conn)
+            return Response(status=204)
+        except TeamDomainError as exc:
+            return _error_response(exc)
+
+
+class ConnectionTestEndpoint(BaseAPIView):
+    """独立测试（不改内容）。"""
+
+    def post(self, request, slug, conn_id):
+        from . import connections as conn_svc
+        from .models import ExternalConnection
+        if not _is_workspace_admin(request.user, slug):
+            return Response({"error": "需要工作区管理员权限", "code": "CONNECTION_FORBIDDEN"}, status=403)
+        conn = ExternalConnection.objects.filter(
+            workspace__slug=slug, id=conn_id, deleted_at__isnull=True).first()
+        if not conn:
+            return Response({"error": "连接不存在"}, status=404)
+        updated = conn_svc._apply_test(conn)
+        return Response({"status": updated.status, "statusNote": updated.status_note})
+
+
+class ConnectionResolveEndpoint(BaseAPIView):
+    """内部回调：工具服务/worker 按名称取解密凭据（服务令牌鉴权）。"""
+
+    permission_classes = []
+    throttle_classes = []
+
+    def post(self, request):
+        import os, secrets
+        expected = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
+        provided = request.headers.get("X-Orchestration-Token", "")
+        if not expected or not secrets.compare_digest(expected, provided):
+            return Response({"error": "unauthorized"}, status=401)
+        from . import connections as conn_svc
+        config = conn_svc.resolve_connection(
+            workspace_id=request.data.get("workspaceId"),
+            name=request.data.get("name", ""))
+        if config is None:
+            return Response({"error": "connection not found"}, status=404)
+        return Response({"config": config})
+
+
 class ProjectRuntimeOverviewEndpoint(BaseAPIView):
     """项目概览运行时区块：绑定 + 计数 + 最近运行动态。"""
 
@@ -632,11 +736,14 @@ class ProjectRuntimeOverviewEndpoint(BaseAPIView):
             }
         executions = WorkItemExecution.objects.filter(
             binding__project__workspace__slug=slug, binding__project_id=project_id,
-        ).select_related("issue").order_by("-updated_at")
+        ).select_related("issue", "issue__state").order_by("-updated_at")
         active = [e for e in executions if e.business_status not in TERMINAL_STATUSES]
         runs = [{
             "runId": e.id, "taskId": e.issue_id, "taskTitle": e.issue.name,
             "status": e.business_status,
+            "stateName": e.issue.state.name if e.issue.state_id else None,
+            "stateColor": e.issue.state.color if e.issue.state_id else None,
+            "stateGroup": e.issue.state.group if e.issue.state_id else None,
             "startedAt": e.created_at.isoformat(),
             "finishedAt": e.completed_at.isoformat() if e.completed_at else None,
         } for e in executions[:10]]
@@ -671,8 +778,13 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
         execution = WorkItemExecution.objects.filter(
             binding__project__workspace__slug=slug, binding__project_id=project_id,
             issue_id=issue_id,
-        ).select_related("binding", "binding__team", "current_member", "current_member__user").order_by("-created_at").first()
+        ).select_related("binding", "binding__team", "issue__state",
+                         "current_member", "current_member__user").order_by("-created_at").first()
         if not execution:
+            # 已绑定但无执行（历史卡/自动启动失败）：给启动信号而非静默 204
+            if ProjectTeamBinding.objects.filter(
+                    project_id=project_id, status=ProjectTeamBinding.Status.ACTIVE).exists():
+                return Response({"pendingStart": True})
             return Response(status=204)
 
         team = execution.binding.team
@@ -684,19 +796,30 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             else:
                 member_name = names.get(execution.current_member.agent_definition_id)
 
+        # 节点名映射（definition 快照）：时间线/工件/当前步骤呈现用节点名而非机器 key
+        node_names = {n.get("key"): (n.get("name") or n.get("key"))
+                      for n in ((execution.binding.workflow_version.definition or {}).get("nodes") or [])}
+
         # 当前步骤：最新 running 节点，缺省回执行状态
         step = None
         running_node = execution.node_records.exclude(
             status__in=["success", "failed", "skipped", "cancelled"]).order_by("-updated_at").first()
         if running_node is not None:
-            step = running_node.node_key
+            step = node_names.get(running_node.node_key, running_node.node_key)
         elif execution.business_status == "waiting_human":
             pending_node = execution.node_records.filter(status="success").order_by("-updated_at").first()
             step = "human"
 
+        # 节点名映射（definition 快照）：时间线/工件呈现用节点名而非机器 key
         artifacts = [{
-            "id": a.id, "name": (a.storage_ref.rsplit("/", 1)[-1] or a.content_hash[:12]),
-            "version": a.version, "sizeBytes": None, "contentUrl": a.storage_ref,
+            "id": a.id,
+            "name": (node_names.get(a.storage_ref.rsplit("/", 1)[-1]) or a.storage_ref.rsplit("/", 1)[-1]
+                     or a.content_hash[:12]),
+            "version": a.version, "sizeBytes": None,
+            "contentUrl": a.storage_ref,
+            # 正文即节点输出（orchestration:// 是逻辑引用非下载 URL——页内直接可看）
+            "content": ((execution.node_records.filter(
+                node_key=a.storage_ref.rsplit("/", 1)[-1]).first().result or {}).get("output") or "")[:50000],
         } for a in execution.artifacts.order_by("version")]
 
         from django.db.models import Q
@@ -707,25 +830,29 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
         # 时间线：执行创建 → 节点记录 → 审批 → 终态（按时间归并）
         events = [{
             "id": f"start:{execution.id}", "kind": "execution",
-            "status": "queued", "memberName": None, "nodeKey": None,
+            "status": "queued", "memberName": None, "nodeKey": None, "nodeName": None,
             "createdAt": execution.created_at.isoformat(),
         }]
         for n in execution.node_records.order_by("updated_at"):
             events.append({
                 "id": f"node:{n.id}:{n.status}", "kind": "node",
-                "status": n.status, "nodeKey": n.node_key, "memberName": member_name,
+                "status": n.status, "nodeKey": n.node_key,
+                "nodeName": node_names.get(n.node_key, n.node_key),
+                "memberName": member_name,
                 "createdAt": n.updated_at.isoformat(),
             })
         for a in execution.approvals.order_by("created_at"):
             events.append({
                 "id": f"approval:{a.id}:{a.result}", "kind": "approval",
-                "status": a.result, "nodeKey": a.node_ref, "memberName": None,
+                "status": a.result, "nodeKey": a.node_ref,
+                "nodeName": node_names.get(a.node_ref, a.node_ref), "memberName": None,
                 "createdAt": (a.answered_at or a.created_at).isoformat(),
             })
         if execution.business_status in TERMINAL_STATUSES and execution.completed_at:
             events.append({
                 "id": f"terminal:{execution.id}", "kind": "execution",
-                "status": execution.business_status, "memberName": None, "nodeKey": None,
+                "status": execution.business_status, "memberName": None,
+                "nodeKey": None, "nodeName": None,
                 "createdAt": execution.completed_at.isoformat(),
             })
         events.sort(key=lambda e: e["createdAt"])
@@ -739,6 +866,10 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
         return Response({
             "executionId": execution.id,
             "businessStatus": execution.business_status,
+            # 工作项状态徽章（与工作项列表同源）
+            "issueState": ({"name": execution.issue.state.name, "color": execution.issue.state.color,
+                            "group": execution.issue.state.group}
+                           if execution.issue.state_id else None),
             "teamId": team.id, "teamName": team.name,
             "currentMemberName": member_name,
             "workflowStep": step,
@@ -766,6 +897,9 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
         execution.completed_at = timezone.now()
         execution.transition_version += 1
         execution.save(update_fields=["business_status", "completed_at", "transition_version", "updated_at"])
+        # 作废待审批（收件箱不残留已取消执行的待办）
+        execution.approvals.filter(result=BusinessApproval.Result.PENDING).update(
+            result=BusinessApproval.Result.REJECTED, reason="执行已取消", answered_at=timezone.now())
         payload = {"executionId": execution.id}
         OrchestrationOutbox.objects.get_or_create(
             idempotency_key=f"cancel:{execution.id}",
@@ -886,6 +1020,24 @@ class DagNodeStartView(DagNodeRuntimeBase):
                 event_id=request.data.get("eventId") or f"node:{node_key}:{record.attempt}",
                 member=None, node_ref=node_key)
         elif node_type in ("ai", "condition"):
+            # agent 上牌（§7.3）：AI 节点开始 → 当前执行成员=团队 agent 成员 +
+            # 卡片指派 bot（投影失败不阻塞节点执行）
+            try:
+                from .models import AgentTeamMember
+                from .bot_provisioning import sync_issue_assignee
+                agent_member = AgentTeamMember.objects.filter(
+                    team=execution.binding.team, kind="agent", enabled=True,
+                ).order_by("-sequence").first()
+                if agent_member is not None:
+                    prev_member = execution.current_member
+                    WorkItemExecution.objects.filter(id=execution.id).update(
+                        current_member=agent_member, updated_at=timezone.now())
+                    execution.refresh_from_db()
+                    sync_issue_assignee(issue=execution.issue, previous_member=prev_member,
+                                        next_member=agent_member,
+                                        workspace_id=str(execution.issue.workspace_id))
+            except Exception:
+                pass
             payload = {"executionId": execution.id, "nodeKey": node_key, "attempt": record.attempt}
             OrchestrationOutbox.objects.get_or_create(
                 idempotency_key=f"agent_call:{execution.id}:{node_key}:{record.attempt}",

@@ -11,24 +11,16 @@
 import { useTranslation } from "@plane/i18n";
 import { Button as PropelButton } from "@plane/propel/button";
 import { EModalPosition, EModalWidth, Input, ModalCore, TextArea } from "@plane/ui";
-import { FormSelect } from "@/components/agent-teams/form-select";
-import type {
-  OrchestrationAgentCatalogEntry,
-  OrchestrationWorkflow,
-} from "@/services/agent-teams/orchestration.service";
+import type { OrchestrationWorkflow } from "@/services/agent-teams/orchestration.service";
 
 export type WorkflowForm = {
   name: string;
   description: string;
-  expertId: string;
-  singleAgentPrompt: string;
 };
 
 export const EMPTY_WORKFLOW_FORM: WorkflowForm = {
   name: "",
   description: "",
-  expertId: "",
-  singleAgentPrompt: "",
 };
 
 type Props = {
@@ -37,7 +29,6 @@ type Props = {
   form: WorkflowForm;
   formError: string;
   submitting: boolean;
-  experts: OrchestrationAgentCatalogEntry[];
   onClose: () => void;
   onChange: (patch: Partial<WorkflowForm>) => void;
   onSubmit: () => void;
@@ -49,7 +40,6 @@ export function WorkflowFormModal({
   form,
   formError,
   submitting,
-  experts,
   onClose,
   onChange,
   onSubmit,
@@ -75,16 +65,6 @@ export function WorkflowFormModal({
             />
             {formError ? <span className="text-11 text-danger-primary">{formError}</span> : null}
           </div>
-          {!editing ? (
-            <div className="space-y-1">
-              <FormSelect
-                value={form.expertId}
-                placeholder={`${t("agent_teams_wf_field_owner")} *`}
-                options={experts.map((e) => ({ id: e.id, name: e.name }))}
-                onChange={(v) => onChange({ expertId: v })}
-              />
-            </div>
-          ) : null}
           <div className="space-y-1">
             <TextArea
               name="description"
@@ -96,20 +76,6 @@ export function WorkflowFormModal({
               onChange={(e) => onChange({ description: e.target.value })}
             />
           </div>
-          {!editing ? (
-            <div className="space-y-1">
-              <TextArea
-                name="singleAgentPrompt"
-                mode="primary"
-                textAreaSize="sm"
-                className="font-normal min-h-24 w-full resize-none text-13"
-                placeholder={t("agent_teams_wf_field_prompt")}
-                value={form.singleAgentPrompt}
-                onChange={(e) => onChange({ singleAgentPrompt: e.target.value })}
-              />
-              <span className="text-11 text-tertiary">{t("agent_teams_wf_prompt_hint")}</span>
-            </div>
-          ) : null}
         </div>
       </div>
       <div className="flex items-center justify-end gap-2 border-t-[0.5px] border-subtle px-5 py-4">

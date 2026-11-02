@@ -34,9 +34,9 @@ class StartExecutionTestBase(TestCase):
         v = workflows.save_draft_version(workflow=cls.workflow, user_id=cls.owner.id)
         publishing = workflows.start_publish(workflow=cls.workflow, user_id=cls.owner.id)
         cls.version = workflows.finish_publish(version=publishing, engine_deploy_ref={"dag": "x"})
+        cls.issue = Issue.objects.create(project=cls.project, name="启动用工作项", created_by=cls.owner)
         cls.binding = services.bind_project(
             project=cls.project, team=cls.team, user_id=cls.owner.id, is_admin=True, workflow_version=cls.version)
-        cls.issue = Issue.objects.create(project=cls.project, name="启动用工作项", created_by=cls.owner)
 
 
 class StartExecutionChainTests(StartExecutionTestBase):

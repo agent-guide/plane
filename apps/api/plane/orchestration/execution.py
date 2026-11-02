@@ -32,7 +32,9 @@ def transition_execution(*, execution: WorkItemExecution, target: str, event_id:
     任何失败都不落库、不改内存对象（调用方按 TeamDomainError 处理）。
     """
     current = execution.business_status
+    prev_member = execution.current_member  # 转移前执行成员（§7.3 换牌的「上一任」）
     require_transition(current, target)  # 非法转移 → InvalidTransition(400 语义)
+    event_id = (event_id or "")[:64]  # last_event_id varchar(64)：幂等锚截断防 DataError
     terminal = target in TERMINAL_STATUSES
     now = dj_tz.now()
     updated = WorkItemExecution.objects.filter(
@@ -42,7 +44,7 @@ def transition_execution(*, execution: WorkItemExecution, target: str, event_id:
     ).update(
         business_status=target,
         current_member=(
-            None if terminal
+            None if terminal or member is None
             else execution.current_member if member is _UNSET
             else member
         ),
@@ -54,7 +56,23 @@ def transition_execution(*, execution: WorkItemExecution, target: str, event_id:
     if updated != 1:
         raise TeamDomainError(409, "EXECUTION_TRANSITION_CONFLICT", "Execution state changed concurrently")
     execution.refresh_from_db()
+    # §6 投影（同库直写，失败不回滚——投影面非事实源）：
+    # ① 状态打标；② 换牌（§7.3：agent handoff 上 bot、等待人工人上牌摘 bot）
+    try:
+        from .issue_state_sync import sync_issue_state
+        issue = execution.issue
+        sync_issue_state(issue=issue, business_status=target)
+        if member is not _UNSET or target in ("waiting_human",):
+            from .bot_provisioning import sync_issue_assignee
+            sync_issue_assignee(
+                issue=issue, previous_member=prev_member,
+                next_member=(None if target in TERMINAL_STATUSES else execution.current_member),
+                workspace_id=str(issue.workspace_id))
+    except Exception as exc:
+        import logging
+        logging.getLogger("plane.orchestration").exception("issue projection failed: %s", exc)
     return execution
+
 
 
 def _load_active(execution_id: str) -> WorkItemExecution:
@@ -87,15 +105,39 @@ def on_human_handoff(*, execution_id: str, event_id: str, member, node_ref: str 
     保证待审批存在——审批建单失败不得静默丢待办。
     """
     ex = _load_active(execution_id)
+    # 审批人解析（与审批单 assignee 同源，§7.3）：优先人工节点指定审批人
+    node = next((n for n in ((ex.binding.workflow_version.definition or {}).get("nodes") or [])
+                 if n.get("key") == node_ref), {})
+    from .issue_state_sync import approver_user_id_of
+    approver_id = approver_user_id_of(node)
+    approver_member = None
+    if member is None and approver_id:
+        # current_member 是 AgentTeamMember FK——审批人在团队里才可入位；
+        # 不在团队时 member 保持 None，审批人上牌走转移后显式指派（下方）
+        from .models import AgentTeamMember
+        approver_member = AgentTeamMember.objects.filter(
+            team=ex.binding.team, kind="human", user_id=approver_id).first()
+        member = approver_member
     if ex.business_status == "waiting_human":
         execution = ex
     else:
         execution = transition_execution(execution=ex, target="waiting_human", event_id=event_id, member=member)
-    _ensure_pending_approval(execution, member, node_ref)
+    _ensure_pending_approval(execution, member, node_ref, default_assignee_id=approver_id)
+    # 审批人不在团队成员时：上牌仍归指定审批人（IssueAssignee FK=User，语义正确）
+    if approver_member is None and approver_id and execution.current_member_id is None:
+        from plane.db.models.issue import IssueAssignee
+        from plane.db.models.project import ProjectMember
+        issue = execution.issue
+        ProjectMember.objects.get_or_create(
+            project_id=issue.project_id, member_id=approver_id, defaults={"role": 15, "is_active": True})
+        IssueAssignee.objects.get_or_create(
+            issue=issue, assignee_id=approver_id, defaults={"project_id": issue.project_id})
+        # 等待人工：摘 agent bot（历史失败转移可能遗留 prev 成员缺失，兜底按 bot 清）
+        IssueAssignee.objects.filter(issue=issue, assignee__is_bot=True).delete()
     return execution
 
 
-def _ensure_pending_approval(execution, member, node_ref: str = "human") -> None:
+def _ensure_pending_approval(execution, member, node_ref: str = "human", *, default_assignee_id=None) -> None:
     """到达人工节点时落待审批（幂等：同执行同节点已有 pending 不重复建）。
 
     问题/选项/自由文本来自发布版本 definition 的人工节点（快照语义——
@@ -119,11 +161,25 @@ def _ensure_pending_approval(execution, member, node_ref: str = "human") -> None
         {"label": "Approve", "value": "approve", "terminal": False},
         {"label": "Reject", "value": "reject", "terminal": True},
     ]
+    # 问题注入前置节点输出（用户友好：审批人直接看到 agent 产出而非一行指令）
+    question = (node or {}).get("message") or ""
+    try:
+        from .node_runtime import NodeRuntimeRecord
+        prior = [
+            f"【{(execution.binding.workflow_version.definition or {}).get('nodes') and next((n.get('name') for n in (execution.binding.workflow_version.definition or {}).get('nodes') or [] if n.get('key') == r.node_key), r.node_key)} 的输出】\n{(r.result or {}).get('output', '')}"
+            for r in NodeRuntimeRecord.objects.filter(
+                execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
+            ).exclude(node_key=node_ref).order_by("updated_at")
+        ]
+        if prior:
+            question = (question + "\n\n" if question else "") + "\n\n".join(prior)
+    except Exception:
+        pass
     # assignee：人类成员 > definition 钉的审批人 > 不钉（全员可答）
-    assignee_id = getattr(member, "user_id", None) or _as_uuid((node or {}).get("approverUserId"))
+    assignee_id = getattr(member, "user_id", None) or _as_uuid((node or {}).get("approverUserId")) or _as_uuid(default_assignee_id)
     BusinessApproval.objects.create(
         execution=execution, node_ref=node_ref, options=options,
-        question=(node or {}).get("message") or "",
+        question=question,
         free_text=bool((node or {}).get("freeText")),
         assignee_id=assignee_id,
     )
@@ -156,12 +212,24 @@ def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
 
 
 def on_engine_terminal(*, execution_id: str, event_id: str, engine_status: str) -> WorkItemExecution:
-    """调用点 5：引擎终态结算（success/failed/cancelled 映射）。"""
+    """调用点 5：引擎终态结算（success/failed/cancelled 映射）。
+
+    终态统一作废该执行的全部 pending 审批——等价旧链
+    cancel_pending_agent_human_requests_for_agent_run 在 5 处终态路径的守卫
+    （执行终结 ⇔ 无 pending 审批，收件箱不残留）。
+    """
     target = ENGINE_TERMINAL_MAP.get(engine_status)
     if target is None:
         raise TeamDomainError(400, "ENGINE_STATUS_UNKNOWN", f"Unknown engine terminal status: {engine_status}")
     ex = _load_active(execution_id)
-    return transition_execution(execution=ex, target=target, event_id=event_id)
+    settled = transition_execution(execution=ex, target=target, event_id=event_id)
+    from .models import BusinessApproval
+    from django.utils import timezone as dj_tz
+    BusinessApproval.objects.filter(
+        execution=settled, result=BusinessApproval.Result.PENDING,
+    ).update(result=BusinessApproval.Result.REJECTED, reason="执行已终结",
+             answered_at=dj_tz.now())
+    return settled
 
 
 def on_reconcile_stale(*, execution_id: str, event_id: str) -> WorkItemExecution:
