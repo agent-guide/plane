@@ -85,9 +85,6 @@ export const ProjectWorkflowsManager = forwardRef<WorkflowsManagerHandle, { proj
       void load();
     }, [load]);
 
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isModalOpen]);
-
     function openHistory(workflow: OrchestrationWorkflow) {
       setHistoryFor(workflow);
       setHistoryOpen(true);

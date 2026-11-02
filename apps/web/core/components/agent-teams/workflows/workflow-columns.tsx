@@ -47,7 +47,7 @@ export function useWorkflowColumns({
     {
       key: "status",
       content: t("agent_teams_wf_col_status"),
-      tdRender: (workflow) => <WorkflowStatus status={workflow.status} />,
+      tdRender: (workflow) => <WorkflowStatus status={workflow.status ?? "draft"} />,
     },
     {
       key: "version",

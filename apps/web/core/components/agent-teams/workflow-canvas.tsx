@@ -688,7 +688,7 @@ export function WorkflowCanvasEditor({
                               onChange={(v) =>
                                 patchSelected({
                                   connections: {
-                                  ...selectedNode.data.connections,
+                                  ...((selectedNode.data.connections as Record<string, string>) ?? {}),
                                   [entry.type]: v,
                                 } as Record<string, string>,
                                 })
