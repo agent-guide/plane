@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * See the LICENSE.txt file in the repository root for details.
  *
- * Agent Teams extension — 项目内切换执行流程（设计修订 2026-10-08 阶段 4）：
+ * Agent Teams extension — 挂载/切换执行流程弹层（成员收敛 §3.4 两步绑定第二步）：
  * 分组列表（流程→版本），当前流程默认展开、其余收起只显示最新版；选中即
- * 钉住该版本；确认层固定告知切换语义（进行中不受影响，新工作项用新流程）。
- * 全部组件复用 Plane 体系（ModalCore/CustomSelect 不适用——分组展开结构）。
+ * 钉住该版本。currentWorkflowVersionId 为空 = 首次挂载（绑定团队后配置流程），
+ * 否则为切换；确认层固定告知语义（进行中不受影响，新工作项用新流程）。
+ * 团队选择不在此层（两步绑定第一步走 TeamBindModal）。
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "@plane/i18n";
@@ -19,11 +20,9 @@ import { format, parseISO } from "date-fns";
 // 数据源切换（阶段 2′）：切换绑定改走编排域（流程归项目；版本=已发布可选）
 import {
   orchestrationService,
-  type OrchestrationTeam,
   type OrchestrationWorkflow,
   type OrchestrationWorkflowVersion,
 } from "@/services/agent-teams/orchestration.service";
-import { FormSelect } from "@/components/agent-teams/form-select";
 
 const publishedVersionsOf = (map: Record<string, OrchestrationWorkflowVersion[]>, flowId: string) =>
   (map[flowId] ?? []).filter((v) => v.status === "published");
@@ -40,15 +39,13 @@ export function WorkflowSwitchModal({
   handleClose: () => void;
   workspaceSlug: string;
   projectId: string;
-  /** 当前绑定的 workflow_version id；null = 首次绑定模式（需选团队）。 */
+  /** 当前绑定的 workflow_version id；null = 首次挂载模式（团队已绑定、配置流程）。 */
   currentWorkflowVersionId: string | null;
   onSwitched: () => void;
 }) {
   const { t } = useTranslation();
-  // 首次绑定（无当前版本）需同时选团队；已绑定则只换版本
-  const isBindMode = currentWorkflowVersionId === null;
-  const [teams, setTeams] = useState<OrchestrationTeam[]>([]);
-  const [teamId, setTeamId] = useState("");
+  // 挂载模式（无当前版本）与切换模式共用本层：都是钉住一个发布版本
+  const isMountMode = currentWorkflowVersionId === null;
   const [workflows, setWorkflows] = useState<OrchestrationWorkflow[]>([]);
   const [versionsByFlow, setVersionsByFlow] = useState<Record<string, OrchestrationWorkflowVersion[]>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -63,13 +60,8 @@ export function WorkflowSwitchModal({
     let ignore = false;
     setLoading(true);
     setErrorKey("");
-    setTeamId("");
     (async () => {
       try {
-        if (isBindMode) {
-          const teamItems = await orchestrationService.listTeams(workspaceSlug);
-          setTeams(teamItems.filter((tm) => tm.status === "active"));
-        }
         const flows = await orchestrationService.listWorkflows(workspaceSlug, projectId);
         const entries = await Promise.all(
           flows.map(
@@ -99,7 +91,7 @@ export function WorkflowSwitchModal({
       ignore = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, workspaceSlug, projectId, isBindMode]);
+  }, [isOpen, workspaceSlug, projectId, isMountMode]);
 
   const submit = async () => {
     if (!selected || selected === currentWorkflowVersionId) {
@@ -109,24 +101,17 @@ export function WorkflowSwitchModal({
     setSubmitting(true);
     setErrorKey("");
     try {
-      if (isBindMode) {
-        if (!teamId) {
-          setErrorKey("agent_teams_wf_form_incomplete");
-          setSubmitting(false);
-          return;
-        }
-        await orchestrationService.bindProject(workspaceSlug, projectId, {
-          teamId,
-          workflowVersionId: selected,
-        });
-      } else {
-        await orchestrationService.upgradeBinding(workspaceSlug, projectId, selected);
-      }
+      // 挂载/切换同一端点：绑定已在 TeamBindModal 完成，这里只钉版本
+      await orchestrationService.upgradeBinding(workspaceSlug, projectId, selected);
       onSwitched();
       handleClose();
     } catch (err) {
-      const detail = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setErrorKey("agent_teams_wf_switch_failed" + (detail ? "::detail::" + detail : ""));
+      const detail = (err as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
+      if (detail?.code === "WORKFLOW_AGENT_NOT_IN_TEAM" || detail?.code === "WORKFLOW_APPROVER_NOT_IN_TEAM") {
+        setErrorKey("agent_teams_wf_roster_mismatch" + (detail.message ? "::detail::" + detail.message : ""));
+      } else {
+        setErrorKey("agent_teams_wf_switch_failed" + (detail?.message ? "::detail::" + detail.message : ""));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -136,18 +121,8 @@ export function WorkflowSwitchModal({
     <ModalCore isOpen={isOpen} handleClose={handleClose} position={EModalPosition.TOP} width={EModalWidth.XXL}>
       <div className="space-y-5 p-5">
         <h3 className="text-18 font-medium text-secondary">
-          {t(isBindMode ? "agent_teams_wf_bind_title" : "agent_teams_wf_switch_title_full")}
+          {t(isMountMode ? "agent_teams_wf_setup_title" : "agent_teams_wf_switch_title_full")}
         </h3>
-        {isBindMode ? (
-          <div className="space-y-1">
-            <FormSelect
-              value={teamId}
-              placeholder={t("agent_teams_wf_bind_pick_team")}
-              options={teams.map((tm) => ({ id: tm.id, name: tm.name }))}
-              onChange={(v) => setTeamId(v)}
-            />
-          </div>
-        ) : null}
         {loading ? (
           <div className="py-8 text-center text-13 text-tertiary">{t("agent_teams_inbox_loading")}</div>
         ) : errorKey && workflows.length === 0 ? (
@@ -234,7 +209,7 @@ export function WorkflowSwitchModal({
         ) : null}
         {/* 绑定/切换语义固定告知（§4.5 定案） */}
         <p className="text-11 text-tertiary">
-          {t(isBindMode ? "agent_teams_wf_bind_semantics" : "agent_teams_wf_switch_semantics")}
+          {t(isMountMode ? "agent_teams_wf_setup_semantics" : "agent_teams_wf_switch_semantics")}
         </p>
         <div className="flex items-center justify-end gap-2 border-t-[0.5px] border-subtle px-5 py-4">
           <PropelButton variant="secondary" size="lg" onClick={handleClose}>
@@ -245,9 +220,9 @@ export function WorkflowSwitchModal({
             size="lg"
             onClick={() => void submit()}
             loading={submitting}
-            disabled={!selected || (!isBindMode && selected === currentWorkflowVersionId) || (isBindMode && !teamId)}
+            disabled={!selected || (!isMountMode && selected === currentWorkflowVersionId)}
           >
-            {t(isBindMode ? "agent_teams_wf_bind_confirm" : "agent_teams_wf_switch_confirm")}
+            {t(isMountMode ? "agent_teams_wf_setup_confirm" : "agent_teams_wf_switch_confirm")}
           </PropelButton>
         </div>
       </div>

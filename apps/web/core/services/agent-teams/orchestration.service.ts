@@ -330,7 +330,8 @@ export interface OrchestrationBinding {
   id: string;
   projectId: string;
   teamId: string;
-  workflowVersionId: string;
+  /** 两步绑定（成员收敛 §3.1）：null/undefined = 已绑团队、未挂流程版本 */
+  workflowVersionId: string | null;
   status: "active" | "retired";
   updatedAt: string;
 }
@@ -342,7 +343,7 @@ export async function listBindings(workspace: string, projectId: string): Promis
 export async function bindProject(
   workspace: string,
   projectId: string,
-  data: { teamId: string; workflowVersionId: string }
+  data: { teamId: string; workflowVersionId?: string }
 ): Promise<OrchestrationBinding> {
   return request(`${PJ(workspace, projectId)}/team-bindings/`, {
     method: "POST",

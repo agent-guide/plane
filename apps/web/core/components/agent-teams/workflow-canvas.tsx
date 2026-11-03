@@ -274,9 +274,9 @@ function flowToGraphNodes(nodes: FlowNode[], edges: Edge[]): WorkflowGraphNode[]
 
 function nodeFieldMissing(node: FlowNode): boolean {
   if (!node.data.name.trim()) return true;
-  // 整改一: an agent node needs a prompt OR a bound employee (whose persona the
-  // backend injects; the prompt then acts as optional extra instruction).
-  if (node.type === "agent") return !(node.data.prompt || "").trim() && !(node.data.expertId || "").trim();
+  // 成员收敛 §3.1（通用 Agent 取缔）：负责员工必选，工作要求为附加说明——
+  // 现状员工留空执行必炸（worker no agent reference），收紧即修复。
+  if (node.type === "agent") return !(node.data.expertId || "").trim();
   if (node.type === "tool") return !(node.data.tool_name || "").trim();
   if (node.type === "human_confirm")
     return !(node.data.message || "").trim() || !(node.data.approverUserId || "").trim();
@@ -331,6 +331,11 @@ export type WorkflowCanvasEditorLabels = {
   fieldEmployeeEmptyHint?: string;
   genericAgent: string;
   employeePersonaInjected: string;
+  /** 成员收敛 §3.5：越界引用警示与成员来源提示（可选，旧调用不传不渲染）。 */
+  employeeOutOfRoster?: string;
+  memberSourceHint?: string;
+  approverOutOfRoster?: string;
+  approverTeamHint?: string;
   addNode: string;
   fieldPrompt: string;
   fieldPromptHint: string;
@@ -363,8 +368,7 @@ export type ToolCatalogEntry = {
   connection_type?: string;
 };
 
-const connectionTypeLabel = (type: string) =>
-  type === "zentao" ? "禅道" : type === "http_api" ? "其他系统" : type;
+const connectionTypeLabel = (type: string) => (type === "zentao" ? "禅道" : type === "http_api" ? "其他系统" : type);
 
 // Available connections (name + type) for the tool-node credential dropdown —
 // filtered by the selected tool's declared connection_type when known.
@@ -424,7 +428,6 @@ export function WorkflowCanvasEditor({
     }
     return Array.from(grouped.entries()).map(([type, options]) => ({ type, options }));
   }, [selectedNode, connections]);
-
 
   const onConnect = useCallback(
     (connection: Connection) =>
@@ -652,11 +655,17 @@ export function WorkflowCanvasEditor({
                       </>
                     )}
                     {(() => {
-                      const bound = employees.find((emp) => emp.id === selectedNode.data.expertId);
-                      return bound ? (
-                        <span className={FIELD_HINT_CLASS}>· {labels.employeePersonaInjected}</span>
-                      ) : null;
+                      const picked = (selectedNode.data.expertId ?? "").trim();
+                      const bound = employees.find((emp) => emp.id === picked);
+                      if (bound) return <span className={FIELD_HINT_CLASS}>· {labels.employeePersonaInjected}</span>;
+                      // 越界警示：已选值不在团队名册（挂载时后端会拦，提前在画布可见）
+                      if (picked && employees.length > 0 && labels.employeeOutOfRoster)
+                        return <span className="text-11 text-danger-primary">· {labels.employeeOutOfRoster}</span>;
+                      return null;
                     })()}
+                    {labels.memberSourceHint ? (
+                      <span className={FIELD_HINT_CLASS}>· {labels.memberSourceHint}</span>
+                    ) : null}
                   </div>
                   <div className="grid gap-1.5">
                     <span className={FIELD_LABEL_CLASS}>{labels.fieldPrompt}</span>
@@ -679,7 +688,10 @@ export function WorkflowCanvasEditor({
                           <span className="text-11 text-tertiary">{connectionTypeLabel(entry.type)}</span>
                           <span className="flex items-center gap-1.5">
                             <FormSelect
-                              value={((selectedNode.data.connections as Record<string, string> | undefined)?.[entry.type]) ?? ""}
+                              value={
+                                (selectedNode.data.connections as Record<string, string> | undefined)?.[entry.type] ??
+                                ""
+                              }
                               placeholder={labels.connectionSelect}
                               options={entry.options.map((c) => ({
                                 id: c.name,
@@ -688,9 +700,9 @@ export function WorkflowCanvasEditor({
                               onChange={(v) =>
                                 patchSelected({
                                   connections: {
-                                  ...((selectedNode.data.connections as Record<string, string>) ?? {}),
-                                  [entry.type]: v,
-                                } as Record<string, string>,
+                                    ...(selectedNode.data.connections as Record<string, string>),
+                                    [entry.type]: v,
+                                  } as Record<string, string>,
                                 })
                               }
                             />
@@ -828,6 +840,20 @@ export function WorkflowCanvasEditor({
                     {users.length === 0 && labels.fieldApproverEmptyHint ? (
                       <span className={FIELD_HINT_CLASS}>· {labels.fieldApproverEmptyHint}</span>
                     ) : null}
+                    {(() => {
+                      // 成员收敛 §3.5：越界警示 + 未指定语义提示（收窄为团队真人可答）
+                      const picked = (selectedNode.data.approverUserId ?? "").trim();
+                      if (
+                        picked &&
+                        users.length > 0 &&
+                        !users.some((u) => u.id === picked) &&
+                        labels.approverOutOfRoster
+                      )
+                        return <span className="text-11 text-danger-primary">· {labels.approverOutOfRoster}</span>;
+                      if (!picked && labels.approverTeamHint)
+                        return <span className={FIELD_HINT_CLASS}>· {labels.approverTeamHint}</span>;
+                      return null;
+                    })()}
                   </div>
                   <div className="flex items-center gap-2 text-12 text-secondary">
                     <Checkbox

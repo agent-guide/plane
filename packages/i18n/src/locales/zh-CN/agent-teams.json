@@ -336,5 +336,21 @@
   "connections.select_hint": "选择连接后，数字员工才能访问对应系统",
   "connections.create_new": "+ 新建连接",
   "workspace_settings.settings.connections.title": "连接",
-  "workspace_settings.settings.connections.description": "让数字员工能访问外部系统，如禅道、物流平台"
+  "workspace_settings.settings.connections.description": "让数字员工能访问外部系统，如禅道、物流平台",
+  "agent_teams_bind_team_short": "绑定团队",
+  "agent_teams_bind_team_title": "绑定团队",
+  "agent_teams_bind_team_confirm": "绑定",
+  "agent_teams_bind_team_pick": "选择团队",
+  "agent_teams_bind_team_semantics": "绑定后，流程中的成员将从该团队中挑选；随后配置流程，新建的工作项才会自动执行。",
+  "agent_teams_bind_team_failed": "绑定团队失败，请稍后重试",
+  "agent_teams_bind_team_empty": "暂无可绑定的团队——请先在工作区「团队」页创建并启用团队",
+  "agent_teams_wf_pending_setup": "待配置流程",
+  "agent_teams_wf_setup": "配置流程",
+  "agent_teams_wf_setup_title": "配置执行流程",
+  "agent_teams_wf_setup_confirm": "确认配置",
+  "agent_teams_wf_setup_semantics": "配置后：新建的工作项由团队按所选流程执行。",
+  "agent_teams_wf_roster_mismatch": "流程中引用了团队名册之外的成员，请先调整流程或团队成员",
+  "agent_teams_workflows_need_bind_title": "先绑定团队",
+  "agent_teams_workflows_need_bind_hint": "绑定团队后才能创建流程，流程中的成员将从团队中挑选。",
+  "agent_teams_workflows_need_bind_cta": "绑定团队"
 }

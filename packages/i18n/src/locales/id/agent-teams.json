@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Kaitkan tim",
+  "agent_teams_bind_team_title": "Kaitkan tim",
+  "agent_teams_bind_team_confirm": "Kaitkan",
+  "agent_teams_bind_team_pick": "Pilih tim",
+  "agent_teams_bind_team_semantics": "Setelah dikaitkan, anggota alur dipilih dari tim ini. Selanjutnya konfigurasikan alur — item baru akan berjalan otomatis.",
+  "agent_teams_bind_team_failed": "Gagal mengaitkan tim, silakan coba lagi",
+  "agent_teams_bind_team_empty": "Belum ada tim yang tersedia — buat dan aktifkan tim di \"Tim\" terlebih dahulu",
+  "agent_teams_wf_pending_setup": "Alur belum dikonfigurasi",
+  "agent_teams_wf_setup": "Konfigurasikan alur",
+  "agent_teams_wf_setup_title": "Konfigurasikan alur eksekusi",
+  "agent_teams_wf_setup_confirm": "Konfirmasi",
+  "agent_teams_wf_setup_semantics": "Setelah dikonfigurasi: item baru dibuat menjalankan alur yang dipilih.",
+  "agent_teams_wf_roster_mismatch": "Alur merujuk anggota di luar tim. Sesuaikan dulu alur atau anggota tim",
+  "agent_teams_workflows_need_bind_title": "Kaitkan tim terlebih dahulu",
+  "agent_teams_workflows_need_bind_hint": "Buat alur setelah mengaitkan tim; anggota alur dipilih dari tim.",
+  "agent_teams_workflows_need_bind_cta": "Kaitkan tim"
 }

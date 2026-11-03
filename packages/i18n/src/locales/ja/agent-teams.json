@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "チームを割り当て",
+  "agent_teams_bind_team_title": "チームを割り当て",
+  "agent_teams_bind_team_confirm": "割り当て",
+  "agent_teams_bind_team_pick": "チームを選択",
+  "agent_teams_bind_team_semantics": "割り当て後、フローのメンバーはこのチームから選択します。続いてフローを設定すると、新しい作業項目が自動実行されます。",
+  "agent_teams_bind_team_failed": "チームの割り当てに失敗しました。もう一度お試しください",
+  "agent_teams_bind_team_empty": "割り当て可能なチームがありません。先に「チーム」ページでチームを作成して有効化してください",
+  "agent_teams_wf_pending_setup": "フロー未設定",
+  "agent_teams_wf_setup": "フローを設定",
+  "agent_teams_wf_setup_title": "実行フローを設定",
+  "agent_teams_wf_setup_confirm": "確認",
+  "agent_teams_wf_setup_semantics": "設定後：新しく作成した作業項目は選択したフローで実行されます。",
+  "agent_teams_wf_roster_mismatch": "フローがチーム名簿外のメンバーを参照しています。先にフローまたはチームメンバーを調整してください",
+  "agent_teams_workflows_need_bind_title": "先にチームを割り当て",
+  "agent_teams_workflows_need_bind_hint": "チームを割り当てるとフローを作成できます。フローのメンバーはチームから選択されます。",
+  "agent_teams_workflows_need_bind_cta": "チームを割り当て"
 }

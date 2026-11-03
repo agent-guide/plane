@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Priradiť tím",
+  "agent_teams_bind_team_title": "Priradiť tím",
+  "agent_teams_bind_team_confirm": "Priradiť",
+  "agent_teams_bind_team_pick": "Vyberte tím",
+  "agent_teams_bind_team_semantics": "Po priradení sa členovia procesu vyberajú z tohto tímu. Potom nakonfigurujte proces — nové položky sa spustia automaticky.",
+  "agent_teams_bind_team_failed": "Priradenie tímu zlyhalo, skúste to znova",
+  "agent_teams_bind_team_empty": "Žiadne dostupné tímy — najprv vytvorte a aktivujte tím v sekcii \"Tímy\"",
+  "agent_teams_wf_pending_setup": "Proces na konfiguráciu",
+  "agent_teams_wf_setup": "Konfigurovať proces",
+  "agent_teams_wf_setup_title": "Konfigurovať proces vykonávania",
+  "agent_teams_wf_setup_confirm": "Potvrdiť",
+  "agent_teams_wf_setup_semantics": "Po konfigurácii: novo vytvorené položky bežia podľa zvoleného procesu.",
+  "agent_teams_wf_roster_mismatch": "Proces odkazuje na členov mimo tímu. Najprv upravte proces alebo členov tímu",
+  "agent_teams_workflows_need_bind_title": "Najprv priraďte tím",
+  "agent_teams_workflows_need_bind_hint": "Vytvárajte procesy po priradení tímu; členovia procesu pochádzajú z tímu.",
+  "agent_teams_workflows_need_bind_cta": "Priradiť tím"
 }

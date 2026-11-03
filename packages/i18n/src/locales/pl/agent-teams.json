@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Przypisz zespół",
+  "agent_teams_bind_team_title": "Przypisz zespół",
+  "agent_teams_bind_team_confirm": "Przypisz",
+  "agent_teams_bind_team_pick": "Wybierz zespół",
+  "agent_teams_bind_team_semantics": "Po przypisaniu członkowie procesu będą wybierani z tego zespołu. Następnie skonfiguruj proces — nowe elementy będą uruchamiane automatycznie.",
+  "agent_teams_bind_team_failed": "Nie udało się przypisać zespołu, spróbuj ponownie",
+  "agent_teams_bind_team_empty": "Brak dostępnych zespołów — najpierw utwórz i aktywuj zespół w sekcji \"Zespoły\"",
+  "agent_teams_wf_pending_setup": "Proces do skonfigurowania",
+  "agent_teams_wf_setup": "Skonfiguruj proces",
+  "agent_teams_wf_setup_title": "Skonfiguruj proces wykonywania",
+  "agent_teams_wf_setup_confirm": "Potwierdź",
+  "agent_teams_wf_setup_semantics": "Po konfiguracji: nowo utworzone elementy są wykonywane według wybranego procesu.",
+  "agent_teams_wf_roster_mismatch": "Proces odwołuje się do członków poza składem zespołu. Najpierw dostosuj proces lub skład zespołu",
+  "agent_teams_workflows_need_bind_title": "Najpierw przypisz zespół",
+  "agent_teams_workflows_need_bind_hint": "Twórz procesy po przypisaniu zespołu; członkowie procesu pochodzą z zespołu.",
+  "agent_teams_workflows_need_bind_cta": "Przypisz zespół"
 }

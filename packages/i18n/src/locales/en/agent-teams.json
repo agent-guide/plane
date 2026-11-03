@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Bind a team",
+  "agent_teams_bind_team_title": "Bind a team",
+  "agent_teams_bind_team_confirm": "Bind",
+  "agent_teams_bind_team_pick": "Select a team",
+  "agent_teams_bind_team_semantics": "After binding, workflow members are picked from this team. Configure a workflow next — new work items then run automatically.",
+  "agent_teams_bind_team_failed": "Failed to bind the team, please try again",
+  "agent_teams_bind_team_empty": "No teams available yet — create and activate one under \"Teams\" first",
+  "agent_teams_wf_pending_setup": "Workflow pending",
+  "agent_teams_wf_setup": "Configure workflow",
+  "agent_teams_wf_setup_title": "Configure execution workflow",
+  "agent_teams_wf_setup_confirm": "Confirm",
+  "agent_teams_wf_setup_semantics": "After configuring: newly created work items run the selected workflow.",
+  "agent_teams_wf_roster_mismatch": "The workflow references members outside the team roster. Adjust the workflow or the team members first",
+  "agent_teams_workflows_need_bind_title": "Bind a team first",
+  "agent_teams_workflows_need_bind_hint": "Create workflows after binding a team; workflow members are picked from the team.",
+  "agent_teams_workflows_need_bind_cta": "Bind a team"
 }

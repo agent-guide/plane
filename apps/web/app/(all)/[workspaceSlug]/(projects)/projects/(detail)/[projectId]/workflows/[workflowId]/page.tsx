@@ -16,12 +16,7 @@ import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
 import { Input, TextArea } from "@plane/ui";
 import { Rocket, Workflow } from "lucide-react";
 // services
-import {
-  orchestrationService,
-  type OrchestrationAgentCatalogEntry,
-  type OrchestrationWorkflow,
-} from "@/services/agent-teams/orchestration.service";
-import { WorkspaceService } from "@/services/workspace.service";
+import { orchestrationService, type OrchestrationWorkflow } from "@/services/agent-teams/orchestration.service";
 import { connectionsService } from "@/services/agent-teams/connections.service";
 // components
 import { WorkflowCanvasEditor } from "@/components/agent-teams/workflow-canvas";
@@ -30,8 +25,6 @@ import type { WorkflowCanvasEditorLabels } from "@/components/agent-teams/workfl
 import type { WorkflowGraph } from "@/services/agent-teams/workflow.service";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
-
-const workspaceService = new WorkspaceService();
 
 // 画布文案双语文料（与管理端 adminWorkflowCanvas 同源）：画布是专用编辑面，
 // 文案随组件内联避免 40+ 键 × 全语言铺开；zh 之外回退英文。
@@ -48,17 +41,19 @@ const CANVAS_LABELS_ZH: WorkflowCanvasEditorLabels = {
   saving: "保存中...",
   savedMessage: "画布已保存",
   saveFailed: "保存画布失败，请稍后重试",
-  emptyFieldError: "有 Agent 节点缺少工作要求，请补全后再保存",
+  emptyFieldError: "有 Agent 节点未指定负责员工，请补全后再保存",
   cycleError: "流程中存在循环连线，请检查后再保存",
   nodePanelTitle: "节点属性",
   fieldName: "节点名称 *",
   connectionsSection: "连接",
   connectionSelect: "选择连接",
   connectionHint: "选择连接后，数字员工才能访问对应系统",
-  fieldEmployee: "负责员工",
-  fieldEmployeeEmptyHint: "数字员工目录暂不可用，可先手填标识后保存",
-  genericAgent: "通用 Agent（不绑定员工）",
+  fieldEmployee: "负责员工 *",
+  fieldEmployeeEmptyHint: "团队成员目录暂不可用，可先手填标识后保存（挂载时会校验是否在团队名册内）",
+  genericAgent: "选择负责员工",
   employeePersonaInjected: "能力介绍已自动注入",
+  employeeOutOfRoster: "该员工不在当前团队名册内，请改选团队成员或先将其加入团队",
+  memberSourceHint: "可选成员来自项目绑定的团队",
   addNode: "添加节点",
   fieldPrompt: "本节点工作要求",
   fieldPromptHint: "员工能力由所绑成员自动注入，此处只写该节点要完成的具体工作（如：拉取数据 / 分级 / 撰写报告…）",
@@ -70,8 +65,10 @@ const CANVAS_LABELS_ZH: WorkflowCanvasEditorLabels = {
   fieldParams: "参数（JSON）",
   fieldMessage: "确认提示 *",
   fieldApprover: "审批人 *",
-  fieldApproverPlaceholder: "选择审批人（工作区成员）",
-  fieldApproverEmptyHint: "工作区成员目录暂不可用，可先手填用户标识后保存",
+  fieldApproverPlaceholder: "选择审批人（团队成员）",
+  fieldApproverEmptyHint: "团队成员目录暂不可用，可先手填用户标识后保存（挂载时会校验是否在团队名册内）",
+  approverOutOfRoster: "该成员不在当前团队名册内，请改选团队成员或先将其加入团队",
+  approverTeamHint: "不指定时，由团队真人成员处理",
   fieldFreeText: "自由文本答复（不提供选项，答复任意内容继续流程）",
   fieldOptions: "选项（自定义）",
   fieldOptionsHint: "留空 = 默认「通过并继续 / 驳回」。勾选「终止」的选项会结束流程，其余带着所选文案继续执行。",
@@ -96,6 +93,17 @@ const CANVAS_LABELS_EN: WorkflowCanvasEditorLabels = {
   fieldName: "Node name *",
   addNode: "Add node",
   deleteNode: "Delete node",
+  // 成员收敛 §3.5：越界警示与成员来源（英文覆写关键项）
+  emptyFieldError: "Some agent nodes have no assigned member. Assign one before saving",
+  fieldEmployee: "Assigned member *",
+  fieldEmployeeEmptyHint: "Team member list unavailable; you may type the id now — roster is checked on attach",
+  genericAgent: "Select a team member",
+  employeeOutOfRoster: "This member is outside the team roster. Pick a team member or add them to the team first",
+  memberSourceHint: "Selectable members come from the team bound to this project",
+  fieldApproverPlaceholder: "Select an approver (team member)",
+  fieldApproverEmptyHint: "Team member list unavailable; you may type the id now — roster is checked on attach",
+  approverOutOfRoster: "This member is outside the team roster. Pick a team member or add them to the team first",
+  approverTeamHint: "If unspecified, human members of the team handle it",
 };
 
 function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; workflowId: string } }) {
@@ -118,8 +126,9 @@ function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; wo
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
 
-  // 画布目录：数字员工（agent 目录代理）/ 审批人（工作区成员）。
-  // 工具/连接目录暂空（终局 env 承载引擎连接；工具注册表后续随执行域补）。
+  // 画布目录（成员收敛 §3.5）：可选成员 = 项目绑定团队的 enabled 成员——
+  // 数字员工取 agent 成员、审批人取 human 成员；未绑定/拉取失败降级为手填 id，
+  // 越界引用由挂载/发布时后端名册校验兜底。
   const [experts, setExperts] = useState<Array<{ id: string; name: string }>>([]);
   const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
   // 工作区连接（AI 节点连接选择，连接管理设计 §5.2）
@@ -146,28 +155,30 @@ function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; wo
     void reload();
   }, [reload, projectId, workflowId]);
 
-  // 目录懒加载：进画布才取，失败静默降级为手填 id。
+  // 目录懒加载（成员收敛 §3.5）：先取项目 active 绑定 → 团队 enabled 成员分拣。
   useEffect(() => {
     if (!workspaceSlug) return;
     let ignore = false;
     orchestrationService
-      .listAgentCatalog(workspaceSlug)
-      .then((entries: OrchestrationAgentCatalogEntry[]) => {
-        if (!ignore) setExperts(entries.map((e) => ({ id: e.id, name: e.name })));
-        return null;
+      .listBindings(workspaceSlug, projectId)
+      .then((bindings) => {
+        const active = bindings.find((b) => b.status === "active");
+        if (!active) return null;
+        return orchestrationService.listMembers(workspaceSlug, active.teamId);
       })
-      .catch(() => undefined);
-    workspaceService
-      .fetchWorkspaceMembers(workspaceSlug)
       .then((members) => {
-        if (!ignore) {
-          setUsers(
-            members.map((m) => ({
-              id: m.member.id,
-              name: m.member.display_name || m.member.first_name || m.member.email || m.member.id,
-            }))
-          );
-        }
+        if (ignore || !members) return null;
+        const enabled = members.filter((m) => m.enabled !== false);
+        setExperts(
+          enabled
+            .filter((m) => m.kind === "agent" && m.agentDefinitionId)
+            .map((m) => ({ id: m.agentDefinitionId, name: m.displayName || m.agentDefinitionId }))
+        );
+        setUsers(
+          enabled
+            .filter((m) => m.kind === "human" && m.userId)
+            .map((m) => ({ id: m.userId as string, name: m.displayName || (m.userId as string) }))
+        );
         return null;
       })
       .catch(() => undefined);
@@ -183,6 +194,8 @@ function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; wo
     return () => {
       ignore = true;
     };
+    // 目录懒加载一次性获取：projectId 稳定（路由参数），不进依赖避免重复拉取
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceSlug]);
 
   async function saveGraph(graph: Record<string, unknown>) {

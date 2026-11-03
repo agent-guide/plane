@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "팀 연결",
+  "agent_teams_bind_team_title": "팀 연결",
+  "agent_teams_bind_team_confirm": "연결",
+  "agent_teams_bind_team_pick": "팀 선택",
+  "agent_teams_bind_team_semantics": "연결 후 워크플로 멤버는 이 팀에서 선택합니다. 이어서 워크플로를 구성하면 새 작업 항목이 자동 실행됩니다.",
+  "agent_teams_bind_team_failed": "팀 연결에 실패했습니다. 다시 시도해 주세요",
+  "agent_teams_bind_team_empty": "연결할 수 있는 팀이 없습니다. 먼저 \"팀\" 페이지에서 팀을 만들고 활성화하세요",
+  "agent_teams_wf_pending_setup": "워크플로 미구성",
+  "agent_teams_wf_setup": "워크플로 구성",
+  "agent_teams_wf_setup_title": "실행 워크플로 구성",
+  "agent_teams_wf_setup_confirm": "확인",
+  "agent_teams_wf_setup_semantics": "구성 후: 새로 만든 작업 항목이 선택한 워크플로로 실행됩니다.",
+  "agent_teams_wf_roster_mismatch": "워크플로가 팀 명단 외 멤버를 참조합니다. 먼저 워크플로 또는 팀 멤버를 조정하세요",
+  "agent_teams_workflows_need_bind_title": "먼저 팀을 연결하세요",
+  "agent_teams_workflows_need_bind_hint": "팀을 연결한 후에 워크플로를 만들 수 있습니다. 워크플로 멤버는 팀에서 선택됩니다.",
+  "agent_teams_workflows_need_bind_cta": "팀 연결"
 }

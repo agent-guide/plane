@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Přiřadit tým",
+  "agent_teams_bind_team_title": "Přiřadit tým",
+  "agent_teams_bind_team_confirm": "Přiřadit",
+  "agent_teams_bind_team_pick": "Vyberte tým",
+  "agent_teams_bind_team_semantics": "Po přiřazení se členové procesu vybírají z tohoto týmu. Poté nakonfigurujte proces — nové položky se spustí automaticky.",
+  "agent_teams_bind_team_failed": "Přiřazení týmu se nezdařilo, zkuste to znovu",
+  "agent_teams_bind_team_empty": "Žádné dostupné týmy — nejprve vytvořte a aktivujte tým v sekci \"Týmy\"",
+  "agent_teams_wf_pending_setup": "Proces ke konfiguraci",
+  "agent_teams_wf_setup": "Konfigurovat proces",
+  "agent_teams_wf_setup_title": "Konfigurovat prováděcí proces",
+  "agent_teams_wf_setup_confirm": "Potvrdit",
+  "agent_teams_wf_setup_semantics": "Po konfiguraci: nově vytvořené položky běží podle zvoleného procesu.",
+  "agent_teams_wf_roster_mismatch": "Proces odkazuje na členy mimo tým. Nejprve upravte proces nebo členy týmu",
+  "agent_teams_workflows_need_bind_title": "Nejprve přiřaďte tým",
+  "agent_teams_workflows_need_bind_hint": "Vytvářejte procesy po přiřazení týmu; členové procesu pocházejí z týmu.",
+  "agent_teams_workflows_need_bind_cta": "Přiřadit tým"
 }

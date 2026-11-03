@@ -32,6 +32,7 @@ import { Lock, Plus, RefreshCw, Workflow } from "lucide-react";
 import { EmptyRow, Section } from "@/components/agent-teams/section";
 import { CoverImage } from "@/components/common/cover-image";
 import { WorkflowSwitchModal } from "@/components/agent-teams/workflow-switch-modal";
+import { TeamBindModal } from "@/components/agent-teams/team-bind-modal";
 import { PageHead } from "@/components/core/page-title";
 import { useAgentTeamsLinks, teamInk } from "@/components/agent-teams/helper";
 // services
@@ -108,6 +109,7 @@ function ProjectOverviewPage() {
     (runtimeError as { response?: { data?: { code?: string } } } | null)?.response?.data?.code === "PROJECT_NOT_FOUND";
   const runtimeFailed = !!runtimeError && !overview && !runtimeUnmapped;
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [bindOpen, setBindOpen] = useState(false);
   const { mutate: mutateRuntimeOverview } = useProjectRuntimeOverview(workspaceSlug, projectId);
 
   // 团队区块已并入横幅；未绑定/未映射/加载失败不再占页面区块，改为
@@ -274,7 +276,11 @@ function ProjectOverviewPage() {
         // 与工作项列表同源的状态徽章；无状态回退运行动词文本
         run.stateName ? (
           <span className="inline-flex items-center gap-1.5 text-caption-sm-medium text-secondary">
-            <StateGroupIcon stateGroup={(run.stateGroup ?? "started") as TStateGroups} color={run.stateColor ?? undefined} className="size-3.5 flex-shrink-0" />
+            <StateGroupIcon
+              stateGroup={(run.stateGroup ?? "started") as TStateGroups}
+              color={run.stateColor ?? undefined}
+              className="size-3.5 flex-shrink-0"
+            />
             <span className="truncate">{run.stateName}</span>
           </span>
         ) : (
@@ -479,17 +485,34 @@ function ProjectOverviewPage() {
                       </button>
                     </div>
                   ) : !runtimeFailed ? (
-                    /* 未绑定：同样给胶囊入口——选团队+流程版本完成首次绑定
-                       （建项目即绑定向导退役后的唯一绑定入口） */
+                    /* 未绑定（两步绑定第一步，成员收敛 §3.4）：先绑团队，流程随后配置 */
                     <div className="ml-auto inline-flex h-8 flex-shrink-0 items-center gap-1.5 self-center rounded-full bg-layer-2 px-3">
                       <Workflow className="size-3.5 flex-shrink-0 text-tertiary" aria-hidden />
                       <span className="text-[12px] font-medium text-tertiary">{t("agent_teams_wf_unbound")}</span>
                       <button
                         type="button"
                         className="inline-flex h-6 flex-shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-medium text-accent-primary transition-colors hover:bg-accent-subtle"
+                        onClick={() => setBindOpen(true)}
+                      >
+                        {t("agent_teams_bind_team_short")}
+                      </button>
+                    </div>
+                  ) : binding && !binding.workflowVersionId ? (
+                    /* 已绑团队、未挂流程（两步绑定中间态）：引导配置流程 */
+                    <div className="ml-auto inline-flex h-8 flex-shrink-0 items-center gap-1.5 self-center rounded-full bg-layer-2 pr-1 pl-2.5">
+                      <Workflow className="size-3.5 flex-shrink-0 text-tertiary" aria-hidden />
+                      <span className="max-w-40 truncate text-[13px] font-medium text-secondary">
+                        {binding.teamName ?? "-"}
+                      </span>
+                      <span className="flex-shrink-0 rounded-full bg-layer-3 px-1.5 text-[11px] leading-5 font-medium text-accent-primary">
+                        {t("agent_teams_wf_pending_setup")}
+                      </span>
+                      <button
+                        type="button"
+                        className="inline-flex h-6 flex-shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-medium text-accent-primary transition-colors hover:bg-accent-subtle"
                         onClick={() => setSwitchOpen(true)}
                       >
-                        {t("agent_teams_wf_bind_title")}
+                        {t("agent_teams_wf_setup")}
                       </button>
                     </div>
                   ) : null}
@@ -532,11 +555,11 @@ function ProjectOverviewPage() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setSwitchOpen(true)}
+                            onClick={() => setBindOpen(true)}
                             className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-[13px] font-medium text-on-color hover:bg-accent-primary-hover"
                           >
                             <Plus className="size-3.5" aria-hidden />
-                            {t("agent_teams_wf_bind_title")}
+                            {t("agent_teams_bind_team_short")}
                           </button>
                         )
                       }
@@ -568,6 +591,13 @@ function ProjectOverviewPage() {
             </div>
           )}
 
+          <TeamBindModal
+            isOpen={bindOpen}
+            handleClose={() => setBindOpen(false)}
+            workspaceSlug={workspaceSlug ?? ""}
+            projectId={projectId}
+            onBound={() => void mutateRuntimeOverview()}
+          />
           <WorkflowSwitchModal
             isOpen={switchOpen}
             handleClose={() => setSwitchOpen(false)}

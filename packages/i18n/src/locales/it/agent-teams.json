@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Collega team",
+  "agent_teams_bind_team_title": "Collega team",
+  "agent_teams_bind_team_confirm": "Collega",
+  "agent_teams_bind_team_pick": "Seleziona team",
+  "agent_teams_bind_team_semantics": "Dopo il collegamento, i membri del flusso vengono scelti da questo team. Configura poi un flusso: i nuovi elementi verranno eseguiti automaticamente.",
+  "agent_teams_bind_team_failed": "Collegamento del team non riuscito, riprova",
+  "agent_teams_bind_team_empty": "Nessun team disponibile — crea e attiva prima un team in \"Team\"",
+  "agent_teams_wf_pending_setup": "Flusso da configurare",
+  "agent_teams_wf_setup": "Configura flusso",
+  "agent_teams_wf_setup_title": "Configura flusso di esecuzione",
+  "agent_teams_wf_setup_confirm": "Conferma",
+  "agent_teams_wf_setup_semantics": "Dopo la configurazione: i nuovi elementi creati seguono il flusso scelto.",
+  "agent_teams_wf_roster_mismatch": "Il flusso riferimento membri esterni al team. Correggi prima il flusso o i membri del team",
+  "agent_teams_workflows_need_bind_title": "Collega prima un team",
+  "agent_teams_workflows_need_bind_hint": "Crea i flussi dopo aver collegato un team; i membri del flusso provengono dal team.",
+  "agent_teams_workflows_need_bind_cta": "Collega team"
 }

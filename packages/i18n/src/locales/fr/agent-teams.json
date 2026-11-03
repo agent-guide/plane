@@ -337,5 +337,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Associer une équipe",
+  "agent_teams_bind_team_title": "Associer une équipe",
+  "agent_teams_bind_team_confirm": "Associer",
+  "agent_teams_bind_team_pick": "Choisir une équipe",
+  "agent_teams_bind_team_semantics": "Après l'association, les membres du workflow sont choisis dans cette équipe. Configurez ensuite un workflow — les nouveaux éléments s'exécuteront automatiquement.",
+  "agent_teams_bind_team_failed": "Échec de l'association de l'équipe, veuillez réessayer",
+  "agent_teams_bind_team_empty": "Aucune équipe disponible — créez et activez d'abord une équipe dans « Équipes »",
+  "agent_teams_wf_pending_setup": "Workflow à configurer",
+  "agent_teams_wf_setup": "Configurer le workflow",
+  "agent_teams_wf_setup_title": "Configurer le workflow d'exécution",
+  "agent_teams_wf_setup_confirm": "Confirmer",
+  "agent_teams_wf_setup_semantics": "Après configuration : les nouveaux éléments créés suivent le workflow choisi.",
+  "agent_teams_wf_roster_mismatch": "Le workflow référence des membres hors de l'équipe. Ajustez d'abord le workflow ou les membres de l'équipe",
+  "agent_teams_workflows_need_bind_title": "Associez d'abord une équipe",
+  "agent_teams_workflows_need_bind_hint": "Créez des workflows après avoir associé une équipe ; les membres du workflow viennent de l'équipe.",
+  "agent_teams_workflows_need_bind_cta": "Associer une équipe"
 }

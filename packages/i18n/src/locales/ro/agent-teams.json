@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Asociază echipa",
+  "agent_teams_bind_team_title": "Asociază echipa",
+  "agent_teams_bind_team_confirm": "Asociază",
+  "agent_teams_bind_team_pick": "Selectează echipa",
+  "agent_teams_bind_team_semantics": "După asociere, membrii fluxului sunt aleși din această echipă. Configurează apoi un flux — elementele noi se vor executa automat.",
+  "agent_teams_bind_team_failed": "Asocierea echipei a eșuat, încercați din nou",
+  "agent_teams_bind_team_empty": "Nicio echipă disponibilă — creați și activați mai întâi o echipă în „Echipe”",
+  "agent_teams_wf_pending_setup": "Flux de configurat",
+  "agent_teams_wf_setup": "Configurează fluxul",
+  "agent_teams_wf_setup_title": "Configurează fluxul de execuție",
+  "agent_teams_wf_setup_confirm": "Confirmă",
+  "agent_teams_wf_setup_semantics": "După configurare: elementele noi create rulează fluxul ales.",
+  "agent_teams_wf_roster_mismatch": "Fluxul face referire la membri în afara echipei. Ajustați mai întâi fluxul sau membrii echipei",
+  "agent_teams_workflows_need_bind_title": "Asociați mai întâi o echipă",
+  "agent_teams_workflows_need_bind_hint": "Creați fluxuri după asocierea unei echipe; membrii fluxului provin din echipă.",
+  "agent_teams_workflows_need_bind_cta": "Asociază echipa"
 }

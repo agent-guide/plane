@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Привязать команду",
+  "agent_teams_bind_team_title": "Привязать команду",
+  "agent_teams_bind_team_confirm": "Привязать",
+  "agent_teams_bind_team_pick": "Выберите команду",
+  "agent_teams_bind_team_semantics": "После привязки участники процесса выбираются из этой команды. Затем настройте процесс — новые задачи будут запускаться автоматически.",
+  "agent_teams_bind_team_failed": "Не удалось привязать команду, попробуйте ещё раз",
+  "agent_teams_bind_team_empty": "Доступных команд нет — сначала создайте и активируйте команду в разделе «Команды»",
+  "agent_teams_wf_pending_setup": "Процесс не настроен",
+  "agent_teams_wf_setup": "Настроить процесс",
+  "agent_teams_wf_setup_title": "Настроить процесс выполнения",
+  "agent_teams_wf_setup_confirm": "Подтвердить",
+  "agent_teams_wf_setup_semantics": "После настройки: новые задачи выполняются по выбранному процессу.",
+  "agent_teams_wf_roster_mismatch": "Процесс ссылается на участников вне состава команды. Сначала измените процесс или состав команды",
+  "agent_teams_workflows_need_bind_title": "Сначала привяжите команду",
+  "agent_teams_workflows_need_bind_hint": "Создавайте процессы после привязки команды; участники процесса берутся из команды.",
+  "agent_teams_workflows_need_bind_cta": "Привязать команду"
 }

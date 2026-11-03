@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Vincular equipe",
+  "agent_teams_bind_team_title": "Vincular equipe",
+  "agent_teams_bind_team_confirm": "Vincular",
+  "agent_teams_bind_team_pick": "Selecionar equipe",
+  "agent_teams_bind_team_semantics": "Após vincular, os membros do fluxo serão escolhidos nesta equipe. Configure um fluxo em seguida — novos itens executarão automaticamente.",
+  "agent_teams_bind_team_failed": "Falha ao vincular a equipe, tente novamente",
+  "agent_teams_bind_team_empty": "Nenhuma equipe disponível — crie e ative uma equipe em \"Equipes\" primeiro",
+  "agent_teams_wf_pending_setup": "Fluxo pendente",
+  "agent_teams_wf_setup": "Configurar fluxo",
+  "agent_teams_wf_setup_title": "Configurar fluxo de execução",
+  "agent_teams_wf_setup_confirm": "Confirmar",
+  "agent_teams_wf_setup_semantics": "Após configurar: novos itens criados seguem o fluxo escolhido.",
+  "agent_teams_wf_roster_mismatch": "O fluxo referencia membros fora da equipe. Ajuste primeiro o fluxo ou os membros da equipe",
+  "agent_teams_workflows_need_bind_title": "Vincule uma equipe primeiro",
+  "agent_teams_workflows_need_bind_hint": "Crie fluxos após vincular uma equipe; os membros do fluxo vêm da equipe.",
+  "agent_teams_workflows_need_bind_cta": "Vincular equipe"
 }

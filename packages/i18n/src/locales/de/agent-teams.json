@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Team zuweisen",
+  "agent_teams_bind_team_title": "Team zuweisen",
+  "agent_teams_bind_team_confirm": "Zuweisen",
+  "agent_teams_bind_team_pick": "Team auswählen",
+  "agent_teams_bind_team_semantics": "Nach der Zuweisung werden Workflow-Mitglieder aus diesem Team gewählt. Konfigurieren Sie anschließend einen Workflow — neue Arbeitselemente werden dann automatisch ausgeführt.",
+  "agent_teams_bind_team_failed": "Teamzuweisung fehlgeschlagen, bitte erneut versuchen",
+  "agent_teams_bind_team_empty": "Noch keine Teams verfügbar — erstellen und aktivieren Sie zuerst ein Team unter \"Teams\"",
+  "agent_teams_wf_pending_setup": "Workflow offen",
+  "agent_teams_wf_setup": "Workflow konfigurieren",
+  "agent_teams_wf_setup_title": "Ausführungs-Workflow konfigurieren",
+  "agent_teams_wf_setup_confirm": "Bestätigen",
+  "agent_teams_wf_setup_semantics": "Nach der Konfiguration: neu erstellte Arbeitselemente laufen im gewählten Workflow.",
+  "agent_teams_wf_roster_mismatch": "Der Workflow verweist auf Mitglieder außerhalb der Teamliste. Passen Sie zuerst den Workflow oder die Teammitglieder an",
+  "agent_teams_workflows_need_bind_title": "Zuerst Team zuweisen",
+  "agent_teams_workflows_need_bind_hint": "Erstellen Sie Workflows erst nach der Teamzuweisung; Workflow-Mitglieder kommen aus dem Team.",
+  "agent_teams_workflows_need_bind_cta": "Team zuweisen"
 }

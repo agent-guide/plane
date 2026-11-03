@@ -336,5 +336,21 @@
   "connections.select_hint": "Digital employees can only access the system after a connection is selected",
   "connections.create_new": "+ New connection",
   "workspace_settings.settings.connections.title": "Connections",
-  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms"
+  "workspace_settings.settings.connections.description": "Let digital employees access external systems like ZenTao and logistics platforms",
+  "agent_teams_bind_team_short": "Gắn nhóm",
+  "agent_teams_bind_team_title": "Gắn nhóm",
+  "agent_teams_bind_team_confirm": "Gắn",
+  "agent_teams_bind_team_pick": "Chọn nhóm",
+  "agent_teams_bind_team_semantics": "Sau khi gắn, thành viên quy trình sẽ được chọn từ nhóm này. Tiếp theo hãy cấu hình quy trình — mục mới sẽ tự động chạy.",
+  "agent_teams_bind_team_failed": "Gắn nhóm thất bại, vui lòng thử lại",
+  "agent_teams_bind_team_empty": "Chưa có nhóm khả dụng — hãy tạo và kích hoạt nhóm trong \"Nhóm\" trước",
+  "agent_teams_wf_pending_setup": "Chưa cấu hình quy trình",
+  "agent_teams_wf_setup": "Cấu hình quy trình",
+  "agent_teams_wf_setup_title": "Cấu hình quy trình thực thi",
+  "agent_teams_wf_setup_confirm": "Xác nhận",
+  "agent_teams_wf_setup_semantics": "Sau khi cấu hình: các mục mới tạo sẽ chạy theo quy trình đã chọn.",
+  "agent_teams_wf_roster_mismatch": "Quy trình tham chiếu thành viên ngoài nhóm. Hãy điều chỉnh quy trình hoặc thành viên nhóm trước",
+  "agent_teams_workflows_need_bind_title": "Gắn nhóm trước",
+  "agent_teams_workflows_need_bind_hint": "Tạo quy trình sau khi gắn nhóm; thành viên quy trình được chọn từ nhóm.",
+  "agent_teams_workflows_need_bind_cta": "Gắn nhóm"
 }
