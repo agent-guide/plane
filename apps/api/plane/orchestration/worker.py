@@ -284,7 +284,9 @@ def reconcile_runs_once() -> dict:
     from django.utils import timezone as dj_tz
     # ① 补启动：活跃绑定项目的近 7 天工作项、无任何执行记录者
     bindings = {b.project_id: b for b in ProjectTeamBinding.objects.filter(
-        status=ProjectTeamBinding.Status.ACTIVE).select_related("workflow_version")}
+        status=ProjectTeamBinding.Status.ACTIVE,
+        workflow_version__isnull=False,  # 未挂版本：建卡已被闸门拦，对账也只补已配置流程的
+    ).select_related("workflow_version")}
     if bindings:
         recent = Issue.objects.filter(
             project_id__in=list(bindings), created_at__gte=dj_tz.now() - dj_tz.timedelta(days=7),

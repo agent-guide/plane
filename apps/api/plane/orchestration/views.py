@@ -392,6 +392,11 @@ class ProjectWorkflowsEndpoint(BaseAPIView):
         project = Project.objects.filter(workspace__slug=slug, id=project_id).first()
         if not project:
             return Response({"error": "not found"}, status=404)
+        # 成员收敛 §3.2 建流程闸门：先绑团队才能编流程（成员选择以绑定团队为范围）
+        if not ProjectTeamBinding.objects.filter(
+                project_id=project_id, status=ProjectTeamBinding.Status.ACTIVE).exists():
+            return Response({"error": "Project has no active team binding. Assign a team before creating workflows.",
+                             "code": "PROJECT_NOT_BOUND"}, status=409)
         try:
             wf = workflows.create_workflow(
                 project=project, user_id=request.user.id,
@@ -500,10 +505,14 @@ class ProjectBindingsEndpoint(BaseAPIView):
         if not project:
             return Response({"error": "not found"}, status=404)
         team = AgentTeam.objects.filter(workspace__slug=slug, id=request.data.get("teamId")).first()
-        version = WorkflowVersion.objects.filter(id=request.data.get("workflowVersionId")).first()
-        if not team or not version:
-            return Response({"error": "team or workflow version not found",
-                             "code": "AGENT_TEAM_NOT_FOUND" if not team else "WORKFLOW_VERSION_NOT_FOUND"}, status=404)
+        if not team:
+            return Response({"error": "team not found", "code": "AGENT_TEAM_NOT_FOUND"}, status=404)
+        # 两步绑定（成员收敛 §3.1）：workflowVersionId 可省（先绑团队后挂版本）
+        version = None
+        if request.data.get("workflowVersionId"):
+            version = WorkflowVersion.objects.filter(id=request.data.get("workflowVersionId")).first()
+            if not version:
+                return Response({"error": "workflow version not found", "code": "WORKFLOW_VERSION_NOT_FOUND"}, status=404)
         try:
             binding = services.bind_project(
                 project=project, team=team, user_id=request.user.id,

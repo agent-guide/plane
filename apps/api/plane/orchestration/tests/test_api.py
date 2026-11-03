@@ -43,6 +43,17 @@ class OrchestrationAPITest(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()["status"], "active")
 
+        # 成员收敛时序（§3.1/§3.2）：先绑团队（不带版本）才能建流程
+        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/workflows/",
+                             {"name": "闸门前置探测"}, content_type="application/json")
+        self.assertEqual(r.status_code, 409, r.content)
+        self.assertEqual(r.json()["code"], "PROJECT_NOT_BOUND")
+
+        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/team-bindings/",
+                             {"teamId": team_id}, content_type="application/json")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(r.json()["status"], "active")
+
         r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/workflows/",
                              {"name": "HTTP 流程"}, content_type="application/json")
         self.assertEqual(r.status_code, 201, r.content)
@@ -63,10 +74,11 @@ class OrchestrationAPITest(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()["status"], "published")
 
-        r = self.client.post(f"/api/workspaces/aws-orch/projects/{self.project.id}/team-bindings/",
-                             {"teamId": team_id, "workflowVersionId": version_id}, content_type="application/json")
-        self.assertEqual(r.status_code, 201, r.content)
-        self.assertEqual(r.json()["status"], "active")
+        # 两步绑定第二步：挂载发布版本（PATCH 复用挂载/切换端点）
+        r = self.client.patch(f"/api/workspaces/aws-orch/projects/{self.project.id}/team-bindings/",
+                              {"workflowVersionId": version_id}, content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()["workflowVersionId"], version_id)
 
     def test_team_list_counts_and_quota(self):
         """列表卡信号行计数（memberCount/activeTaskCount/runningRunCount）与配额端点。"""

@@ -302,6 +302,9 @@ def start_execution(*, issue, binding, user_id) -> WorkItemExecution:
     if not team.members.filter(enabled=True).exists():
         raise TeamDomainError(409, "AGENT_TEAM_EMPTY", "An active team requires at least one enabled member")
     version = binding.workflow_version
+    if version is None:
+        # 两步绑定中间态：已绑团队未挂版本（建卡已被 PROJECT_NOT_BOUND 拦，此处 API 兜底）
+        raise TeamDomainError(409, "PROJECT_TEAM_BINDING_NOT_FOUND", "No active binding")
     if version.status != WorkflowVersion.Status.PUBLISHED:
         raise TeamDomainError(409, "WORKFLOW_VERSION_NOT_PUBLISHED", "Workflow version is not published")
 

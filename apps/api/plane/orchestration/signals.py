@@ -22,9 +22,10 @@ def auto_start_execution(sender, instance, created, **kwargs):
         return
     binding = ProjectTeamBinding.objects.filter(
         project_id=instance.project_id, status=ProjectTeamBinding.Status.ACTIVE,
+        workflow_version__isnull=False,  # 两步绑定中间态（已绑团队未挂版本）不启动
     ).select_related("workflow_version").first()
     if binding is None:
-        return  # not_governed：未绑定不启动
+        return  # not_governed：未绑定/未挂版本不启动
     from . import execution as execution_svc
     try:
         execution_svc.start_execution(issue=instance, binding=binding, user_id=instance.created_by_id)

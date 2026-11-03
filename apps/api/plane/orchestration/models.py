@@ -130,7 +130,12 @@ class WorkflowVersion(OrchestrationBaseModel):
 
 
 class ProjectTeamBinding(OrchestrationBaseModel):
-    """项目-团队绑定（钉发布版本；升级=显式改引用，不自动跟随）。"""
+    """项目-团队绑定（先绑团队，后挂发布版本；升级=显式改引用，不自动跟随）。
+
+    成员收敛时序（team-member-scoping-design §3.1）：绑定只定「谁执行」，
+    workflow_version 可空 = 已绑团队待配置流程——该态下建卡被 PROJECT_NOT_BOUND
+    闸门拒绝（base.py 编排域闸门）、auto_start 不启动。
+    """
 
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
@@ -138,7 +143,8 @@ class ProjectTeamBinding(OrchestrationBaseModel):
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="team_bindings")
     team = models.ForeignKey(AgentTeam, on_delete=models.PROTECT, related_name="project_bindings")
-    workflow_version = models.ForeignKey(WorkflowVersion, on_delete=models.PROTECT, related_name="bindings")
+    # null = 已绑团队、未挂流程（两步绑定中间态）；挂载/切换见 upgrade_binding
+    workflow_version = models.ForeignKey(WorkflowVersion, on_delete=models.SET_NULL, null=True, blank=True, related_name="bindings")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
 
     class Meta:

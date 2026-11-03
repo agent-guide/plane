@@ -77,6 +77,52 @@ class ValidationChainTests(BindingTestBase):
         self.assertEqual(binding.workflow_version_id, self.version.id)
 
 
+class TwoStepBindingTests(BindingTestBase):
+    """两步绑定（成员收敛 §3.1/§3.2）：先绑团队（无版本）→ 建流程 → 挂载。"""
+
+    def test_bind_team_only_leaves_version_null(self):
+        binding = services.bind_project(
+            project=self.project, team=self.team, user_id=self.owner.id, is_admin=True)
+        self.assertEqual(binding.status, ProjectTeamBinding.Status.ACTIVE)
+        self.assertIsNone(binding.workflow_version_id)
+
+    def test_attach_version_completes_two_step(self):
+        services.bind_project(project=self.project, team=self.team, user_id=self.owner.id, is_admin=True)
+        binding = ProjectTeamBinding.objects.get(project=self.project, status=ProjectTeamBinding.Status.ACTIVE)
+        services.upgrade_binding(binding=binding, user_id=self.owner.id, is_admin=True, workflow_version=self.version)
+        binding.refresh_from_db()
+        self.assertEqual(binding.workflow_version_id, self.version.id)
+
+    def test_issue_create_gate_rejects_unattached_version(self):
+        """建卡闸门（base.py PROJECT_NOT_BOUND）：已绑团队未挂版本 → 409。"""
+        from django.test import Client
+        from plane.db.models.workspace import WorkspaceMember
+        from plane.db.models.project import ProjectMember
+        from plane.db.models.issue import Issue
+        WorkspaceMember.objects.create(workspace=self.ws, member=self.owner, role=20)
+        ProjectMember.objects.create(project=self.project, member=self.owner, role=20)
+        services.bind_project(project=self.project, team=self.team, user_id=self.owner.id, is_admin=True)
+        client = Client()
+        client.force_login(self.owner)
+        r = client.post(f"/api/workspaces/{self.ws.slug}/projects/{self.project.id}/issues/",
+                        {"title": "中间态建卡"}, content_type="application/json")
+        self.assertEqual(r.status_code, 409, r.content)
+        self.assertEqual(r.json()["code"], "PROJECT_NOT_BOUND")
+        self.assertFalse(Issue.objects.filter(project=self.project).exists())
+
+    def test_auto_start_skips_unattached_version(self):
+        """auto_start 信号：绑定未挂版本时建卡（绕闸门造数）不产生执行。"""
+        from plane.db.models.issue import Issue
+        from plane.orchestration.models import WorkItemExecution
+        binding = services.bind_project(project=self.project, team=self.team, user_id=self.owner.id, is_admin=True)
+        issue = Issue.objects.create(
+            name="中间态卡", project=self.project, created_by=self.owner)
+        self.assertFalse(
+            WorkItemExecution.objects.filter(issue=issue).exists(),
+            "未挂版本的绑定不应启动执行",
+        )
+
+
 class UpgradeTests(BindingTestBase):
     def test_explicit_upgrade_follows_new_release(self):
         self._bind()

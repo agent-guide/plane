@@ -155,7 +155,11 @@ from .models import ProjectTeamBinding, WorkflowVersion
 
 
 def bind_project(*, project, team: AgentTeam, user_id, is_admin: bool,
-                 workflow_version: WorkflowVersion) -> ProjectTeamBinding:
+                 workflow_version: WorkflowVersion | None = None) -> ProjectTeamBinding:
+    """两步绑定第一步：绑团队（成员收敛时序 §3.1，workflow_version 可后挂）。
+
+    兼容旧调用：显式传版本时仍就地校验并落库（等价原单步绑定）。
+    """
     _require_manage(team, user_id, is_admin)
     if team.workspace_id != project.workspace_id:
         raise TeamDomainError(404, "AGENT_TEAM_NOT_FOUND", "Team not found in this workspace")
@@ -163,10 +167,11 @@ def bind_project(*, project, team: AgentTeam, user_id, is_admin: bool,
         raise TeamDomainError(409, "AGENT_TEAM_INACTIVE", "Team is not active")
     if ProjectTeamBinding.objects.filter(project=project, status=ProjectTeamBinding.Status.ACTIVE).exists():
         raise TeamDomainError(409, "PROJECT_TEAM_BINDING_CONFLICT", "Project already has an active team binding")
-    if workflow_version.workflow.project_id != project.id:
-        raise TeamDomainError(404, "WORKFLOW_VERSION_NOT_FOUND", "Workflow version not found for this project")
-    if workflow_version.status != WorkflowVersion.Status.PUBLISHED:
-        raise TeamDomainError(409, "WORKFLOW_VERSION_NOT_PUBLISHED", "Workflow version is not published")
+    if workflow_version is not None:
+        if workflow_version.workflow.project_id != project.id:
+            raise TeamDomainError(404, "WORKFLOW_VERSION_NOT_FOUND", "Workflow version not found for this project")
+        if workflow_version.status != WorkflowVersion.Status.PUBLISHED:
+            raise TeamDomainError(409, "WORKFLOW_VERSION_NOT_PUBLISHED", "Workflow version is not published")
     try:
         with transaction.atomic():
             return ProjectTeamBinding.objects.create(
@@ -180,7 +185,7 @@ def bind_project(*, project, team: AgentTeam, user_id, is_admin: bool,
 
 def upgrade_binding(*, binding: ProjectTeamBinding, user_id, is_admin: bool,
                     workflow_version: WorkflowVersion) -> ProjectTeamBinding:
-    """显式升级到新发布版本（不自动跟随，沿用既有语义）。"""
+    """挂载/切换发布版本（两步绑定第二步；显式改引用，不自动跟随）。"""
     _require_manage(binding.team, user_id, is_admin)
     if binding.status != ProjectTeamBinding.Status.ACTIVE:
         raise TeamDomainError(404, "PROJECT_TEAM_BINDING_NOT_FOUND", "No active binding")
