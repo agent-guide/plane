@@ -307,6 +307,9 @@ def start_execution(*, issue, binding, user_id) -> WorkItemExecution:
         raise TeamDomainError(409, "PROJECT_TEAM_BINDING_NOT_FOUND", "No active binding")
     if version.status != WorkflowVersion.Status.PUBLISHED:
         raise TeamDomainError(409, "WORKFLOW_VERSION_NOT_PUBLISHED", "Workflow version is not published")
+    # 成员收敛 §3.2 fail-closed 兜底：名册在绑定后可能漂移（禁用/移除），启动按当前名册复核
+    from .services import _validate_version_roster
+    _validate_version_roster(version, team)
 
     frozen = {
         "projectId": str(binding.project_id), "issueId": str(issue.id),

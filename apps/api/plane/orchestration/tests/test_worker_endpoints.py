@@ -28,6 +28,8 @@ class StartExecutionTestBase(TestCase):
         cls.project = Project.objects.create(name="wkp", identifier="WKPORCH", workspace=cls.ws, created_by=cls.owner)
         cls.team = services.create_team(workspace_id=cls.ws.id, user_id=cls.owner.id, is_admin=True, name="启动团队")
         services.add_member(team=cls.team, user_id=cls.owner.id, is_admin=True, kind="human", role="dev", user_ref=cls.owner.id)
+        # 名册校验（成员收敛 §3.1）：夹具 AI 节点引用 agent:t1:analyst，需在册
+        services.add_member(team=cls.team, user_id=cls.owner.id, is_admin=True, kind="agent", role="analyst", agent_definition_id="agent:t1:analyst")
         services.activate_team(team=cls.team, user_id=cls.owner.id, is_admin=True)
         cls.workflow = WorkflowDefinition.objects.create(project=cls.project, name="启动流程", created_by=cls.owner)
         workflows.update_draft(workflow=cls.workflow, user_id=cls.owner.id, draft=CANVAS_SINGLE)

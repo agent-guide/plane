@@ -154,6 +154,33 @@ PROJECT_INACTIVE → AGENT_TEAM_NOT_FOUND → AGENT_TEAM_INACTIVE
 from .models import ProjectTeamBinding, WorkflowVersion
 
 
+def _validate_version_roster(version: "WorkflowVersion", team: AgentTeam) -> None:
+    """名册校验（成员收敛 §3.1）：发布版本节点引用 ⊆ 团队 enabled 成员。
+
+    挂载/升级与启动两处复用；顺序先 agent 后 approver（与校验链暴露顺序一致）。
+    """
+    nodes = ((version.definition or {}).get("nodes") or [])
+    agent_ids = set(
+        team.members.filter(kind=AgentTeamMember.Kind.AGENT, enabled=True)
+        .values_list("agent_definition_id", flat=True))
+    human_ids = set(
+        team.members.filter(kind=AgentTeamMember.Kind.HUMAN, enabled=True)
+        .values_list("user_id", flat=True))
+    for node in nodes:
+        if node.get("type") in ("ai", "condition"):
+            expert = node.get("expertId") or ""
+            if expert and expert not in agent_ids:
+                raise TeamDomainError(
+                    409, "WORKFLOW_AGENT_NOT_IN_TEAM",
+                    f"Node '{node.get('name') or node.get('key')}' references an agent outside the team roster")
+        elif node.get("type") == "human_approval":
+            approver = node.get("approverUserId") or ""
+            if approver and str(approver) not in {str(u) for u in human_ids}:
+                raise TeamDomainError(
+                    409, "WORKFLOW_APPROVER_NOT_IN_TEAM",
+                    f"Node '{node.get('name') or node.get('key')}' references an approver outside the team roster")
+
+
 def bind_project(*, project, team: AgentTeam, user_id, is_admin: bool,
                  workflow_version: WorkflowVersion | None = None) -> ProjectTeamBinding:
     """两步绑定第一步：绑团队（成员收敛时序 §3.1，workflow_version 可后挂）。
@@ -193,6 +220,7 @@ def upgrade_binding(*, binding: ProjectTeamBinding, user_id, is_admin: bool,
         raise TeamDomainError(404, "WORKFLOW_VERSION_NOT_FOUND", "Workflow version not found for this project")
     if workflow_version.status != WorkflowVersion.Status.PUBLISHED:
         raise TeamDomainError(409, "WORKFLOW_VERSION_NOT_PUBLISHED", "Workflow version is not published")
+    _validate_version_roster(workflow_version, binding.team)  # 成员收敛 §3.1 主闸门
     binding.workflow_version = workflow_version
     binding.save(update_fields=["workflow_version", "updated_at"])
     return binding

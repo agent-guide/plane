@@ -114,6 +114,8 @@ class OutboxConsumerTests(TestCase):
         cls.project = Project.objects.create(name="owp", identifier="OWPORCH", workspace=cls.ws, created_by=cls.owner)
         cls.team = services.create_team(workspace_id=cls.ws.id, user_id=cls.owner.id, is_admin=True, name="outbox 团队")
         services.add_member(team=cls.team, user_id=cls.owner.id, is_admin=True, kind="human", role="dev", user_ref=cls.owner.id)
+        # 名册校验（成员收敛 §3.1）：夹具 AI 节点引用 agent:t1:analyst，需在册
+        services.add_member(team=cls.team, user_id=cls.owner.id, is_admin=True, kind="agent", role="analyst", agent_definition_id="agent:t1:analyst")
         services.activate_team(team=cls.team, user_id=cls.owner.id, is_admin=True)
         cls.wf = WorkflowDefinition.objects.create(project=cls.project, name="outbox 流程", created_by=cls.owner)
         workflows.update_draft(workflow=cls.wf, user_id=cls.owner.id, draft=CANVAS_SINGLE)

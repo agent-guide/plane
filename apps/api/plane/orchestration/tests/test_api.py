@@ -38,6 +38,11 @@ class OrchestrationAPITest(TestCase):
                              {"kind": "human", "userId": self.human.id, "role": "approver", "sequence": 1},
                              content_type="application/json")
         self.assertEqual(r.status_code, 201, r.content)
+        # 名册校验（成员收敛 §3.1）：夹具 AI 节点引用 agent:t1:analyst，挂载前入册
+        r = self.client.post(f"/api/workspaces/aws-orch/agent-teams/{team_id}/members/",
+                             {"kind": "agent", "agentDefinitionId": "agent:t1:analyst", "role": "analyst", "sequence": 2},
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 201, r.content)
 
         r = self.client.post(f"/api/workspaces/aws-orch/agent-teams/{team_id}/activate/", content_type="application/json")
         self.assertEqual(r.status_code, 200, r.content)

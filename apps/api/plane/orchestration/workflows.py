@@ -78,6 +78,13 @@ def start_publish(*, workflow: WorkflowDefinition, user_id,
     ).order_by("-version").first()
     if draft_version is None:
         raise TeamDomainError(409, "WORKFLOW_DRAFT_NOT_FOUND", "A draft version is required before publication")
+    # 成员收敛 §3.1（通用 Agent 取缔）：AI/条件节点的执行者必选——
+    # 现状 worker 对空 expertId 直接报 no agent reference，发布期拦截属修复校验洞
+    for node in ((draft_version.definition or {}).get("nodes") or []):
+        if node.get("type") in ("ai", "condition") and not (node.get("expertId") or "").strip():
+            raise TeamDomainError(
+                400, "WORKFLOW_AGENT_REQUIRED",
+                f"Node '{node.get('name') or node.get('key')}' requires an assigned team agent")
     if capability_validator is not None:
         try:
             capability_validator(draft_version.definition)

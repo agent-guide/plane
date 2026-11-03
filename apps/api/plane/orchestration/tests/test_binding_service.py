@@ -123,6 +123,66 @@ class TwoStepBindingTests(BindingTestBase):
         )
 
 
+class RosterValidationTests(BindingTestBase):
+    """名册校验（成员收敛 §3.1/§3.2）：节点引用 ⊆ 团队 enabled 成员。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from .canvas import CANVAS_SINGLE
+        from plane.orchestration import workflows
+        cls.team.members.all().delete()  # 重建名册：夹具 agent 不在册
+        services.add_member(team=cls.team, user_id=cls.owner.id, is_admin=True, kind="human", role="dev", user_ref=cls.owner.id)
+        workflows.update_draft(workflow=cls.workflow, user_id=cls.owner.id, draft=CANVAS_SINGLE)
+        v = workflows.save_draft_version(workflow=cls.workflow, user_id=cls.owner.id)
+        cls.version = workflows.finish_publish(
+            version=workflows.start_publish(workflow=cls.workflow, user_id=cls.owner.id),
+            engine_deploy_ref={"dag": "x"})
+
+    def _bind_and_attach(self):
+        binding = services.bind_project(project=self.project, team=self.team, user_id=self.owner.id, is_admin=True)
+        services.upgrade_binding(binding=binding, user_id=self.owner.id, is_admin=True, workflow_version=self.version)
+        return binding
+
+    def test_upgrade_blocks_agent_outside_roster(self):
+        binding = services.bind_project(project=self.project, team=self.team, user_id=self.owner.id, is_admin=True)
+        with self.assertRaises(TeamDomainError) as c:
+            services.upgrade_binding(binding=binding, user_id=self.owner.id, is_admin=True, workflow_version=self.version)
+        self.assertEqual(c.exception.code, "WORKFLOW_AGENT_NOT_IN_TEAM")
+
+    def test_upgrade_passes_once_agent_in_roster(self):
+        services.add_member(team=self.team, user_id=self.owner.id, is_admin=True,
+                            kind="agent", role="analyst", agent_definition_id="agent:t1:analyst")
+        binding = self._bind_and_attach()
+        self.assertEqual(binding.workflow_version_id, self.version.id)
+
+    def test_start_blocks_after_member_disabled(self):
+        """绑定后名册漂移：禁用 agent 成员 → 启动复核拦截（fail-closed）。"""
+        from plane.db.models.issue import Issue
+        from plane.orchestration import execution as execution_svc
+        member = services.add_member(team=self.team, user_id=self.owner.id, is_admin=True,
+                                     kind="agent", role="analyst", agent_definition_id="agent:t1:analyst")
+        binding = self._bind_and_attach()
+        services.update_member(team=self.team, member=member, user_id=self.owner.id, is_admin=True, enabled=False)
+        issue = Issue.objects.create(project=self.project, name="漂移后建卡", created_by=self.owner)
+        with self.assertRaises(TeamDomainError) as c:
+            execution_svc.start_execution(issue=issue, binding=binding, user_id=self.owner.id)
+        self.assertEqual(c.exception.code, "WORKFLOW_AGENT_NOT_IN_TEAM")
+
+    def test_publish_requires_agent_on_ai_node(self):
+        """通用 Agent 取缔：AI 节点空 expertId 发布被拒。"""
+        from plane.orchestration import workflows
+        from .canvas import CANVAS_SINGLE
+        import copy
+        draft = copy.deepcopy(CANVAS_SINGLE)
+        draft["nodes"][0]["data"]["expertId"] = ""
+        workflows.update_draft(workflow=self.workflow, user_id=self.owner.id, draft=draft)
+        workflows.save_draft_version(workflow=self.workflow, user_id=self.owner.id)
+        with self.assertRaises(TeamDomainError) as c:
+            workflows.start_publish(workflow=self.workflow, user_id=self.owner.id)
+        self.assertEqual(c.exception.code, "WORKFLOW_AGENT_REQUIRED")
+
+
 class UpgradeTests(BindingTestBase):
     def test_explicit_upgrade_follows_new_release(self):
         self._bind()
