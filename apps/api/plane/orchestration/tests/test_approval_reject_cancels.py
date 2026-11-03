@@ -72,3 +72,35 @@ class CancelExecutionTests(ApprovalRejectCancelsTestBase):
         with self.assertRaises(TeamDomainError) as c:
             cancel_execution(execution=ex)
         self.assertEqual(c.exception.code, "EXECUTION_ALREADY_TERMINAL")
+
+
+class TimelineNodeNameSnapshotTests(ApprovalRejectCancelsTestBase):
+    """时间线节点名按执行冻结版本解析（版本切换后旧执行不回退机器 key）。"""
+
+    def test_timeline_uses_frozen_version_names(self):
+        from django.test import Client
+        from plane.orchestration.models import NodeRuntimeRecord
+        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        NodeRuntimeRecord.objects.create(
+            execution=ex, node_key="analyze_0", status=NodeRuntimeRecord.Status.SUCCESS)
+        # 绑定切换到新版本（节点 key 变了，旧 key 在新版本对不上）
+        graph = dict(self.workflow.draft)
+        graph["nodes"] = [dict(n, id=n["id"] + "x") for n in graph["nodes"]]
+        graph["edges"] = [dict(e, source=e["source"] + "x", target=e["target"] + "x") for e in graph["edges"]]
+        workflows.update_draft(workflow=self.workflow, user_id=self.owner.id, draft=graph)
+        v2 = workflows.save_draft_version(workflow=self.workflow, user_id=self.owner.id)
+        v2 = workflows.finish_publish(
+            version=workflows.start_publish(workflow=self.workflow, user_id=self.owner.id),
+            engine_deploy_ref={"dag": "y"})
+        from plane.orchestration import services
+        services.upgrade_binding(binding=self.binding, user_id=self.owner.id, is_admin=True, workflow_version=v2)
+        self.binding.refresh_from_db()
+        self.assertNotEqual(self.binding.workflow_version_id, self.version.id)
+        # 运行时面板时间线仍按冻结版本给出节点名（无机器 key）
+        client = Client()
+        client.force_login(self.owner)
+        r = client.get(f"/api/workspaces/arws-orch/projects/{self.project.id}/work-items/{self.issue.id}/runtime/")
+        self.assertEqual(r.status_code, 200, r.content)
+        names = [e.get("nodeName") for e in r.json()["timeline"] if e.get("kind") == "node"]
+        self.assertIn("analyze", names)
+        self.assertFalse(any(n and n.startswith("analyze_") for n in names))

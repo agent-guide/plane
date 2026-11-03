@@ -835,9 +835,18 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             else:
                 member_name = names.get(execution.current_member.agent_definition_id)
 
-        # 节点名映射（definition 快照）：时间线/工件/当前步骤呈现用节点名而非机器 key
+        # 节点名映射：优先执行冻结的版本快照（版本切换后旧执行仍按其启动
+        # 版本呈现，机器 key 不上界面），快照缺失回退绑定当前版本
+        frozen_version_id = (execution.frozen_context or {}).get("workflowVersionId")
+        definition = None
+        if frozen_version_id:
+            from .models import WorkflowVersion
+            definition = WorkflowVersion.objects.filter(
+                id=frozen_version_id).values_list("definition", flat=True).first()
+        if definition is None:
+            definition = execution.binding.workflow_version.definition or {}
         node_names = {n.get("key"): (n.get("name") or n.get("key"))
-                      for n in ((execution.binding.workflow_version.definition or {}).get("nodes") or [])}
+                      for n in ((definition or {}).get("nodes") or [])}
 
         # 当前步骤：最新 running 节点，缺省回执行状态
         step = None
