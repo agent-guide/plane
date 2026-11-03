@@ -315,3 +315,53 @@ class OrchestrationAPITest(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         execution.refresh_from_db()
         self.assertEqual(execution.business_status, "running")  # 答复恢复执行
+
+    def test_approval_visibility_scoped_to_team(self):
+        """§3.3 收窄：未指定审批人 → 仅执行团队 human 成员可见可答。"""
+        from plane.orchestration import services
+        from plane.orchestration.models import (WorkflowDefinition, WorkflowVersion,
+                                                ProjectTeamBinding, WorkItemExecution, BusinessApproval)
+        from django.contrib.auth import get_user_model
+        team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="收窄团队")
+        services.add_member(team=team, user_id=self.owner.id, is_admin=True, kind="agent", role="analyst",
+                            agent_definition_id="agent:t1:analyst")
+        human_member = services.add_member(team=team, user_id=self.owner.id, is_admin=True,
+                                           kind="human", role="approver", user_ref=self.human.id)
+        services.activate_team(team=team, user_id=self.owner.id, is_admin=True)
+        wf = WorkflowDefinition.objects.create(project=self.project, name="收窄流程", created_by=self.owner)
+        from .canvas import CANVAS_SINGLE
+        from plane.orchestration import workflows
+        workflows.update_draft(workflow=wf, user_id=self.owner.id, draft=CANVAS_SINGLE)
+        workflows.save_draft_version(workflow=wf, user_id=self.owner.id)
+        v = workflows.finish_publish(version=workflows.start_publish(workflow=wf, user_id=self.owner.id),
+                                     engine_deploy_ref={"dag": "x"})
+        services.bind_project(project=self.project, team=team, user_id=self.owner.id, is_admin=True, workflow_version=v)
+        issue = Issue.objects.create(project=self.project, name="收窄工作项", created_by=self.owner)
+        execution = WorkItemExecution.objects.get(issue=issue)
+        # 手造未指定审批人的待审批（走 _ensure_pending_approval 之外的无 assignee 路径）
+        BusinessApproval.objects.create(execution=execution, node_ref="confirm:1", assignee=None,
+                                        question="未指定审批人", result=BusinessApproval.Result.PENDING)
+
+        # 团队外第三人：workspace 成员但不在团队 → 不可见不可答
+        outsider = get_user_model().objects.create_user(email="out@test.io", username="out")
+        WorkspaceMember.objects.create(workspace=self.ws, member=outsider, role=15)
+        outsider_client = Client()
+        outsider_client.force_login(outsider)
+        r = outsider_client.get("/api/workspaces/aws-orch/agent-teams/approvals/")
+        self.assertEqual(r.status_code, 200)
+        approval_id = BusinessApproval.objects.get(execution=execution).id
+        self.assertEqual(len(r.json()), 0, "团队外成员不应看到未指定审批人的待审批")
+        r = outsider_client.post(f"/api/workspaces/aws-orch/agent-teams/approvals/{approval_id}/",
+                                 {"decision": "approved"}, content_type="application/json")
+        self.assertEqual(r.status_code, 404, "团队外成员不应能作答")
+
+        # 团队 human 成员（human）：可见可答（冻结名册判定）
+        human_client = Client()
+        WorkspaceMember.objects.get_or_create(workspace=self.ws, member=self.human, defaults={"role": 15})
+        human_client.force_login(self.human)
+        r = human_client.get("/api/workspaces/aws-orch/agent-teams/approvals/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.json()), 1, "团队 human 成员应看到待审批")
+        r = human_client.post(f"/api/workspaces/aws-orch/agent-teams/approvals/{approval_id}/",
+                              {"decision": "approved"}, content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)

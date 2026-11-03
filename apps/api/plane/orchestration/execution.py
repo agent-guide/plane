@@ -316,7 +316,10 @@ def start_execution(*, issue, binding, user_id) -> WorkItemExecution:
         "teamId": str(team.id), "workflowVersionId": str(version.id),
         "workflowVersionHash": version.content_hash,
         "members": [
-            {"id": m.id, "kind": m.kind, "agentDefinitionId": m.agent_definition_id}
+            # userId：审批可见性按冻结名册判「团队真人成员」（§3.3）；
+            # 存量执行快照缺该字段 → 判定回退当前名册
+            {"id": m.id, "kind": m.kind, "agentDefinitionId": m.agent_definition_id,
+             "userId": str(m.user_id) if m.user_id else None}
             for m in team.members.filter(enabled=True)
         ],
         "startedBy": str(user_id),

@@ -575,8 +575,24 @@ class ProjectExecutionsEndpoint(BaseAPIView):
 
 
 class ApprovalsEndpoint(BaseAPIView):
+    @staticmethod
+    def _user_in_execution_team(user_id, approval) -> bool:
+        """未指定审批人时：可答范围 = 执行冻结名册的 human 成员（§3.3）。
+
+        冻结名册缺 userId（存量执行快照）→ 回退按绑定团队当前 enabled human 成员判。
+        """
+        members = ((approval.execution.frozen_context or {}).get("members") or [])
+        frozen = [m for m in members if m.get("kind") == "human" and m.get("userId")]
+        if frozen:
+            return str(user_id) in {str(m.get("userId")) for m in frozen}
+        return approval.execution.binding.team.members.filter(
+            kind=AgentTeamMember.Kind.HUMAN, enabled=True, user_id=user_id).exists()
+
     def get(self, request, slug):
-        """当前用户的待办/已办审批（跨项目）——列表自带详情面所需全部字段。"""
+        """当前用户的待办/已办审批（跨项目）——列表自带详情面所需全部字段。
+
+        可见性：指定审批人（assignee=request.user）或未指定时团队 human 成员（§3.3 收窄）。
+        """
         from django.db.models import Q
         approvals = BusinessApproval.objects.filter(
             execution__binding__project__workspace__slug=slug,
@@ -584,15 +600,20 @@ class ApprovalsEndpoint(BaseAPIView):
             "execution", "execution__issue", "execution__issue__project",
             "execution__binding", "execution__binding__team",
         ).order_by("-created_at")
-        return Response([_approval_json(a) for a in approvals])
+        visible = [a for a in approvals
+                   if a.assignee_id is not None or self._user_in_execution_team(request.user.id, a)]
+        return Response([_approval_json(a) for a in visible])
 
     def post(self, request, slug, approval_id):
         """审批作答（approved/rejected + 理由）；恢复执行经 outbox 由 worker 投递。"""
         from django.db.models import Q
         approval = BusinessApproval.objects.filter(
             execution__binding__project__workspace__slug=slug, id=approval_id,
-        ).filter(Q(assignee=request.user) | Q(assignee__isnull=True)).first()
+        ).filter(Q(assignee=request.user) | Q(assignee__isnull=True)).select_related(
+            "execution", "execution__binding", "execution__binding__team").first()
         if not approval:
+            return Response({"error": "not found"}, status=404)
+        if approval.assignee_id is None and not self._user_in_execution_team(request.user.id, approval):
             return Response({"error": "not found"}, status=404)
         if approval.result != BusinessApproval.Result.PENDING:
             return Response({"error": "already answered", "code": "APPROVAL_ALREADY_SETTLED"}, status=409)
