@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Flujo",
   "agent_teams_exec_no_teams": "Aún no hay equipos disponibles para asignar",
   "agent_teams_exec_team_no_flows": "Sin flujos publicados · orquestar en el equipo",
-  "agent_teams_exec_required": "Selecciona el equipo y el flujo de ejecución",
+  "agent_teams_exec_required": "Selecciona un equipo de ejecución",
   "agent_teams_exec_bind_failed": "Proyecto creado, pero no se pudo asignar el equipo de ejecución — reintenta desde el panel de equipo en la descripción general",
   "agent_teams_exec_load_failed": "Error al cargar los equipos de ejecución",
   "agent_teams_exec_retry": "Reintentar",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "El flujo referencia miembros fuera del equipo. Ajusta primero el flujo o los miembros del equipo",
   "agent_teams_workflows_need_bind_title": "Vincula primero un equipo",
   "agent_teams_workflows_need_bind_hint": "Crea flujos después de vincular un equipo; los miembros del flujo se eligen del equipo.",
-  "agent_teams_workflows_need_bind_cta": "Vincular equipo",
-  "agent_teams_create_project_team_label": "Equipo de ejecución",
-  "agent_teams_create_project_team_required": "Selecciona un equipo de ejecución",
-  "agent_teams_create_project_bind_failed": "Error al vincular el equipo de ejecución. El proyecto no se creó, inténtalo de nuevo",
-  "agent_teams_create_project_no_teams": "No hay equipos disponibles: crea y activa primero un equipo en «Equipos» antes de crear un proyecto"
+  "agent_teams_workflows_need_bind_cta": "Vincular equipo"
 }

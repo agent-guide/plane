@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Workflow",
   "agent_teams_exec_no_teams": "Noch keine Teams zum Zuordnen verfügbar",
   "agent_teams_exec_team_no_flows": "Keine veröffentlichten Workflows · im Team orchestrieren",
-  "agent_teams_exec_required": "Bitte Ausführungsteam und Workflow auswählen",
+  "agent_teams_exec_required": "Bitte wählen Sie ein Ausführungsteam",
   "agent_teams_exec_bind_failed": "Projekt erstellt, aber das Ausführungsteam konnte nicht zugeordnet werden — bitte über das Team-Panel in der Projektübersicht erneut versuchen",
   "agent_teams_exec_load_failed": "Ausführungsteams konnten nicht geladen werden",
   "agent_teams_exec_retry": "Erneut versuchen",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "Der Workflow verweist auf Mitglieder außerhalb der Teamliste. Passen Sie zuerst den Workflow oder die Teammitglieder an",
   "agent_teams_workflows_need_bind_title": "Zuerst Team zuweisen",
   "agent_teams_workflows_need_bind_hint": "Erstellen Sie Workflows erst nach der Teamzuweisung; Workflow-Mitglieder kommen aus dem Team.",
-  "agent_teams_workflows_need_bind_cta": "Team zuweisen",
-  "agent_teams_create_project_team_label": "Ausführungsteam",
-  "agent_teams_create_project_team_required": "Bitte wählen Sie ein Ausführungsteam",
-  "agent_teams_create_project_bind_failed": "Zuweisung des Ausführungsteams fehlgeschlagen. Das Projekt wurde nicht erstellt, bitte erneut versuchen",
-  "agent_teams_create_project_no_teams": "Keine Teams verfügbar — erstellen und aktivieren Sie zuerst ein Team unter \"Teams\", bevor Sie ein Projekt anlegen"
+  "agent_teams_workflows_need_bind_cta": "Team zuweisen"
 }

@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Workflow",
   "agent_teams_exec_no_teams": "No teams available to assign",
   "agent_teams_exec_team_no_flows": "No published workflows · orchestrate in team",
-  "agent_teams_exec_required": "Please select the execution team and workflow",
+  "agent_teams_exec_required": "Please select an execution team",
   "agent_teams_exec_bind_failed": "Project created, but the execution team could not be set up — retry from the team panel in project overview",
   "agent_teams_exec_load_failed": "Failed to load execution teams",
   "agent_teams_exec_retry": "Retry",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "The workflow references members outside the team roster. Adjust the workflow or the team members first",
   "agent_teams_workflows_need_bind_title": "Bind a team first",
   "agent_teams_workflows_need_bind_hint": "Create workflows after binding a team; workflow members are picked from the team.",
-  "agent_teams_workflows_need_bind_cta": "Bind a team",
-  "agent_teams_create_project_team_label": "Execution team",
-  "agent_teams_create_project_team_required": "Please select an execution team",
-  "agent_teams_create_project_bind_failed": "Failed to bind the execution team. The project was not created, please retry",
-  "agent_teams_create_project_no_teams": "No teams available — create and activate a team under \"Teams\" before creating a project"
+  "agent_teams_workflows_need_bind_cta": "Bind a team"
 }

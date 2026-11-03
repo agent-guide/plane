@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Quy trình",
   "agent_teams_exec_no_teams": "Chưa có nhóm nào để chỉ định",
   "agent_teams_exec_team_no_flows": "Chưa có quy trình xuất bản · soạn trong nhóm",
-  "agent_teams_exec_required": "Hãy chọn nhóm và quy trình thực thi",
+  "agent_teams_exec_required": "Vui lòng chọn nhóm thực thi",
   "agent_teams_exec_bind_failed": "Dự án đã tạo nhưng chưa thiết lập được nhóm thực thi — thử lại từ panel nhóm trong tổng quan dự án",
   "agent_teams_exec_load_failed": "Không thể tải nhóm thực thi",
   "agent_teams_exec_retry": "Thử lại",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "Quy trình tham chiếu thành viên ngoài nhóm. Hãy điều chỉnh quy trình hoặc thành viên nhóm trước",
   "agent_teams_workflows_need_bind_title": "Gắn nhóm trước",
   "agent_teams_workflows_need_bind_hint": "Tạo quy trình sau khi gắn nhóm; thành viên quy trình được chọn từ nhóm.",
-  "agent_teams_workflows_need_bind_cta": "Gắn nhóm",
-  "agent_teams_create_project_team_label": "Nhóm thực thi",
-  "agent_teams_create_project_team_required": "Vui lòng chọn nhóm thực thi",
-  "agent_teams_create_project_bind_failed": "Gắn nhóm thực thi thất bại. Dự án chưa được tạo, vui lòng thử lại",
-  "agent_teams_create_project_no_teams": "Chưa có nhóm khả dụng — hãy tạo và kích hoạt nhóm trong \"Nhóm\" trước khi tạo dự án"
+  "agent_teams_workflows_need_bind_cta": "Gắn nhóm"
 }

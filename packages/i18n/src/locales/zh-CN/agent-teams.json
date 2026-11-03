@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "流程",
   "agent_teams_exec_no_teams": "暂无可指定的团队",
   "agent_teams_exec_team_no_flows": "暂无已发布流程 · 去团队编排",
-  "agent_teams_exec_required": "请选择执行团队与流程",
+  "agent_teams_exec_required": "请选择执行团队",
   "agent_teams_exec_bind_failed": "项目已创建，但执行团队尚未设置成功——请在项目概览的团队面板重试",
   "agent_teams_exec_load_failed": "执行团队清单加载失败",
   "agent_teams_exec_retry": "重试",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "流程中引用了团队名册之外的成员，请先调整流程或团队成员",
   "agent_teams_workflows_need_bind_title": "先绑定团队",
   "agent_teams_workflows_need_bind_hint": "绑定团队后才能创建流程，流程中的成员将从团队中挑选。",
-  "agent_teams_workflows_need_bind_cta": "绑定团队",
-  "agent_teams_create_project_team_label": "执行团队",
-  "agent_teams_create_project_team_required": "请选择执行团队",
-  "agent_teams_create_project_bind_failed": "执行团队绑定失败，项目未创建，请重试",
-  "agent_teams_create_project_no_teams": "暂无可用团队——请先在工作区「团队」页创建并启用团队，再创建项目"
+  "agent_teams_workflows_need_bind_cta": "绑定团队"
 }

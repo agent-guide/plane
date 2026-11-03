@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { observer } from "mobx-react";
 import { FormProvider, useForm } from "react-hook-form";
 // plane imports
@@ -25,8 +25,7 @@ import { ProjectAttributes } from "./attributes";
 // Agent Teams extension：建项目即绑定（2026-11-03 复活，两步绑定形态——只绑团队，
 // 流程进项目后再配置；绑定权限沿 v1 定案放宽为工作区成员可选任意 active 团队）。
 import { getProjectFormValues } from "./utils";
-import { FormSelect } from "@/components/agent-teams/form-select";
-import { orchestrationService, type OrchestrationTeam } from "@/services/agent-teams/orchestration.service";
+import { orchestrationService } from "@/services/agent-teams/orchestration.service";
 
 export type TCreateProjectFormProps = {
   setToFavorite?: boolean;
@@ -45,24 +44,11 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
   const { addProjectToFavorites, createProject, updateProject, deleteProject } = useProject();
   // states
   const [shouldAutoSyncIdentifier, setShouldAutoSyncIdentifier] = useState(true);
-  // 执行团队（必选）：active 团队目录；加载失败按空目录处理（表单报错不放行）
-  const [teams, setTeams] = useState<OrchestrationTeam[]>([]);
+  // 执行团队（必选）：目录与控件在 ProjectAttributes 行内（原生属性控件形态，
+  // 沿 2026-10-13 阶段 4 定案）；本组件只持值与提交期校验
   const [teamId, setTeamId] = useState("");
   const [teamError, setTeamError] = useState("");
   const [submittingBind, setSubmittingBind] = useState(false);
-  useEffect(() => {
-    let ignore = false;
-    orchestrationService
-      .listTeams(workspaceSlug.toString())
-      .then((items: OrchestrationTeam[]) => {
-        if (!ignore) setTeams(items.filter((tm) => tm.status === "active"));
-        return null;
-      })
-      .catch(() => undefined);
-    return () => {
-      ignore = true;
-    };
-  }, [workspaceSlug]);
   // form info
   const methods = useForm<TProject>({
     defaultValues: { ...getProjectFormValues(), ...data },
@@ -88,7 +74,7 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
     // 绑定失败回滚删除项目（绑定是快速本地调用，简单 fail-closed 即可，
     // 不需要 v1 时代的 Saga 重试机）。
     if (!teamId) {
-      setTeamError(t("agent_teams_create_project_team_required"));
+      setTeamError(t("agent_teams_exec_required"));
       return;
     }
     setTeamError("");
@@ -142,7 +128,7 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
           setToast({
             type: TOAST_TYPE.ERROR,
             title: t("toast.error"),
-            message: t("agent_teams_create_project_bind_failed"),
+            message: t("agent_teams_exec_bind_failed_rolled_back"),
           });
           return;
         }
@@ -229,28 +215,16 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
             shouldAutoSyncIdentifier={shouldAutoSyncIdentifier}
             setShouldAutoSyncIdentifier={setShouldAutoSyncIdentifier}
           />
-          <ProjectAttributes isMobile={isMobile} />
-          {/* 执行团队（必选，建项目即绑定 §两步绑定第一步） */}
-          <div className="space-y-1.5">
-            <span className="text-sm text-default font-medium">
-              {t("agent_teams_create_project_team_label")}
-              <span className="text-red-500">*</span>
-            </span>
-            {teams.length > 0 ? (
-              <FormSelect
-                value={teamId}
-                placeholder={t("agent_teams_bind_team_pick")}
-                options={teams.map((tm) => ({ id: tm.id, name: tm.name }))}
-                onChange={(v) => {
-                  setTeamId(v);
-                  if (v) setTeamError("");
-                }}
-              />
-            ) : (
-              <p className="text-sm text-red-500">{t("agent_teams_create_project_no_teams")}</p>
-            )}
-            {teamError ? <p className="text-xs text-red-500">{teamError}</p> : null}
-          </div>
+          <ProjectAttributes
+            isMobile={isMobile}
+            workspaceSlug={workspaceSlug.toString()}
+            teamId={teamId}
+            onTeamChange={(v) => {
+              setTeamId(v);
+              if (v) setTeamError("");
+            }}
+          />
+          {teamError ? <p className="text-xs text-red-500">{teamError}</p> : null}
         </div>
         <ProjectCreateButtons handleClose={handleClose} disabled={submittingBind} />
       </form>

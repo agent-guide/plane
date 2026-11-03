@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Процес",
   "agent_teams_exec_no_teams": "Ще немає команд для призначення",
   "agent_teams_exec_team_no_flows": "Немає опублікованих процесів · оркеструйте в команді",
-  "agent_teams_exec_required": "Виберіть команду та процес виконання",
+  "agent_teams_exec_required": "Виберіть команду виконання",
   "agent_teams_exec_bind_failed": "Проєкт створено, але команду виконання призначити не вдалося — повторіть із панелі команди в огляді проєкту",
   "agent_teams_exec_load_failed": "Не вдалося завантажити команди виконання",
   "agent_teams_exec_retry": "Повторити",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "Процес посилається на учасників поза складом команди. Спочатку змініть процес або склад команди",
   "agent_teams_workflows_need_bind_title": "Спершу прив'яжіть команду",
   "agent_teams_workflows_need_bind_hint": "Створюйте процеси після прив'язки команди; учасники процесу — з команди.",
-  "agent_teams_workflows_need_bind_cta": "Прив'язати команду",
-  "agent_teams_create_project_team_label": "Команда виконання",
-  "agent_teams_create_project_team_required": "Виберіть команду виконання",
-  "agent_teams_create_project_bind_failed": "Не вдалося прив'язати команду виконання. Проєкт не створено, спробуйте ще раз",
-  "agent_teams_create_project_no_teams": "Немає доступних команд — спершу створіть та активуйте команду в розділі «Команди», а потім створюйте проєкт"
+  "agent_teams_workflows_need_bind_cta": "Прив'язати команду"
 }

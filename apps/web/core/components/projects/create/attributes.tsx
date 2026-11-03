@@ -12,13 +12,19 @@ import type { IProject } from "@plane/types";
 import { CustomSelect } from "@plane/ui";
 import { getTabIndex } from "@plane/utils";
 import { ProjectNetworkIcon } from "@/components/project/project-network-icon";
+// Agent Teams extension：建项目即绑定（两步绑定第一步）——执行团队与网络同排，
+// 控件形态与原生属性控件一致（2026-10-13 阶段 4 定案沿袭）
+import { ProjectExecutionTeamField } from "@/components/agent-teams/project-execution-team-field";
 
 type Props = {
   isMobile?: boolean;
+  workspaceSlug?: string;
+  teamId?: string;
+  onTeamChange?: (teamId: string) => void;
 };
 
 function ProjectAttributes(props: Props) {
-  const { isMobile = false } = props;
+  const { isMobile = false, workspaceSlug, teamId = "", onTeamChange } = props;
   const { t } = useTranslation();
   const { control } = useFormContext<IProject>();
   const { getIndex } = getTabIndex(ETabIndices.PROJECT_CREATE, isMobile);
@@ -69,6 +75,9 @@ function ProjectAttributes(props: Props) {
           );
         }}
       />
+      {workspaceSlug && onTeamChange ? (
+        <ProjectExecutionTeamField workspaceSlug={workspaceSlug} value={teamId} onChange={onTeamChange} />
+      ) : null}
       {/* Agent Teams extension（2026-10-12 定案）：隐藏 Plane 原生负责人字段——
           执行语义下卡片负责人由流程环节自动流转，项目级负责人无消费方。 */}
     </div>

@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Postup",
   "agent_teams_exec_no_teams": "Zatím žádné týmy k přiřazení",
   "agent_teams_exec_team_no_flows": "Žádné publikované postupy · orchestrujte v týmu",
-  "agent_teams_exec_required": "Vyberte tým a postup provedení",
+  "agent_teams_exec_required": "Vyberte prováděcí tým",
   "agent_teams_exec_bind_failed": "Projekt byl vytvořen, ale prováděcí tým se nepodařilo nastavit — zkuste to znovu z panelu týmu v přehledu projektu",
   "agent_teams_exec_load_failed": "Týmy provedení se nepodařilo načíst",
   "agent_teams_exec_retry": "Zkusit znovu",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "Proces odkazuje na členy mimo tým. Nejprve upravte proces nebo členy týmu",
   "agent_teams_workflows_need_bind_title": "Nejprve přiřaďte tým",
   "agent_teams_workflows_need_bind_hint": "Vytvářejte procesy po přiřazení týmu; členové procesu pocházejí z týmu.",
-  "agent_teams_workflows_need_bind_cta": "Přiřadit tým",
-  "agent_teams_create_project_team_label": "Prováděcí tým",
-  "agent_teams_create_project_team_required": "Vyberte prováděcí tým",
-  "agent_teams_create_project_bind_failed": "Přiřazení prováděcího týmu se nezdařilo. Projekt nebyl vytvořen, zkuste to znovu",
-  "agent_teams_create_project_no_teams": "Žádné dostupné týmy — nejprve vytvořte a aktivujte tým v sekci \"Týmy\" a poté vytvořte projekt"
+  "agent_teams_workflows_need_bind_cta": "Přiřadit tým"
 }

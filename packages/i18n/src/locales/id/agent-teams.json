@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Alur",
   "agent_teams_exec_no_teams": "Belum ada tim yang dapat ditetapkan",
   "agent_teams_exec_team_no_flows": "Belum ada alur terbit · orkestrasi di tim",
-  "agent_teams_exec_required": "Pilih tim dan alur eksekusi",
+  "agent_teams_exec_required": "Pilih tim eksekusi",
   "agent_teams_exec_bind_failed": "Proyek dibuat, tetapi tim eksekusi belum berhasil ditetapkan — coba lagi dari panel tim di ringkasan proyek",
   "agent_teams_exec_load_failed": "Gagal memuat tim eksekusi",
   "agent_teams_exec_retry": "Coba lagi",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "Alur merujuk anggota di luar tim. Sesuaikan dulu alur atau anggota tim",
   "agent_teams_workflows_need_bind_title": "Kaitkan tim terlebih dahulu",
   "agent_teams_workflows_need_bind_hint": "Buat alur setelah mengaitkan tim; anggota alur dipilih dari tim.",
-  "agent_teams_workflows_need_bind_cta": "Kaitkan tim",
-  "agent_teams_create_project_team_label": "Tim eksekusi",
-  "agent_teams_create_project_team_required": "Pilih tim eksekusi",
-  "agent_teams_create_project_bind_failed": "Gagal mengaitkan tim eksekusi. Proyek tidak dibuat, silakan coba lagi",
-  "agent_teams_create_project_no_teams": "Belum ada tim yang tersedia — buat dan aktifkan tim di \"Tim\" terlebih dahulu sebelum membuat proyek"
+  "agent_teams_workflows_need_bind_cta": "Kaitkan tim"
 }

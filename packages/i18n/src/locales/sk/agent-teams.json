@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Postup",
   "agent_teams_exec_no_teams": "Zatiaľ žiadne tímy na priradenie",
   "agent_teams_exec_team_no_flows": "Žiadne publikované postupy · orchestrujte v tíme",
-  "agent_teams_exec_required": "Vyberte tím a postup vykonania",
+  "agent_teams_exec_required": "Vyberte vykonávací tím",
   "agent_teams_exec_bind_failed": "Projekt bol vytvorený, ale výkonný tím sa nepodarilo nastaviť — skúste to znova z panelu tímu v prehľade projektu",
   "agent_teams_exec_load_failed": "Tímy vykonania sa nepodarilo načítať",
   "agent_teams_exec_retry": "Skúsiť znovu",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "Proces odkazuje na členov mimo tímu. Najprv upravte proces alebo členov tímu",
   "agent_teams_workflows_need_bind_title": "Najprv priraďte tím",
   "agent_teams_workflows_need_bind_hint": "Vytvárajte procesy po priradení tímu; členovia procesu pochádzajú z tímu.",
-  "agent_teams_workflows_need_bind_cta": "Priradiť tím",
-  "agent_teams_create_project_team_label": "Vykonávací tím",
-  "agent_teams_create_project_team_required": "Vyberte vykonávací tím",
-  "agent_teams_create_project_bind_failed": "Priradenie vykonávacieho tímu zlyhalo. Projekt nebol vytvorený, skúste to znova",
-  "agent_teams_create_project_no_teams": "Žiadne dostupné tímy — najprv vytvorte a aktivujte tím v sekcii \"Tímy\" a potom vytvorte projekt"
+  "agent_teams_workflows_need_bind_cta": "Priradiť tím"
 }

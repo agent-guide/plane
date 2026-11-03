@@ -218,7 +218,7 @@
   "agent_teams_exec_pick_flow": "Przepływ",
   "agent_teams_exec_no_teams": "Brak zespołów do przypisania",
   "agent_teams_exec_team_no_flows": "Brak opublikowanych przepływów · orkiestruj w zespole",
-  "agent_teams_exec_required": "Wybierz zespół i przepływ wykonania",
+  "agent_teams_exec_required": "Wybierz zespół wykonawczy",
   "agent_teams_exec_bind_failed": "Projekt utworzony, ale nie udało się przypisać zespołu wykonawczego — spróbuj ponownie z panelu zespołu w przeglądzie projektu",
   "agent_teams_exec_load_failed": "Nie udało się załadować zespołów wykonania",
   "agent_teams_exec_retry": "Ponów",
@@ -352,9 +352,5 @@
   "agent_teams_wf_roster_mismatch": "Proces odwołuje się do członków poza składem zespołu. Najpierw dostosuj proces lub skład zespołu",
   "agent_teams_workflows_need_bind_title": "Najpierw przypisz zespół",
   "agent_teams_workflows_need_bind_hint": "Twórz procesy po przypisaniu zespołu; członkowie procesu pochodzą z zespołu.",
-  "agent_teams_workflows_need_bind_cta": "Przypisz zespół",
-  "agent_teams_create_project_team_label": "Zespół wykonawczy",
-  "agent_teams_create_project_team_required": "Wybierz zespół wykonawczy",
-  "agent_teams_create_project_bind_failed": "Nie udało się przypisać zespołu wykonawczego. Projekt nie został utworzony, spróbuj ponownie",
-  "agent_teams_create_project_no_teams": "Brak dostępnych zespołów — najpierw utwórz i aktywuj zespół w sekcji \"Zespoły\", a potem twórz projekt"
+  "agent_teams_workflows_need_bind_cta": "Przypisz zespół"
 }
