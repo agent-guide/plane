@@ -449,6 +449,22 @@ def process_outbox_once(*, dag_root: Path) -> dict:
             command.attempts += 1
             command.save(update_fields=["state", "attempts", "updated_at"])
             stats["failed"] += 1
+            # agent 调用失败须回投节点失败：否则 DAG 传感器只能干等到
+            # execution_timeout（AI 节点默认 30 分钟）才可见——「失败可见」
+            # 变成半小时不可见。幂等：重复投递被 external_event_id 去重。
+            if command.command_type == "agent.invoke":
+                try:
+                    _internal_node_call(
+                        "POST",
+                        f"/api/internal/workflow-runs/{command.payload['executionId']}/nodes/"
+                        f"{command.payload['nodeKey']}/fail/",
+                        {"eventId": f"outbox-fail:{command.id}", "eventType": "node.failed",
+                         "attempt": command.payload.get("attempt", 1),
+                         "payload": {"nodeKey": command.payload["nodeKey"]},
+                         "result": {"error": str(exc)[:2000]}},
+                    )
+                except Exception:
+                    pass  # 回投失败不掩盖主错误；节点由引擎超时兜底
     return stats
 
 

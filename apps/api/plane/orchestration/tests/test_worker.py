@@ -140,3 +140,34 @@ class OutboxConsumerTests(TestCase):
         # 再消费不重复处理 failed
         stats2 = process_outbox_once(dag_root=None)
         self.assertEqual(stats2["processed"], 0)
+
+
+class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
+    """agent.invoke 失败回投节点失败（失败可见性：不等 execution_timeout）。"""
+
+    def test_failed_invoke_posts_node_fail(self):
+        from unittest.mock import patch
+        from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord
+        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        on_engine_started(execution_id=ex.id, event_id="seed2", engine_run_ref=ex.id)
+        WorkItemExecution.objects.filter(id=ex.id).update(business_status="running")
+        import hashlib, json as _json
+        payload = {"executionId": ex.id, "nodeKey": "analyze_0", "attempt": 1}
+        OrchestrationOutbox.objects.create(
+            idempotency_key=f"agent_call:{ex.id}:analyze_0:1",
+            command_type="agent.invoke", payload=payload,
+            payload_hash=hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest())
+        posted = {}
+        def fake_post(method, path, body):
+            posted["path"], posted["body"] = path, body
+        with patch("plane.orchestration.worker._internal_node_call", side_effect=fake_post):
+            with patch("plane.orchestration.worker.invoke_agent_node",
+                       side_effect=RuntimeError("agent gateway down")):
+                stats = process_outbox_once(dag_root=None)
+        self.assertGreaterEqual(stats["failed"], 1)  # engine.start 也可能因 Airflow 未配置失败
+        cmd = OrchestrationOutbox.objects.get(idempotency_key=f"agent_call:{ex.id}:analyze_0:1")
+        self.assertEqual(cmd.state, OrchestrationOutbox.State.FAILED)
+        # 回投了节点失败（run_ref=executionId，节点键取 payload）
+        self.assertIn(f"/nodes/analyze_0/fail/", posted.get("path", ""))
+        self.assertIn("agent gateway down", str(posted["body"].get("result", {}).get("error", "")))
+        # 节点记录落 failed（DagNodeFailView 语义由端点测试覆盖；此处验证回投参数）
