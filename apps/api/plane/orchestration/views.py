@@ -624,24 +624,33 @@ class ApprovalsEndpoint(BaseAPIView):
         approval.reason = request.data.get("reason", "")
         approval.answered_at = timezone.now()
         approval.save(update_fields=["result", "reason", "answered_at"])
-        # 人工恢复事件入 outbox（worker 转投引擎；本地无 worker 时由
-        # 过渡内联处理执行状态）
-        from .models import OrchestrationOutbox
-        import hashlib, json as _json
-        payload = {"executionId": approval.execution_id, "approvalId": approval.id, "decision": decision}
-        OrchestrationOutbox.objects.get_or_create(
-            idempotency_key=f"approval:{approval.id}",
-            defaults={
-                "command_type": "engine.human_resume", "payload": payload,
-                "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest(),
-            },
-        )
-        # 过渡：本地直接推进执行状态（终局删此段，由 worker 消费 outbox）
         from . import execution as execution_svc
-        try:
-            execution_svc.on_human_resume(execution_id=approval.execution_id, event_id=f"approval:{approval.id}")
-        except Exception:
-            pass  # 执行未在等待态（终态/冲突）时审批仍成立
+        if decision == BusinessApproval.Result.REJECTED:
+            # 驳回/终止选项（等价旧链 reject terminal 语义）：答复即取消执行，
+            # 不恢复流程——作废其余待审批并转投引擎取消
+            try:
+                execution_svc.cancel_execution(
+                    execution=approval.execution, event_id=f"approval:{approval.id}")
+            except Exception:
+                pass  # 执行已终态/冲突时审批记录仍成立
+        else:
+            # 人工恢复事件入 outbox（worker 转投引擎；本地无 worker 时由
+            # 过渡内联处理执行状态）
+            from .models import OrchestrationOutbox
+            import hashlib, json as _json
+            payload = {"executionId": approval.execution_id, "approvalId": approval.id, "decision": decision}
+            OrchestrationOutbox.objects.get_or_create(
+                idempotency_key=f"approval:{approval.id}",
+                defaults={
+                    "command_type": "engine.human_resume", "payload": payload,
+                    "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest(),
+                },
+            )
+            # 过渡：本地直接推进执行状态（终局删此段，由 worker 消费 outbox）
+            try:
+                execution_svc.on_human_resume(execution_id=approval.execution_id, event_id=f"approval:{approval.id}")
+            except Exception:
+                pass  # 执行未在等待态（终态/冲突）时审批仍成立
         return Response({"id": approval.id, "result": approval.result})
 
 
@@ -913,9 +922,8 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
 
     def post(self, request, slug, project_id, issue_id):
         """取消当前执行（非终态）：置 cancelled + outbox engine.cancel（worker 转投引擎）。"""
-        import hashlib, json as _json
-        from .models import OrchestrationOutbox
         from .state_machine import TERMINAL_STATUSES
+        from . import execution as execution_svc
         execution = WorkItemExecution.objects.filter(
             binding__project__workspace__slug=slug, binding__project_id=project_id,
             issue_id=issue_id).order_by("-created_at").first()
@@ -923,18 +931,7 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             return Response({"error": "not found"}, status=404)
         if execution.business_status in TERMINAL_STATUSES:
             return Response({"error": "already terminal", "code": "EXECUTION_ALREADY_TERMINAL"}, status=409)
-        execution.business_status = "cancelled"
-        execution.completed_at = timezone.now()
-        execution.transition_version += 1
-        execution.save(update_fields=["business_status", "completed_at", "transition_version", "updated_at"])
-        # 作废待审批（收件箱不残留已取消执行的待办）
-        execution.approvals.filter(result=BusinessApproval.Result.PENDING).update(
-            result=BusinessApproval.Result.REJECTED, reason="执行已取消", answered_at=timezone.now())
-        payload = {"executionId": execution.id}
-        OrchestrationOutbox.objects.get_or_create(
-            idempotency_key=f"cancel:{execution.id}",
-            defaults={"command_type": "engine.cancel", "payload": payload,
-                      "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest()})
+        execution = execution_svc.cancel_execution(execution=execution)
         return Response({"executionId": execution.id, "businessStatus": execution.business_status})
 
 

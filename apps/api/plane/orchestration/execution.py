@@ -211,6 +211,31 @@ def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
     return resumed
 
 
+def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> WorkItemExecution:
+    """取消执行（非终态）：置 cancelled + 作废待审批 + outbox engine.cancel。
+
+    调用方：手动取消端点、审批驳回/终止选项（等价旧链 reject terminal 语义——
+    答复不是恢复执行而是终止它）。
+    """
+    from .models import BusinessApproval, OrchestrationOutbox
+    import hashlib, json as _json
+    if execution.business_status in TERMINAL_STATUSES:
+        raise TeamDomainError(409, "EXECUTION_ALREADY_TERMINAL", "Execution already terminal")
+    execution.business_status = "cancelled"
+    execution.completed_at = dj_tz.now()
+    execution.transition_version += 1
+    execution.save(update_fields=["business_status", "completed_at", "transition_version", "updated_at"])
+    # 作废待审批（收件箱不残留已取消执行的待办）
+    execution.approvals.filter(result=BusinessApproval.Result.PENDING).update(
+        result=BusinessApproval.Result.REJECTED, reason="执行已取消", answered_at=dj_tz.now())
+    payload = {"executionId": execution.id}
+    OrchestrationOutbox.objects.get_or_create(
+        idempotency_key=f"cancel:{execution.id}",
+        defaults={"command_type": "engine.cancel", "payload": payload,
+                  "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest()})
+    return execution
+
+
 def on_engine_terminal(*, execution_id: str, event_id: str, engine_status: str) -> WorkItemExecution:
     """调用点 5：引擎终态结算（success/failed/cancelled 映射）。
 
