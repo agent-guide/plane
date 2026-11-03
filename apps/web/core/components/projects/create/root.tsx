@@ -224,7 +224,7 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
               if (v) setTeamError("");
             }}
           />
-          {teamError ? <p className="text-xs text-red-500">{teamError}</p> : null}
+          {teamError ? <span className="text-11 text-danger-primary">{teamError}</span> : null}
         </div>
         <ProjectCreateButtons handleClose={handleClose} disabled={submittingBind} />
       </form>
