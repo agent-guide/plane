@@ -996,6 +996,36 @@ class DagNodeRuntimeBase(BaseAPIView):
     def _denied(self):
         return Response({"error": "unauthorized"}, status=401)
 
+    def _prune_if_unreachable(self, execution, definition: dict, node_key: str) -> bool:
+        """剪枝闸门（权威判定在后端，Airflow 只镜像）。
+
+        传感器可能先于 worker 的 PENDING→SKIPPED 剪枝把死分支节点拉起
+        （running + 人工节点已建审批）——start/observe 时按已记录分支选择
+        复核可达性：不可达则后端直接置 skipped 并作废该节点待审批，
+        DAG 轮询到 skipped 走 AirflowSkip 传播。
+        """
+        from .node_runtime import NodeRuntimeRecord
+        from .execution_context import pruned_node_keys
+        choices = dict(NodeRuntimeRecord.objects.filter(
+            execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
+        ).values_list("node_key", "result__chosenBranch"))
+        choices = {k: v for k, v in choices.items() if v}
+        if node_key not in pruned_node_keys(definition, choices):
+            return False
+        NodeRuntimeRecord.objects.filter(
+            execution=execution, node_key=node_key,
+        ).exclude(status=NodeRuntimeRecord.Status.SUCCESS).update(
+            status=NodeRuntimeRecord.Status.SKIPPED)
+        from .models import BusinessApproval
+        from django.utils import timezone
+        BusinessApproval.objects.filter(
+            execution=execution, node_ref=node_key,
+            result=BusinessApproval.Result.PENDING,
+        ).update(result=BusinessApproval.Result.REJECTED,
+                 reason="该分支已被条件节点剪枝，审批自动作废",
+                 answered_at=timezone.now())
+        return True
+
 
 class DagNodeView(DagNodeRuntimeBase):
     def get(self, request, run_ref, node_key):
@@ -1006,9 +1036,13 @@ class DagNodeView(DagNodeRuntimeBase):
         if not execution:
             return Response({"error": "run not found"}, status=404)
         record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
+        definition = (execution.binding.workflow_version.definition or {})
+        # 剪枝闸门前置：死分支节点（含已被拉起的竞态残留）observe 即判 skipped
+        if self._prune_if_unreachable(execution, definition, node_key):
+            record.refresh_from_db()
+            return Response(record.view())
         # 人工节点自愈：start 期 handoff 失败遗留（RUNNING 且执行未进等待态）
         # 时在 observe 补投——审批建单不可静默丢失（幂等：已等待仅补单）
-        definition = (execution.binding.workflow_version.definition or {})
         node_type = next((n.get("type") for n in (definition.get("nodes") or [])
                           if n.get("key") == node_key), None)
         if (node_type == "human_approval"
@@ -1034,13 +1068,17 @@ class DagNodeStartView(DagNodeRuntimeBase):
         if not execution:
             return Response({"error": "run not found"}, status=404)
         record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
+        definition = (execution.binding.workflow_version.definition or {})
+        # 剪枝闸门：条件已选别的分支时 start 直接判 skipped（handoff/命令都不发）
+        if self._prune_if_unreachable(execution, definition, node_key):
+            record.refresh_from_db()
+            return Response({"accepted": True, "status": record.status})
         record.status = NodeRuntimeRecord.Status.RUNNING
         record.attempt = int(request.data.get("attempt", 1))
         record.last_event_id = request.data.get("eventId", "")
         record.save()
         # 按发布版本 definition 的节点类型分派：人工节点 → handoff（waiting_human
         # + 建待审批）；AI/条件节点 → agent.invoke 命令（worker 真调 agwmngr）
-        definition = (execution.binding.workflow_version.definition or {})
         node_type = next((n.get("type") for n in (definition.get("nodes") or [])
                           if n.get("key") == node_key), None)
         if node_type == "human_approval":
