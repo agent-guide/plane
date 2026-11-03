@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "流程中引用了團隊名冊之外的成員，請先調整流程或團隊成員",
   "agent_teams_workflows_need_bind_title": "先綁定團隊",
   "agent_teams_workflows_need_bind_hint": "綁定團隊後才能建立流程，流程中的成員將從團隊中挑選。",
-  "agent_teams_workflows_need_bind_cta": "綁定團隊"
+  "agent_teams_workflows_need_bind_cta": "綁定團隊",
+  "agent_teams_create_project_team_label": "執行團隊",
+  "agent_teams_create_project_team_required": "請選擇執行團隊",
+  "agent_teams_create_project_bind_failed": "執行團隊綁定失敗，專案未建立，請重試",
+  "agent_teams_create_project_no_teams": "暫無可用團隊——請先在工作區「團隊」頁建立並啟用團隊，再建立專案"
 }

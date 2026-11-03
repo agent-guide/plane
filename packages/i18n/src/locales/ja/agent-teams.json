@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "フローがチーム名簿外のメンバーを参照しています。先にフローまたはチームメンバーを調整してください",
   "agent_teams_workflows_need_bind_title": "先にチームを割り当て",
   "agent_teams_workflows_need_bind_hint": "チームを割り当てるとフローを作成できます。フローのメンバーはチームから選択されます。",
-  "agent_teams_workflows_need_bind_cta": "チームを割り当て"
+  "agent_teams_workflows_need_bind_cta": "チームを割り当て",
+  "agent_teams_create_project_team_label": "実行チーム",
+  "agent_teams_create_project_team_required": "実行チームを選択してください",
+  "agent_teams_create_project_bind_failed": "実行チームの割り当てに失敗しました。プロジェクトは作成されていません。もう一度お試しください",
+  "agent_teams_create_project_no_teams": "利用可能なチームがありません。先に「チーム」ページでチームを作成して有効化してから、プロジェクトを作成してください"
 }

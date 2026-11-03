@@ -17,11 +17,13 @@ import { getTabIndex } from "@plane/utils";
 type Props = {
   handleClose: () => void;
   isMobile?: boolean;
+  /** Agent Teams extension：绑定执行团队阶段禁用（建项目即绑定两步形态） */
+  disabled?: boolean;
 };
 
 function ProjectCreateButtons(props: Props) {
   const { t } = useTranslation();
-  const { handleClose, isMobile = false } = props;
+  const { handleClose, isMobile = false, disabled = false } = props;
   const {
     formState: { isSubmitting },
   } = useFormContext<IProject>();
@@ -33,7 +35,14 @@ function ProjectCreateButtons(props: Props) {
       <Button variant="secondary" size="lg" onClick={handleClose} tabIndex={getIndex("cancel")}>
         {t("common.cancel")}
       </Button>
-      <Button variant="primary" size="lg" type="submit" loading={isSubmitting} tabIndex={getIndex("submit")}>
+      <Button
+        variant="primary"
+        size="lg"
+        type="submit"
+        loading={isSubmitting || disabled}
+        disabled={disabled}
+        tabIndex={getIndex("submit")}
+      >
         {isSubmitting ? t("creating") : t("create_project")}
       </Button>
     </div>

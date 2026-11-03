@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "The workflow references members outside the team roster. Adjust the workflow or the team members first",
   "agent_teams_workflows_need_bind_title": "Bind a team first",
   "agent_teams_workflows_need_bind_hint": "Create workflows after binding a team; workflow members are picked from the team.",
-  "agent_teams_workflows_need_bind_cta": "Bind a team"
+  "agent_teams_workflows_need_bind_cta": "Bind a team",
+  "agent_teams_create_project_team_label": "Execution team",
+  "agent_teams_create_project_team_required": "Please select an execution team",
+  "agent_teams_create_project_bind_failed": "Failed to bind the execution team. The project was not created, please retry",
+  "agent_teams_create_project_no_teams": "No teams available — create and activate a team under \"Teams\" before creating a project"
 }

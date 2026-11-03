@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "Процес посилається на учасників поза складом команди. Спочатку змініть процес або склад команди",
   "agent_teams_workflows_need_bind_title": "Спершу прив'яжіть команду",
   "agent_teams_workflows_need_bind_hint": "Створюйте процеси після прив'язки команди; учасники процесу — з команди.",
-  "agent_teams_workflows_need_bind_cta": "Прив'язати команду"
+  "agent_teams_workflows_need_bind_cta": "Прив'язати команду",
+  "agent_teams_create_project_team_label": "Команда виконання",
+  "agent_teams_create_project_team_required": "Виберіть команду виконання",
+  "agent_teams_create_project_bind_failed": "Не вдалося прив'язати команду виконання. Проєкт не створено, спробуйте ще раз",
+  "agent_teams_create_project_no_teams": "Немає доступних команд — спершу створіть та активуйте команду в розділі «Команди», а потім створюйте проєкт"
 }

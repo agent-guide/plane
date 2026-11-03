@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "Akış, takım listesi dışındaki üyelere başvuruyor. Önce akışı veya takım üyelerini düzenleyin",
   "agent_teams_workflows_need_bind_title": "Önce bir takım bağlayın",
   "agent_teams_workflows_need_bind_hint": "Akışları bir takım bağladıktan sonra oluşturun; akış üyeleri takımdan seçilir.",
-  "agent_teams_workflows_need_bind_cta": "Takım bağla"
+  "agent_teams_workflows_need_bind_cta": "Takım bağla",
+  "agent_teams_create_project_team_label": "Yürütme takımı",
+  "agent_teams_create_project_team_required": "Bir yürütme takımı seçin",
+  "agent_teams_create_project_bind_failed": "Yürütme takımı bağlanamadı. Proje oluşturulmadı, lütfen tekrar deneyin",
+  "agent_teams_create_project_no_teams": "Uygun takım yok — proje oluşturmadan önce \"Takımlar\" sayfasında bir takım oluşturup etkinleştirin"
 }

@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "Fluxul face referire la membri în afara echipei. Ajustați mai întâi fluxul sau membrii echipei",
   "agent_teams_workflows_need_bind_title": "Asociați mai întâi o echipă",
   "agent_teams_workflows_need_bind_hint": "Creați fluxuri după asocierea unei echipe; membrii fluxului provin din echipă.",
-  "agent_teams_workflows_need_bind_cta": "Asociază echipa"
+  "agent_teams_workflows_need_bind_cta": "Asociază echipa",
+  "agent_teams_create_project_team_label": "Echipă de execuție",
+  "agent_teams_create_project_team_required": "Selectați o echipă de execuție",
+  "agent_teams_create_project_bind_failed": "Asocierea echipei de execuție a eșuat. Proiectul nu a fost creat, încercați din nou",
+  "agent_teams_create_project_no_teams": "Nicio echipă disponibilă — creați și activați mai întâi o echipă în „Echipe” înainte de a crea un proiect"
 }

@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "Proces odkazuje na členov mimo tímu. Najprv upravte proces alebo členov tímu",
   "agent_teams_workflows_need_bind_title": "Najprv priraďte tím",
   "agent_teams_workflows_need_bind_hint": "Vytvárajte procesy po priradení tímu; členovia procesu pochádzajú z tímu.",
-  "agent_teams_workflows_need_bind_cta": "Priradiť tím"
+  "agent_teams_workflows_need_bind_cta": "Priradiť tím",
+  "agent_teams_create_project_team_label": "Vykonávací tím",
+  "agent_teams_create_project_team_required": "Vyberte vykonávací tím",
+  "agent_teams_create_project_bind_failed": "Priradenie vykonávacieho tímu zlyhalo. Projekt nebol vytvorený, skúste to znova",
+  "agent_teams_create_project_no_teams": "Žiadne dostupné tímy — najprv vytvorte a aktivujte tím v sekcii \"Tímy\" a potom vytvorte projekt"
 }

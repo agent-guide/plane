@@ -34,11 +34,23 @@ def _quota() -> int:
 
 
 def _require_manage(team: AgentTeam, user_id, is_admin: bool) -> None:
-    """权限谓词：管理员 or 创建者；否则 403（AGENT_TEAM_FORBIDDEN）。"""
+    """权限谓词（团队管理）：管理员 or 创建者；否则 403（AGENT_TEAM_FORBIDDEN）。
+
+    只用于团队自身管理（改名/归档/名册）；绑定域见 _require_bind。
+    """
     if is_admin:
         return
     if team.created_by_id != user_id:
         raise TeamDomainError(403, "AGENT_TEAM_FORBIDDEN", "Only the creator or an admin can manage this team")
+
+
+def _require_bind() -> None:
+    """权限谓词（绑定域，2026-11-03 定案）：工作区成员即可绑任意 active 团队。
+
+    沿用 v1 定案「绑定端点权限 team:bind→task:manage（建项目即绑定已成常规
+    动作）」——选执行方≠管理团队；视图层已按工作区 slug 圈定 + 认证，此处无需
+    额外校验（保留函数位以显式区分权限档位与演进余地）。
+    """
 
 
 def create_team(*, workspace_id: str, user_id, is_admin: bool, name: str, objective: str = "") -> AgentTeam:
@@ -187,7 +199,7 @@ def bind_project(*, project, team: AgentTeam, user_id, is_admin: bool,
 
     兼容旧调用：显式传版本时仍就地校验并落库（等价原单步绑定）。
     """
-    _require_manage(team, user_id, is_admin)
+    _require_bind()
     if team.workspace_id != project.workspace_id:
         raise TeamDomainError(404, "AGENT_TEAM_NOT_FOUND", "Team not found in this workspace")
     if team.status != AgentTeam.Status.ACTIVE:
@@ -212,8 +224,12 @@ def bind_project(*, project, team: AgentTeam, user_id, is_admin: bool,
 
 def upgrade_binding(*, binding: ProjectTeamBinding, user_id, is_admin: bool,
                     workflow_version: WorkflowVersion) -> ProjectTeamBinding:
-    """挂载/切换发布版本（两步绑定第二步；显式改引用，不自动跟随）。"""
-    _require_manage(binding.team, user_id, is_admin)
+    """挂载/切换发布版本（两步绑定第二步；显式改引用，不自动跟随）。
+
+    权限与绑定同档（_require_bind）：项目级执行配置动作，普通成员建项目
+    绑定团队后必须能自挂流程，否则死锁（团队创建者≠项目创建者）。
+    """
+    _require_bind()
     if binding.status != ProjectTeamBinding.Status.ACTIVE:
         raise TeamDomainError(404, "PROJECT_TEAM_BINDING_NOT_FOUND", "No active binding")
     if workflow_version.workflow.project_id != binding.project_id:

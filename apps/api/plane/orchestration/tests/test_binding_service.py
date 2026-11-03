@@ -199,3 +199,16 @@ class UpgradeTests(BindingTestBase):
         with self.assertRaises(TeamDomainError) as c:
             services.upgrade_binding(binding=binding, user_id=self.owner.id, is_admin=True, workflow_version=draft)
         self.assertEqual(c.exception.code, "WORKFLOW_VERSION_NOT_PUBLISHED")
+
+    def test_member_can_bind_others_team(self):
+        """绑定域权限（2026-11-03 定案）：普通成员可绑他人创建的 active 团队并挂载版本。"""
+        other = User.objects.create_user(email="b-other@test.io", username="b-other")
+        from plane.db.models.workspace import WorkspaceMember
+        WorkspaceMember.objects.create(workspace=self.ws, member=other, role=15)
+        # other 非团队创建者、非管理员——旧谓词会 403，新谓词放行
+        binding = services.bind_project(
+            project=self.project, team=self.team, user_id=other.id, is_admin=False)
+        self.assertEqual(binding.status, ProjectTeamBinding.Status.ACTIVE)
+        services.upgrade_binding(binding=binding, user_id=other.id, is_admin=False, workflow_version=self.version)
+        binding.refresh_from_db()
+        self.assertEqual(binding.workflow_version_id, self.version.id)

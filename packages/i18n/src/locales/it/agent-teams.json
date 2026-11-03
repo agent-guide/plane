@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "Il flusso riferimento membri esterni al team. Correggi prima il flusso o i membri del team",
   "agent_teams_workflows_need_bind_title": "Collega prima un team",
   "agent_teams_workflows_need_bind_hint": "Crea i flussi dopo aver collegato un team; i membri del flusso provengono dal team.",
-  "agent_teams_workflows_need_bind_cta": "Collega team"
+  "agent_teams_workflows_need_bind_cta": "Collega team",
+  "agent_teams_create_project_team_label": "Team di esecuzione",
+  "agent_teams_create_project_team_required": "Seleziona un team di esecuzione",
+  "agent_teams_create_project_bind_failed": "Collegamento del team di esecuzione non riuscito. Il progetto non è stato creato, riprova",
+  "agent_teams_create_project_no_teams": "Nessun team disponibile — crea e attiva prima un team in \"Team\" prima di creare un progetto"
 }

@@ -353,5 +353,9 @@
   "agent_teams_wf_roster_mismatch": "Le workflow référence des membres hors de l'équipe. Ajustez d'abord le workflow ou les membres de l'équipe",
   "agent_teams_workflows_need_bind_title": "Associez d'abord une équipe",
   "agent_teams_workflows_need_bind_hint": "Créez des workflows après avoir associé une équipe ; les membres du workflow viennent de l'équipe.",
-  "agent_teams_workflows_need_bind_cta": "Associer une équipe"
+  "agent_teams_workflows_need_bind_cta": "Associer une équipe",
+  "agent_teams_create_project_team_label": "Équipe d'exécution",
+  "agent_teams_create_project_team_required": "Veuillez sélectionner une équipe d'exécution",
+  "agent_teams_create_project_bind_failed": "Échec de l'association de l'équipe d'exécution. Le projet n'a pas été créé, veuillez réessayer",
+  "agent_teams_create_project_no_teams": "Aucune équipe disponible — créez et activez d'abord une équipe dans « Équipes » avant de créer un projet"
 }

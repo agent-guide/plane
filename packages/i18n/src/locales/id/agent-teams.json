@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "Alur merujuk anggota di luar tim. Sesuaikan dulu alur atau anggota tim",
   "agent_teams_workflows_need_bind_title": "Kaitkan tim terlebih dahulu",
   "agent_teams_workflows_need_bind_hint": "Buat alur setelah mengaitkan tim; anggota alur dipilih dari tim.",
-  "agent_teams_workflows_need_bind_cta": "Kaitkan tim"
+  "agent_teams_workflows_need_bind_cta": "Kaitkan tim",
+  "agent_teams_create_project_team_label": "Tim eksekusi",
+  "agent_teams_create_project_team_required": "Pilih tim eksekusi",
+  "agent_teams_create_project_bind_failed": "Gagal mengaitkan tim eksekusi. Proyek tidak dibuat, silakan coba lagi",
+  "agent_teams_create_project_no_teams": "Belum ada tim yang tersedia — buat dan aktifkan tim di \"Tim\" terlebih dahulu sebelum membuat proyek"
 }

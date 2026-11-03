@@ -352,5 +352,9 @@
   "agent_teams_wf_roster_mismatch": "Proces odkazuje na členy mimo tým. Nejprve upravte proces nebo členy týmu",
   "agent_teams_workflows_need_bind_title": "Nejprve přiřaďte tým",
   "agent_teams_workflows_need_bind_hint": "Vytvářejte procesy po přiřazení týmu; členové procesu pocházejí z týmu.",
-  "agent_teams_workflows_need_bind_cta": "Přiřadit tým"
+  "agent_teams_workflows_need_bind_cta": "Přiřadit tým",
+  "agent_teams_create_project_team_label": "Prováděcí tým",
+  "agent_teams_create_project_team_required": "Vyberte prováděcí tým",
+  "agent_teams_create_project_bind_failed": "Přiřazení prováděcího týmu se nezdařilo. Projekt nebyl vytvořen, zkuste to znovu",
+  "agent_teams_create_project_no_teams": "Žádné dostupné týmy — nejprve vytvořte a aktivujte tým v sekci \"Týmy\" a poté vytvořte projekt"
 }
