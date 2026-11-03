@@ -111,6 +111,7 @@ build/
 temp/
 scripts/*
 !scripts/deploy.sh
+!scripts/deploy-v2.sh
 !packages/i18n/scripts/
 
 # i18n auto-generated types (regenerated on every build)
