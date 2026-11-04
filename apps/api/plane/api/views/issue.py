@@ -776,6 +776,19 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         """
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
         project = Project.objects.get(pk=project_id)
+        # Agent Teams extension（编排域状态锁，2026-11-04）：与 app 端 partial_update
+        # 同一语义——执行期间状态由流程维护，人工/外部改状态 fail-closed。
+        if "state" in request.data:
+            from plane.orchestration.models import WorkItemExecution
+            from plane.orchestration.state_machine import TERMINAL_STATUSES
+            if WorkItemExecution.objects.filter(
+                    issue_id=issue.id).exclude(
+                    business_status__in=list(TERMINAL_STATUSES)).exists():
+                return Response(
+                    {"error": "This work item is being executed by a team workflow; "
+                              "its state is maintained by the workflow. Cancel the execution first.",
+                     "code": "EXECUTION_STATE_LOCKED"},
+                    status=status.HTTP_409_CONFLICT)
         current_instance = json.dumps(IssueSerializer(issue).data, cls=DjangoJSONEncoder)
         requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
         serializer = IssueSerializer(

@@ -212,6 +212,18 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Agent Teams extension（编排域闸门，2026-11-04）：转正=创建路径，须与
+        # 正规建卡同一闸门——「已绑团队未配流程」的项目建卡会得到永不执行的
+        # 死卡（执行信号/对账都只认挂了版本的绑定），fail-closed 拒绝。
+        from plane.orchestration.models import ProjectTeamBinding
+        if not ProjectTeamBinding.objects.filter(
+                project_id=draft_issue.project_id, status=ProjectTeamBinding.Status.ACTIVE,
+                workflow_version__isnull=False).exists():
+            return Response(
+                {"error": "Project has no active team binding. Assign a team before creating work items.",
+                 "code": "PROJECT_NOT_BOUND"},
+                status=status.HTTP_409_CONFLICT)
+
         serializer = IssueCreateSerializer(
             data=request.data,
             context={

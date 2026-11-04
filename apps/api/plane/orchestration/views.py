@@ -769,6 +769,7 @@ class ProjectRuntimeOverviewEndpoint(BaseAPIView):
             binding_json = {
                 "id": binding.id, "teamId": binding.team_id, "teamName": binding.team.name,
                 "workflowName": version.workflow.name if version else None,
+                "workflowId": str(version.workflow_id) if version else None,
                 "workflowVersion": version.version if version else None,
                 "workflowVersionId": str(version.id) if version else None,
                 "updatedAt": binding.updated_at.isoformat(),
@@ -861,6 +862,7 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
         # 节点名映射（definition 快照）：时间线/工件呈现用节点名而非机器 key
         artifacts = [{
             "id": a.id,
+            "nodeKey": a.storage_ref.rsplit("/", 1)[-1],
             "name": (node_names.get(a.storage_ref.rsplit("/", 1)[-1]) or a.storage_ref.rsplit("/", 1)[-1]
                      or a.content_hash[:12]),
             "version": a.version, "sizeBytes": None,

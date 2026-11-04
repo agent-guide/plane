@@ -37,6 +37,9 @@ class ApprovalRejectCancelsTestBase(TestCase):
         publishing = workflows.start_publish(workflow=cls.workflow, user_id=cls.owner.id)
         cls.version = workflows.finish_publish(version=publishing, engine_deploy_ref={"dag": "x"})
         cls.issue = Issue.objects.create(project=cls.project, name="审批语义工作项", created_by=cls.owner)
+        # 真实环境建卡必有项目成员（状态锁/更新权限走 PROJECT 级判定）
+        from plane.db.models.project import ProjectMember
+        ProjectMember.objects.create(workspace=cls.ws, project=cls.project, member=cls.owner, role=20, is_active=True)
         cls.binding = services.bind_project(
             project=cls.project, team=cls.team, user_id=cls.owner.id, is_admin=True, workflow_version=cls.version)
 
@@ -104,3 +107,63 @@ class TimelineNodeNameSnapshotTests(ApprovalRejectCancelsTestBase):
         names = [e.get("nodeName") for e in r.json()["timeline"] if e.get("kind") == "node"]
         self.assertIn("analyze", names)
         self.assertFalse(any(n and n.startswith("analyze_") for n in names))
+
+
+class ExecutionStateLockTests(ApprovalRejectCancelsTestBase):
+    """状态锁（#11）：执行期间改 state → 409 EXECUTION_STATE_LOCKED；终态后放行。"""
+
+    def test_patch_state_rejected_while_executing(self):
+        from django.test import Client
+        start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        client = Client(); client.force_login(self.owner)
+        from plane.db.models.state import State
+        state = State.objects.create(project=self.project, workspace=self.ws, name="Other", created_by=self.owner)
+        r = client.patch(
+            f"/api/workspaces/arws-orch/projects/{self.project.id}/issues/{self.issue.id}/",
+            {"state": str(state.id)}, content_type="application/json")
+        self.assertEqual(r.status_code, 409, r.content)
+        self.assertEqual(r.json()["code"], "EXECUTION_STATE_LOCKED")
+
+    def test_patch_state_allowed_after_terminal(self):
+        from django.test import Client
+        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        ex.business_status = "completed"; ex.save(update_fields=["business_status"])
+        client = Client(); client.force_login(self.owner)
+        from plane.db.models.state import State
+        state = State.objects.create(project=self.project, workspace=self.ws, name="Done2", created_by=self.owner)
+        r = client.patch(
+            f"/api/workspaces/arws-orch/projects/{self.project.id}/issues/{self.issue.id}/",
+            {"state": str(state.id)}, content_type="application/json")
+        self.assertIn(r.status_code, (200, 204), r.content)
+
+    def test_patch_other_fields_not_blocked(self):
+        from django.test import Client
+        start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        client = Client(); client.force_login(self.owner)
+        r = client.patch(
+            f"/api/workspaces/arws-orch/projects/{self.project.id}/issues/{self.issue.id}/",
+            {"priority": "high"}, content_type="application/json")
+        self.assertIn(r.status_code, (200, 204), r.content)
+
+
+class DraftConversionGateTests(ApprovalRejectCancelsTestBase):
+    """草稿转正闸门（#9）：未配流程的项目转正 → 409 PROJECT_NOT_BOUND。"""
+
+    def test_draft_to_issue_blocked_without_workflow_version(self):
+        from django.test import Client
+        from plane.db.models.project import Project, ProjectMember
+        from plane.db.models.draft import DraftIssue
+        # 独立项目：两步绑定中间态（绑团队但未挂版本）
+        p2 = Project.objects.create(name="draft-闸门项目", identifier="DFTG",
+                                    workspace=self.ws, created_by=self.owner)
+        ProjectMember.objects.create(workspace=self.ws, project=p2, member=self.owner, role=20, is_active=True)
+        binding = services.bind_project(project=p2, team=self.team, user_id=self.owner.id, is_admin=True)
+        self.assertIsNone(binding.workflow_version)
+        draft = DraftIssue.objects.create(
+            workspace=self.ws, project=p2, name="草稿-闸门", created_by=self.owner)
+        client = Client(); client.force_login(self.owner)
+        r = client.post(
+            f"/api/workspaces/arws-orch/draft-to-issue/{draft.id}/",
+            {}, content_type="application/json")
+        self.assertEqual(r.status_code, 409, r.content)
+        self.assertEqual(r.json()["code"], "PROJECT_NOT_BOUND")

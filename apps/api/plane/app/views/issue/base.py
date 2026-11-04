@@ -687,6 +687,22 @@ class IssueViewSet(BaseViewSet):
         if not issue:
             return Response({"error": "Issue not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Agent Teams extension（编排域状态锁，2026-11-04）：执行期间的卡状态由
+        # 流程单向维护（执行状态→按 external_id 打标），人工改状态会被后续投影
+        # 覆盖产生「卡 Done 但收件箱还挂待确认」分叉——fail-closed 拒绝并引导
+        # 先取消执行。前端以此错误码做统一提示（详情只读提示/看板拖拽回弹同源）。
+        if "state" in request.data:
+            from plane.orchestration.models import WorkItemExecution
+            from plane.orchestration.state_machine import TERMINAL_STATUSES
+            if WorkItemExecution.objects.filter(
+                    issue_id=issue.id).exclude(
+                    business_status__in=list(TERMINAL_STATUSES)).exists():
+                return Response(
+                    {"error": "This work item is being executed by a team workflow; "
+                              "its state is maintained by the workflow. Cancel the execution first.",
+                     "code": "EXECUTION_STATE_LOCKED"},
+                    status=status.HTTP_409_CONFLICT)
+
         current_instance = json.dumps(IssueDetailSerializer(issue).data, cls=DjangoJSONEncoder)
 
         requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
@@ -876,6 +892,10 @@ class IssuePaginatedViewSet(BaseViewSet):
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def list(self, request, slug, project_id):
+        # Agent Teams extension：执行中标记（annotation 用，状态锁 #11）
+        from plane.orchestration.models import WorkItemExecution
+        from plane.orchestration.state_machine import TERMINAL_STATUSES
+
         cursor = request.GET.get("cursor", None)
         is_description_required = request.GET.get("description", "false")
         updated_at = request.GET.get("updated_at__gt", None)
@@ -908,6 +928,9 @@ class IssuePaginatedViewSet(BaseViewSet):
             "link_count",
             "attachment_count",
             "sub_issues_count",
+            # Agent Teams extension（编排域，2026-11-04）：卡是否在团队流程执行中
+            # ——前端据此做状态只读提示/看板拖拽回弹（状态锁 #11）
+            "execution_active",
         ]
 
         if str(is_description_required).lower() == "true":
@@ -938,6 +961,11 @@ class IssuePaginatedViewSet(BaseViewSet):
             queryset = queryset.filter(updated_at__gt=updated_at)
 
         queryset = queryset.annotate(
+            execution_active=Exists(
+                WorkItemExecution.objects.filter(
+                    issue_id=OuterRef("id")).exclude(
+                    business_status__in=list(TERMINAL_STATUSES))
+            ),
             label_ids=Coalesce(
                 Subquery(
                     IssueLabel.objects.filter(issue_id=OuterRef("pk"))
@@ -990,12 +1018,20 @@ class IssueDetailEndpoint(BaseAPIView):
     filterset_class = IssueFilterSet
 
     def apply_annotations(self, issues):
+        from plane.orchestration.models import WorkItemExecution
+        from plane.orchestration.state_machine import TERMINAL_STATUSES
         return (
             issues.annotate(
                 cycle_id=Subquery(
                     CycleIssue.objects.filter(issue=OuterRef("id"), deleted_at__isnull=True).values("cycle_id")[:1]
                 )
             )
+            .annotate(
+                execution_active=Exists(
+                    WorkItemExecution.objects.filter(
+                        issue_id=OuterRef("id")).exclude(
+                        business_status__in=list(TERMINAL_STATUSES))
+                ))
             .annotate(
                 link_count=IssueLink.objects.filter(issue=OuterRef("id"))
                 .order_by()

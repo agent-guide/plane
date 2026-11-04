@@ -406,6 +406,9 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
     def get(self, request, slug, user_id):
         filters = issue_filters(request.query_params, "GET")
 
+        # Agent Teams extension（2026-11-04 #2）：按具体状态聚合（非五大组折叠）——
+        # 模板细状态（Waiting Confirmation/Failed 等）语义直接可见，与看板列名同词。
+        # 每行带 state id/name/color/group，前端图表直接渲染状态名与色。
         state_distribution = (
             Issue.issue_objects.filter(
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
@@ -414,11 +417,25 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
                 project__project_projectmember__is_active=True,
             )
             .filter(**filters)
-            .annotate(state_group=F("state__group"))
-            .values("state_group")
-            .annotate(state_count=Count("state_group"))
-            .order_by("state_group")
+            .values(
+                "state_id",
+                "state__name",
+                "state__color",
+                "state__group",
+            )
+            .annotate(state_count=Count("id"))
+            .order_by("state__group", "state__name")
         )
+        state_distribution = [
+            {
+                "state_id": str(row["state_id"]) if row["state_id"] else None,
+                "state_name": row["state__name"] or "-",
+                "state_color": row["state__color"] or "#60646C",
+                "state_group": row["state__group"],
+                "state_count": row["state_count"],
+            }
+            for row in state_distribution
+        ]
 
         priority_order = ["urgent", "high", "medium", "low", "none"]
 

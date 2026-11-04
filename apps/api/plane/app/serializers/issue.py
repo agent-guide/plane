@@ -935,14 +935,27 @@ class IssueDetailSerializer(IssueSerializer):
     description_html = serializers.CharField()
     is_subscribed = serializers.BooleanField(read_only=True)
     is_intake = serializers.BooleanField(read_only=True)
+    # Agent Teams extension（编排域，2026-11-04）：执行中标记（queryset 注解；
+    # 未注解场景回退单查）。前端用于状态只读提示/看板拖拽回弹（状态锁 #11）。
+    execution_active = serializers.SerializerMethodField()
 
     class Meta(IssueSerializer.Meta):
         fields = IssueSerializer.Meta.fields + [
             "description_html",
             "is_subscribed",
             "is_intake",
+            "execution_active",
         ]
         read_only_fields = fields
+
+    def get_execution_active(self, obj) -> bool:
+        annotated = getattr(obj, "execution_active", None)
+        if annotated is not None:
+            return bool(annotated)
+        from plane.orchestration.models import WorkItemExecution
+        from plane.orchestration.state_machine import TERMINAL_STATUSES
+        return WorkItemExecution.objects.filter(
+            issue_id=obj.id).exclude(business_status__in=list(TERMINAL_STATUSES)).exists()
 
 
 class IssuePublicSerializer(BaseSerializer):
