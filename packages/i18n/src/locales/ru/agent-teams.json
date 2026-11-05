@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "Процесс ссылается на участников вне состава команды. Сначала измените процесс или состав команды",
   "agent_teams_workflows_need_bind_title": "Сначала привяжите команду",
   "agent_teams_workflows_need_bind_hint": "Создавайте процессы после привязки команды; участники процесса берутся из команды.",
-  "agent_teams_workflows_need_bind_cta": "Привязать команду"
+  "agent_teams_workflows_need_bind_cta": "Привязать команду",
+  "agent_teams_stream_queued": "В очереди",
+  "agent_teams_stream_expand": "Показать больше",
+  "agent_teams_stream_collapse": "Свернуть",
+  "agent_teams_stream_view_output": "Открыть",
+  "agent_teams_state_locked_title": "Статусом управляет рабочий процесс команды",
+  "agent_teams_state_locked_message": "Эта задача выполняется рабочим процессом команды; статус обновляется автоматически. Чтобы изменить его вручную, сначала отмените выполнение на панели карточки.",
+  "agent_teams_draft_convert_auto_exec": "После преобразования задача будет автоматически выполнена процессом команды «{team}»",
+  "agent_teams_draft_convert_no_workflow": "К проекту привязана команда, но процесс ещё не настроен. Настройте процесс перед преобразованием."
 }

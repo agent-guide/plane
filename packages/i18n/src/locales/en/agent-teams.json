@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "The workflow references members outside the team roster. Adjust the workflow or the team members first",
   "agent_teams_workflows_need_bind_title": "Bind a team first",
   "agent_teams_workflows_need_bind_hint": "Create workflows after binding a team; workflow members are picked from the team.",
-  "agent_teams_workflows_need_bind_cta": "Bind a team"
+  "agent_teams_workflows_need_bind_cta": "Bind a team",
+  "agent_teams_stream_queued": "Queued",
+  "agent_teams_stream_expand": "Show more",
+  "agent_teams_stream_collapse": "Show less",
+  "agent_teams_stream_view_output": "View",
+  "agent_teams_state_locked_title": "State is maintained by the team workflow",
+  "agent_teams_state_locked_message": "This work item is being executed by a team workflow; its state is maintained automatically. Cancel the execution from the work item panel first if you need to change it manually.",
+  "agent_teams_draft_convert_auto_exec": "After conversion, this will be executed automatically by the \"{team}\" team workflow",
+  "agent_teams_draft_convert_no_workflow": "This project has a team bound but no workflow configured yet. Configure the workflow before converting."
 }

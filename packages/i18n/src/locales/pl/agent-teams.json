@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "Proces odwołuje się do członków poza składem zespołu. Najpierw dostosuj proces lub skład zespołu",
   "agent_teams_workflows_need_bind_title": "Najpierw przypisz zespół",
   "agent_teams_workflows_need_bind_hint": "Twórz procesy po przypisaniu zespołu; członkowie procesu pochodzą z zespołu.",
-  "agent_teams_workflows_need_bind_cta": "Przypisz zespół"
+  "agent_teams_workflows_need_bind_cta": "Przypisz zespół",
+  "agent_teams_stream_queued": "W kolejce",
+  "agent_teams_stream_expand": "Pokaż więcej",
+  "agent_teams_stream_collapse": "Pokaż mniej",
+  "agent_teams_stream_view_output": "Zobacz",
+  "agent_teams_state_locked_title": "Stanem zarządza przepływ zespołu",
+  "agent_teams_state_locked_message": "Ten element pracy jest wykonywany przez przepływ zespołu; stan jest zarządzany automatycznie. Aby zmienić go ręcznie, najpierw anuluj wykonywanie w panelu karty.",
+  "agent_teams_draft_convert_auto_exec": "Po konwersji zostanie automatycznie wykonany przez przepływ zespołu „{team}”",
+  "agent_teams_draft_convert_no_workflow": "Ten projekt ma powiązany zespół, ale nie skonfigurowano przepływu. Skonfiguruj przepływ przed konwersją."
 }

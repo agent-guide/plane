@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "Il flusso riferimento membri esterni al team. Correggi prima il flusso o i membri del team",
   "agent_teams_workflows_need_bind_title": "Collega prima un team",
   "agent_teams_workflows_need_bind_hint": "Crea i flussi dopo aver collegato un team; i membri del flusso provengono dal team.",
-  "agent_teams_workflows_need_bind_cta": "Collega team"
+  "agent_teams_workflows_need_bind_cta": "Collega team",
+  "agent_teams_stream_queued": "In coda",
+  "agent_teams_stream_expand": "Mostra altro",
+  "agent_teams_stream_collapse": "Mostra meno",
+  "agent_teams_stream_view_output": "Visualizza",
+  "agent_teams_state_locked_title": "Lo stato è gestito dal flusso del team",
+  "agent_teams_state_locked_message": "Questo elemento di lavoro è in esecuzione tramite un flusso del team; lo stato è gestito automaticamente. Per modificarlo manualmente, annulla prima l'esecuzione dal pannello della scheda.",
+  "agent_teams_draft_convert_auto_exec": "Dopo la conversione, verrà eseguito automaticamente dal flusso del team \"{team}\"",
+  "agent_teams_draft_convert_no_workflow": "Questo progetto ha un team collegato ma nessun flusso configurato. Configura il flusso prima di convertire."
 }

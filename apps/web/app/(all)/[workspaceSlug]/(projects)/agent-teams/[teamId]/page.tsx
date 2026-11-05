@@ -472,16 +472,28 @@ function WorkspaceAgentTeamDetailPage({ params }: Route.ComponentProps) {
                     保证页面下边距。 */}
                 <div className="flex flex-col gap-10 px-8 pt-6 pb-16">
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-secondary">
-                    {/* 纯文字 meta（与项目概览横幅同款）：去图标，点分隔；
-                        有进行中任务时该项主题色加粗。 */}
-                    <span>{t("agent_teams_member_count", { count: data.members.length })}</span>
+                    {/* 纯文字 meta（与项目概览横幅同款）：去图标，点分隔。
+                        两项可点：成员数 → 成员管理子页；进行中 → 锚点滚动到
+                        本页进行中任务表（团队详情的可点统计，与项目概览口径一致）。 */}
+                    <Link
+                      href={`/${workspaceSlug}/agent-teams/${teamId}/members`}
+                      className="transition-colors hover:text-accent-primary hover:underline"
+                    >
+                      {t("agent_teams_member_count", { count: data.members.length })}
+                    </Link>
                     <span aria-hidden>·</span>
-                    <span className={data.activeTasks.length > 0 ? "font-medium text-accent-primary" : ""}>
+                    <a
+                      href="#team-active-tasks"
+                      className={`transition-colors hover:underline ${
+                        data.activeTasks.length > 0 ? "font-medium text-accent-primary" : ""
+                      }`}
+                    >
                       {t("agent_teams_run_count", { count: data.activeTasks.length })}
-                    </span>
+                    </a>
                   </div>
                   {/* Active work items — in-flight only; finished/failed history
                       lives in the projects (retry/review on the card, §12.3 panel). */}
+                  <div id="team-active-tasks" className="scroll-mt-24" />
                   <Section
                     label={t("agent_teams_work_items_title")}
                     count={data.activeTasks.length}

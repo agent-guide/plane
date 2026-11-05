@@ -213,6 +213,15 @@ function ProjectOverviewPage() {
   );
 
   // 列定义与团队详情同款：@plane/ui Table（表头分隔线 + 左对齐表头）。
+  // 更新时间列公共工厂：两表同款（固定宽度防抖动 + locale 相对时间）
+  const updatedColumn = <T,>(getTime: (row: T) => string | null | undefined): TTableColumn<T> => ({
+    key: "updated",
+    content: t("agent_teams_column_updated"),
+    tdRender: (row) => (
+      <span className="inline-block w-28 whitespace-nowrap text-tertiary">{relativeTime(getTime(row), locale)}</span>
+    ),
+  });
+
   const recentIssueColumns: TTableColumn<TRecentIssue>[] = [
     {
       key: "work_item",
@@ -249,11 +258,7 @@ function ProjectOverviewPage() {
         </span>
       ),
     },
-    {
-      key: "updated",
-      content: t("agent_teams_column_updated"),
-      tdRender: (issue) => <span className="text-tertiary">{relativeTime(issue.updated_at, locale)}</span>,
-    },
+    updatedColumn((issue) => issue.updated_at),
   ];
 
   const activityColumns: TTableColumn<NonNullable<typeof overview>["recentRuns"][number]>[] = [
@@ -287,11 +292,7 @@ function ProjectOverviewPage() {
           <span className="text-secondary">{t(RUN_RESULT_PAST[run.status] ?? "run_unknown")}</span>
         ),
     },
-    {
-      key: "updated",
-      content: t("agent_teams_column_updated"),
-      tdRender: (run) => <span className="text-tertiary">{relativeTime(run.finishedAt ?? run.startedAt, locale)}</span>,
-    },
+    updatedColumn((run) => run.finishedAt ?? run.startedAt),
     // 执行详情外链列已移除（2026-10-22）：admin 端 runs 路由不存在，
     // 链接恒 404；需要时以正确路由恢复。
   ];
@@ -402,11 +403,6 @@ function ProjectOverviewPage() {
                         </span>
                         <span className="truncate">{binding.teamName}</span>
                       </Link>
-                      {overview && overview.counts.waitingHuman > 0 ? (
-                        <span className="flex-shrink-0 rounded-full bg-white/25 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-[2px]">
-                          {t("agent_teams_project_waiting_badge", { count: overview.counts.waitingHuman })}
-                        </span>
-                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -423,7 +419,12 @@ function ProjectOverviewPage() {
                   {issues ? (
                     <div className="flex flex-wrap items-center">
                       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] leading-4 text-tertiary">
-                        <span className="inline-flex items-center gap-1.5">
+                        {/* 计数即入口（#4）：点击跳工作项页并落对应状态过滤
+                            （?state_group= / ?waiting=1 由 IssueStateDeepLink 应用） */}
+                        <Link
+                          href={`/${workspaceSlug}/projects/${projectId}/issues?state_group=completed`}
+                          className="inline-flex items-center gap-1.5 transition-colors hover:text-secondary"
+                        >
                           <span
                             className="size-1.5 rounded-full"
                             style={{ backgroundColor: STATE_BAR_COLORS.completed }}
@@ -431,16 +432,35 @@ function ProjectOverviewPage() {
                           />
                           {t("agent_teams_progress_done", { done: progress.done, total: progress.total })}
                           <span className="font-medium text-secondary">{progress.percent}%</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
+                        </Link>
+                        <Link
+                          href={`/${workspaceSlug}/projects/${projectId}/issues?state_group=started`}
+                          className="inline-flex items-center gap-1.5 transition-colors hover:text-secondary"
+                        >
                           <span
                             className="size-1.5 rounded-full"
                             style={{ backgroundColor: STATE_BAR_COLORS.started }}
                             aria-hidden
                           />
                           {t("agent_teams_progress_started", { count: progress.groups.started })}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
+                        </Link>
+                        {overview != null && overview.counts.waitingHuman > 0 && (
+                          <Link
+                            href={`/${workspaceSlug}/projects/${projectId}/issues?waiting=1`}
+                            className="inline-flex items-center gap-1.5 font-medium text-accent-primary transition-colors hover:underline"
+                          >
+                            <span
+                              className="size-1.5 animate-pulse rounded-full"
+                              style={{ backgroundColor: STATE_BAR_COLORS.started }}
+                              aria-hidden
+                            />
+                            {t("agent_teams_project_waiting_badge", { count: overview.counts.waitingHuman })}
+                          </Link>
+                        )}
+                        <Link
+                          href={`/${workspaceSlug}/projects/${projectId}/issues?state_group=backlog`}
+                          className="inline-flex items-center gap-1.5 transition-colors hover:text-secondary"
+                        >
                           <span
                             className="size-1.5 rounded-full"
                             style={{ backgroundColor: STATE_BAR_COLORS.todo }}
@@ -449,15 +469,18 @@ function ProjectOverviewPage() {
                           {t("agent_teams_progress_backlog", {
                             count: progress.groups.backlog + progress.groups.unstarted,
                           })}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
+                        </Link>
+                        <Link
+                          href={`/${workspaceSlug}/projects/${projectId}/issues?state_group=cancelled`}
+                          className="inline-flex items-center gap-1.5 transition-colors hover:text-secondary"
+                        >
                           <span
                             className="size-1.5 rounded-full"
                             style={{ backgroundColor: STATE_BAR_COLORS.cancelled }}
                             aria-hidden
                           />
                           {t("agent_teams_progress_cancelled", { count: progress.groups.cancelled })}
-                        </span>
+                        </Link>
                       </div>
                     </div>
                   ) : null}
@@ -467,9 +490,13 @@ function ProjectOverviewPage() {
                       版本 chip 底色加深一档与胶囊区分。 */
                     <div className="ml-auto inline-flex h-8 flex-shrink-0 items-center gap-1.5 self-center rounded-full bg-layer-2 pr-1 pl-2.5">
                       <Workflow className="size-3.5 flex-shrink-0 text-tertiary" aria-hidden />
-                      <span className="max-w-40 truncate text-[13px] font-medium text-secondary">
+                      {/* 流程名直达流程详情（画布）——名实相符的查看入口 */}
+                      <Link
+                        href={`/${workspaceSlug}/projects/${projectId}/workflows/${binding.workflowId}`}
+                        className="max-w-40 truncate text-[13px] font-medium text-secondary transition-colors hover:text-accent-primary hover:underline"
+                      >
                         {binding.workflowName ?? "-"}
-                      </span>
+                      </Link>
                       {binding.workflowVersion != null ? (
                         <span className="font-mono flex-shrink-0 rounded-full bg-layer-3 px-1.5 text-[11px] leading-5 font-medium text-secondary">
                           v{binding.workflowVersion}

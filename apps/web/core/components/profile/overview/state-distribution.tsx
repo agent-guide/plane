@@ -39,16 +39,18 @@ export function ProfileStateDistribution({ stateDistribution, userProfile }: Pro
               }}
               data={
                 userProfile.state_distribution.map((group) => ({
-                  id: group.state_group,
-                  key: group.state_group,
+                  id: group.state_id ?? group.state_group,
+                  key: group.state_id ?? group.state_group,
                   value: group.state_count,
-                  name: capitalizeFirstLetter(group.state_group),
-                  color: STATE_GROUPS[group.state_group]?.color,
+                  // 具体状态名优先（#2 透传：等待确认/失败等细语义直出），
+                  // 缺省回退组名（旧数据兼容）
+                  name: group.state_name ?? capitalizeFirstLetter(group.state_group),
+                  color: group.state_color ?? STATE_GROUPS[group.state_group]?.color,
                 })) ?? []
               }
               cells={userProfile.state_distribution.map((group) => ({
-                key: group.state_group,
-                fill: STATE_GROUPS[group.state_group]?.color,
+                key: group.state_id ?? group.state_group,
+                fill: group.state_color ?? STATE_GROUPS[group.state_group]?.color,
               }))}
               showTooltip
               tooltipLabel="Count"
@@ -60,16 +62,18 @@ export function ProfileStateDistribution({ stateDistribution, userProfile }: Pro
             <div className="flex items-center">
               <div className="w-full space-y-4">
                 {stateDistribution.map((group) => (
-                  <div key={group.state_group} className="flex items-center justify-between gap-2 text-11">
+                  <div key={group.state_id ?? group.state_group} className="flex items-center justify-between gap-2 text-11">
                     <div className="flex items-center gap-1.5">
                       <div
                         className="h-2.5 w-2.5 rounded-xs"
                         style={{
                           backgroundColor:
-                            STATE_GROUPS[group.state_group]?.color ?? "var(--background-color-accent-primary)",
+                            group.state_color ?? STATE_GROUPS[group.state_group]?.color ?? "var(--background-color-accent-primary)",
                         }}
                       />
-                      <div className="whitespace-nowrap">{STATE_GROUPS[group.state_group].label}</div>
+                      <div className="whitespace-nowrap">
+                        {group.state_name ?? STATE_GROUPS[group.state_group].label}
+                      </div>
                     </div>
                     <div>{group.state_count}</div>
                   </div>

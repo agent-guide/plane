@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "流程中引用了團隊名冊之外的成員，請先調整流程或團隊成員",
   "agent_teams_workflows_need_bind_title": "先綁定團隊",
   "agent_teams_workflows_need_bind_hint": "綁定團隊後才能建立流程，流程中的成員將從團隊中挑選。",
-  "agent_teams_workflows_need_bind_cta": "綁定團隊"
+  "agent_teams_workflows_need_bind_cta": "綁定團隊",
+  "agent_teams_stream_queued": "排隊中",
+  "agent_teams_stream_expand": "展開",
+  "agent_teams_stream_collapse": "收起",
+  "agent_teams_stream_view_output": "查看",
+  "agent_teams_state_locked_title": "狀態由團隊流程維護",
+  "agent_teams_state_locked_message": "此工作卡正由團隊流程執行，狀態由流程自動維護；如需手動調整，請先在卡片面板取消執行。",
+  "agent_teams_draft_convert_auto_exec": "轉正後將由「{team}」團隊流程自動執行",
+  "agent_teams_draft_convert_no_workflow": "該項目已綁定團隊但尚未配置流程，請先完成流程配置再轉正。"
 }

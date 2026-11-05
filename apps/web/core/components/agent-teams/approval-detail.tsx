@@ -15,13 +15,12 @@ import Link from "next/link";
 // i18n
 import { useTranslation } from "@plane/i18n";
 // plane imports
-import { Button } from "@plane/propel/button";
-import { TextArea } from "@plane/ui";
-import { calculateTimeAgo, cn } from "@plane/utils";
+import { calculateTimeAgo } from "@plane/utils";
 // icons
 import { Bot } from "lucide-react";
 // components
 import { useAgentApprovalsSelection } from "@/components/agent-teams/approvals-context";
+import { ApprovalAnswerArea } from "@/components/agent-teams/approval-answer";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 // services
@@ -113,63 +112,15 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
           <div className="text-body-sm-regular text-danger-primary">{t("agent_teams_inbox_answer_failed")}</div>
         )}
 
-        {/* answer actions — option list, text input, or approve/reject */}
-        <div className="flex flex-col gap-2">
-          {selected.freeText ? (
-            <div className="flex flex-col gap-2">
-              <TextArea
-                value={textAnswer}
-                onChange={(e) => setTextAnswer(e.target.value)}
-                placeholder={t("agent_teams_inbox_answer_placeholder")}
-                className="w-full"
-              />
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={answering !== "" || !textAnswer.trim()}
-                onClick={() => void handleAnswer("approved", textAnswer.trim(), "text")}
-              >
-                {answering === "text" ? "…" : t("agent_teams_inbox_submit")}
-              </Button>
-            </div>
-          ) : options.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {options.map((option) => (
-                <Button
-                  key={option.value}
-                  variant={option.terminal ? "secondary" : "primary"}
-                  size="sm"
-                  disabled={answering !== ""}
-                  onClick={() =>
-                    void handleAnswer(option.terminal ? "rejected" : "approved", option.label, option.value)
-                  }
-                >
-                  {answering === option.value ? "…" : option.label}
-                </Button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={answering !== ""}
-                onClick={() => void handleAnswer("approved", "", "approve")}
-                className={cn(answering === "approve" && "opacity-60")}
-              >
-                {t("agent_teams_panel_approve")}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={answering !== ""}
-                onClick={() => void handleAnswer("rejected", "", "reject")}
-              >
-                {t("agent_teams_panel_reject")}
-              </Button>
-            </div>
-          )}
-        </div>
+        {/* answer actions — 共享作答区（freeText/选项/批准-驳回三形态，
+            与工作卡执行面板同源，2026-11-04 #1） */}
+        <ApprovalAnswerArea
+          approval={{ freeText: selected.freeText, options }}
+          answering={answering}
+          textAnswer={textAnswer}
+          onTextChange={setTextAnswer}
+          onAnswer={(decision, reason, key) => void handleAnswer(decision, reason, key)}
+        />
       </div>
     </div>
   );

@@ -77,6 +77,9 @@ export type TBaseIssue = {
   is_draft: boolean;
   is_epic?: boolean;
   is_intake?: boolean;
+  /** Agent Teams extension：卡是否在团队流程执行中（状态锁——执行期间
+   * 状态由流程维护，UI 只读呈现，API 409 EXECUTION_STATE_LOCKED 兜底）。 */
+  execution_active?: boolean;
 };
 
 type IssueRelation = {

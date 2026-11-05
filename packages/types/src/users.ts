@@ -126,6 +126,11 @@ export interface IUserPriorityDistribution {
 export interface IUserStateDistribution {
   state_group: TStateGroups;
   state_count: number;
+  /** Agent Teams extension：按具体状态聚合时携带（等待确认/失败等细语义
+   * 直接可见，与看板列名同词；旧数据/接口缺省时回退组名渲染） */
+  state_id?: string | null;
+  state_name?: string | null;
+  state_color?: string | null;
 }
 
 export interface IUserActivityResponse {

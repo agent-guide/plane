@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "Alur merujuk anggota di luar tim. Sesuaikan dulu alur atau anggota tim",
   "agent_teams_workflows_need_bind_title": "Kaitkan tim terlebih dahulu",
   "agent_teams_workflows_need_bind_hint": "Buat alur setelah mengaitkan tim; anggota alur dipilih dari tim.",
-  "agent_teams_workflows_need_bind_cta": "Kaitkan tim"
+  "agent_teams_workflows_need_bind_cta": "Kaitkan tim",
+  "agent_teams_stream_queued": "Dalam antrean",
+  "agent_teams_stream_expand": "Tampilkan lainnya",
+  "agent_teams_stream_collapse": "Tampilkan lebih sedikit",
+  "agent_teams_stream_view_output": "Lihat",
+  "agent_teams_state_locked_title": "Status dikelola oleh alur kerja tim",
+  "agent_teams_state_locked_message": "Item kerja ini sedang dijalankan oleh alur kerja tim; statusnya dikelola secara otomatis. Untuk mengubahnya secara manual, batalkan eksekusi di panel kartu terlebih dahulu.",
+  "agent_teams_draft_convert_auto_exec": "Setelah dikonversi, akan dijalankan otomatis oleh alur kerja tim \"{team}\"",
+  "agent_teams_draft_convert_no_workflow": "Proyek ini memiliki tim terkait tetapi alur kerja belum dikonfigurasi. Konfigurasikan alur kerja sebelum mengonversi."
 }

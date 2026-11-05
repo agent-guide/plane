@@ -130,6 +130,24 @@ def _approval_json(a: BusinessApproval):
     }
 
 
+def _upcoming_steps(execution: WorkItemExecution) -> list[str]:
+    """叙事流未来步骤名（剪枝感知）：定义序中未开始的节点，减去被条件淘汰的分支。"""
+    from .execution_context import pruned_node_keys
+    from .node_runtime import NodeRuntimeRecord
+    definition = (execution.binding.workflow_version.definition or {})
+    started = set(execution.node_records.values_list("node_key", flat=True))
+    choices = {
+        node_key: chosen for node_key, chosen in NodeRuntimeRecord.objects.filter(
+            execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
+        ).values_list("node_key", "result__chosenBranch") if chosen}
+    pruned = pruned_node_keys(definition, choices) if choices else set()
+    return [
+        (n.get("name") or n.get("key"))
+        for n in (definition.get("nodes") or [])
+        if n.get("key") not in started and n.get("key") not in pruned and n.get("type") != "condition"
+    ]
+
+
 def _execution_json(e: WorkItemExecution):
     return {
         "id": e.id, "issueId": e.issue_id, "bindingId": e.binding_id,
@@ -878,6 +896,27 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             Q(assignee=request.user) | Q(assignee__isnull=True)).first()
 
         # 时间线：执行创建 → 节点记录 → 审批 → 终态（按时间归并）
+        # memberName = 该步执行者（叙事流步骤行「节点 — 执行者」的「谁在做」；
+        # 2026-11-04 #3：此前误用全局 current_member，每步显示同一人）
+        definition_nodes = {
+            n.get("key"): n for n in ((execution.binding.workflow_version.definition or {}).get("nodes") or [])}
+        frozen_members = (execution.frozen_context or {}).get("members") or []
+        agent_role_by_def = {
+            str(m.get("agentDefinitionId")): m.get("role") for m in frozen_members if m.get("kind") == "agent"}
+        human_ids = {m.get("userId") for m in frozen_members if m.get("kind") == "human" and m.get("userId")}
+        human_names = {}  # 指定审批人 → 显示名（人工步骤的「谁在做」）
+        if human_ids:
+            from plane.db.models import User as _User
+            human_names = {str(u.id): (u.display_name or u.email) for u in _User.objects.filter(id__in=human_ids)}
+
+        def _node_member_name(node_key: str) -> str | None:
+            node = definition_nodes.get(node_key) or {}
+            if node.get("type") in ("ai", "condition"):
+                return agent_role_by_def.get(str(node.get("expertId") or ""))
+            if node.get("type") == "human_approval":
+                return human_names.get(str(node.get("approverUserId") or ""))
+            return None
+
         events = [{
             "id": f"start:{execution.id}", "kind": "execution",
             "status": "queued", "memberName": None, "nodeKey": None, "nodeName": None,
@@ -888,7 +927,7 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
                 "id": f"node:{n.id}:{n.status}", "kind": "node",
                 "status": n.status, "nodeKey": n.node_key,
                 "nodeName": node_names.get(n.node_key, n.node_key),
-                "memberName": member_name,
+                "memberName": _node_member_name(n.node_key),
                 "createdAt": n.updated_at.isoformat(),
             })
         for a in execution.approvals.order_by("created_at"):
@@ -929,6 +968,9 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             "artifacts": artifacts,
             "pendingApproval": _approval_json(pending) if pending else None,
             "timeline": events,
+            # 叙事流「排队中」的未来步骤（#3）：流程定义中尚未开始的节点名，
+            # 剪枝感知——条件已选淘汰的分支不出现
+            "upcomingSteps": _upcoming_steps(execution),
         })
 
     def post(self, request, slug, project_id, issue_id):

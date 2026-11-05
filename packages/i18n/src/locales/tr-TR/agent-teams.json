@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "Akış, takım listesi dışındaki üyelere başvuruyor. Önce akışı veya takım üyelerini düzenleyin",
   "agent_teams_workflows_need_bind_title": "Önce bir takım bağlayın",
   "agent_teams_workflows_need_bind_hint": "Akışları bir takım bağladıktan sonra oluşturun; akış üyeleri takımdan seçilir.",
-  "agent_teams_workflows_need_bind_cta": "Takım bağla"
+  "agent_teams_workflows_need_bind_cta": "Takım bağla",
+  "agent_teams_stream_queued": "Sırada",
+  "agent_teams_stream_expand": "Daha fazla göster",
+  "agent_teams_stream_collapse": "Daha az göster",
+  "agent_teams_stream_view_output": "Görüntüle",
+  "agent_teams_state_locked_title": "Durum ekip iş akışı tarafından yönetilir",
+  "agent_teams_state_locked_message": "Bu iş öğesi bir ekip iş akışı tarafından yürütülüyor; durumu otomatik olarak yönetilir. El ile değiştirmek için önce kart panelinden yürütmeyi iptal edin.",
+  "agent_teams_draft_convert_auto_exec": "Dönüştürmeden sonra \"{team}\" ekibinin iş akışı tarafından otomatik olarak yürütülecek",
+  "agent_teams_draft_convert_no_workflow": "Bu projeye bir ekip bağlı ancak iş akışı henüz yapılandırılmadı. Dönüştürmeden önce iş akışını yapılandırın."
 }

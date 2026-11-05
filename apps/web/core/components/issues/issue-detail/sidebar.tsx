@@ -29,6 +29,9 @@ import { ButtonAvatars } from "@/components/dropdowns/member/avatar";
 import { MemberDropdown } from "@/components/dropdowns/member/dropdown";
 import { PriorityDropdown } from "@/components/dropdowns/priority";
 import { StateDropdown } from "@/components/dropdowns/state/dropdown";
+import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import { StateGroupIcon } from "@plane/propel/icons";
+import type { TStateGroups } from "@plane/types";
 // hooks
 import { useProjectEstimates } from "@/hooks/store/estimates";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
@@ -86,18 +89,43 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
           <h5 className="mt-5 text-body-xs-medium">{t("common.properties")}</h5>
           <div className={`mt-4 mb-2 space-y-2.5 truncate ${!isEditable ? "opacity-60" : ""}`}>
             <SidebarPropertyListItem icon={StatePropertyIcon} label={t("common.state")}>
-              <StateDropdown
-                value={issue?.state_id}
-                onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { state_id: val })}
-                projectId={projectId?.toString() ?? ""}
-                disabled={!isEditable}
-                buttonVariant="transparent-with-text"
-                className="group w-full grow"
-                buttonContainerClassName="w-full text-left h-7.5"
-                buttonClassName="text-body-xs-regular"
-                dropdownArrow
-                dropdownArrowClassName="h-3.5 w-3.5 hidden group-hover:inline"
-              />
+              {issue?.execution_active ? (
+                /* 状态锁（#11）：执行期间的卡状态由流程维护——只读呈现（不置灰、
+                   值正常显示），点击解释原因；API 层 409 兜底（看板拖拽同源回弹） */
+                <button
+                  type="button"
+                  onClick={() =>
+                    setToast({
+                      type: TOAST_TYPE.INFO,
+                      title: t("agent_teams_state_locked_title"),
+                      message: t("agent_teams_state_locked_message"),
+                    })
+                  }
+                  className="group flex w-full grow items-center gap-1.5 text-left"
+                >
+                  <span className="flex min-w-0 items-center gap-1.5 text-body-xs-regular">
+                    <StateGroupIcon
+                    stateGroup={(stateDetails?.group ?? "backlog") as TStateGroups}
+                    color={stateDetails?.color}
+                    className="h-3.5 w-3.5 flex-shrink-0"
+                  />
+                  <span className="truncate">{stateDetails?.name ?? issue.state_id}</span>
+                  </span>
+                </button>
+              ) : (
+                <StateDropdown
+                  value={issue?.state_id}
+                  onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { state_id: val })}
+                  projectId={projectId?.toString() ?? ""}
+                  disabled={!isEditable}
+                  buttonVariant="transparent-with-text"
+                  className="group w-full grow"
+                  buttonContainerClassName="w-full text-left h-7.5"
+                  buttonClassName="text-body-xs-regular"
+                  dropdownArrow
+                  dropdownArrowClassName="h-3.5 w-3.5 hidden group-hover:inline"
+                />
+              )}
             </SidebarPropertyListItem>
 
             <SidebarPropertyListItem icon={MembersPropertyIcon} label={t("common.assignees")}>

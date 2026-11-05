@@ -353,5 +353,13 @@
   "agent_teams_wf_roster_mismatch": "Le workflow référence des membres hors de l'équipe. Ajustez d'abord le workflow ou les membres de l'équipe",
   "agent_teams_workflows_need_bind_title": "Associez d'abord une équipe",
   "agent_teams_workflows_need_bind_hint": "Créez des workflows après avoir associé une équipe ; les membres du workflow viennent de l'équipe.",
-  "agent_teams_workflows_need_bind_cta": "Associer une équipe"
+  "agent_teams_workflows_need_bind_cta": "Associer une équipe",
+  "agent_teams_stream_queued": "En file d'attente",
+  "agent_teams_stream_expand": "Afficher plus",
+  "agent_teams_stream_collapse": "Afficher moins",
+  "agent_teams_stream_view_output": "Voir",
+  "agent_teams_state_locked_title": "L'état est géré par le flux d'équipe",
+  "agent_teams_state_locked_message": "Cet élément de travail est exécuté par un flux d'équipe ; son état est géré automatiquement. Pour le modifier manuellement, annulez d'abord l'exécution dans le panneau de la carte.",
+  "agent_teams_draft_convert_auto_exec": "Après conversion, il sera exécuté automatiquement par le flux de l'équipe « {team} »",
+  "agent_teams_draft_convert_no_workflow": "Ce projet a une équipe associée mais aucun flux configuré. Configurez le flux avant la conversion."
 }

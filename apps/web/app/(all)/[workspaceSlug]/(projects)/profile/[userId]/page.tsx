@@ -15,6 +15,7 @@ import { PageHead } from "@/components/core/page-title";
 import { ProfileActivity } from "@/components/profile/overview/activity";
 import { ProfilePriorityDistribution } from "@/components/profile/overview/priority-distribution";
 import { ProfileStateDistribution } from "@/components/profile/overview/state-distribution";
+import { ProfilePendingApprovals } from "@/components/profile/overview/pending-approvals";
 import { ProfileStats } from "@/components/profile/overview/stats";
 import { ProfileWorkload } from "@/components/profile/overview/workload";
 // constants
@@ -44,6 +45,8 @@ export default function ProfileOverviewPage({ params }: Route.ComponentProps) {
       <PageHead title={t("profile.page_label")} />
       <ContentWrapper className="space-y-7">
         <ProfileStats userProfile={userProfile} />
+        {/* 待我确认置顶（#2）：跨项目团队审批作为主动工作清单，先于统计区 */}
+        <ProfilePendingApprovals workspaceSlug={workspaceSlug} />
         <ProfileWorkload stateDistribution={stateDistribution} />
         <div className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-2">
           <ProfilePriorityDistribution userProfile={userProfile} />

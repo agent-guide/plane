@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "Der Workflow verweist auf Mitglieder außerhalb der Teamliste. Passen Sie zuerst den Workflow oder die Teammitglieder an",
   "agent_teams_workflows_need_bind_title": "Zuerst Team zuweisen",
   "agent_teams_workflows_need_bind_hint": "Erstellen Sie Workflows erst nach der Teamzuweisung; Workflow-Mitglieder kommen aus dem Team.",
-  "agent_teams_workflows_need_bind_cta": "Team zuweisen"
+  "agent_teams_workflows_need_bind_cta": "Team zuweisen",
+  "agent_teams_stream_queued": "In Warteschlange",
+  "agent_teams_stream_expand": "Mehr anzeigen",
+  "agent_teams_stream_collapse": "Weniger anzeigen",
+  "agent_teams_stream_view_output": "Ansehen",
+  "agent_teams_state_locked_title": "Der Status wird vom Team-Workflow verwaltet",
+  "agent_teams_state_locked_message": "Dieses Arbeitselement wird von einem Team-Workflow ausgeführt; der Status wird automatisch verwaltet. Um ihn manuell zu ändern, brechen Sie zuerst die Ausführung im Kartenbereich ab.",
+  "agent_teams_draft_convert_auto_exec": "Nach der Konvertierung wird dies automatisch vom Team-Workflow „{team}“ ausgeführt",
+  "agent_teams_draft_convert_no_workflow": "Diesem Projekt ist ein Team zugeordnet, aber es ist noch kein Workflow konfiguriert. Konfigurieren Sie den Workflow vor der Konvertierung."
 }

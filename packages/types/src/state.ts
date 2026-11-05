@@ -8,6 +8,9 @@ export type TStateGroups = "backlog" | "unstarted" | "started" | "completed" | "
 
 export interface IState {
   readonly id: string;
+  /** Agent Teams extension：执行状态落点标签（waiting_human 等）——编排域
+   * 按此寻址打标；带标签态禁删（UI 提示与后端 409 守卫）。 */
+  external_id?: string | null;
   color: string;
   default: boolean;
   description: string;

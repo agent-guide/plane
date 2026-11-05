@@ -31,7 +31,8 @@ export const StateDelete = observer(function StateDelete(props: TStateDelete) {
   const [isDeleteModal, setIsDeleteModal] = useState(false);
   const [isDelete, setIsDelete] = useState(false);
   // derived values
-  const isDeleteDisabled = state.default ? true : totalStates === 1 ? true : false;
+  // 执行标签态（external_id）：编排域按此标签写状态，删除即断执行落点——禁删
+  const isDeleteDisabled = state.default || totalStates === 1 || !!state.external_id;
 
   const handleDeleteState = async () => {
     if (isDeleteDisabled) return;
@@ -88,7 +89,13 @@ export const StateDelete = observer(function StateDelete(props: TStateDelete) {
       >
         <Tooltip
           tooltipContent={
-            state.default ? "Cannot delete the default state." : totalStates === 1 ? `Cannot have an empty group.` : ``
+            state.default
+              ? "Cannot delete the default state."
+              : totalStates === 1
+                ? `Cannot have an empty group.`
+                : state.external_id
+                  ? `This state is used by team execution and cannot be deleted.`
+                  : ``
           }
           isMobile={isMobile}
           disabled={!isDeleteDisabled}

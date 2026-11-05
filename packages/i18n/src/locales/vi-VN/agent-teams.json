@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "Quy trình tham chiếu thành viên ngoài nhóm. Hãy điều chỉnh quy trình hoặc thành viên nhóm trước",
   "agent_teams_workflows_need_bind_title": "Gắn nhóm trước",
   "agent_teams_workflows_need_bind_hint": "Tạo quy trình sau khi gắn nhóm; thành viên quy trình được chọn từ nhóm.",
-  "agent_teams_workflows_need_bind_cta": "Gắn nhóm"
+  "agent_teams_workflows_need_bind_cta": "Gắn nhóm",
+  "agent_teams_stream_queued": "Đang chờ",
+  "agent_teams_stream_expand": "Xem thêm",
+  "agent_teams_stream_collapse": "Thu gọn",
+  "agent_teams_stream_view_output": "Xem",
+  "agent_teams_state_locked_title": "Trạng thái do quy trình nhóm quản lý",
+  "agent_teams_state_locked_message": "Mục công việc này đang được quy trình nhóm thực thi; trạng thái được quản lý tự động. Để thay đổi thủ công, trước tiên hãy hủy thực thi trong bảng thẻ.",
+  "agent_teams_draft_convert_auto_exec": "Sau khi chuyển đổi, sẽ được quy trình nhóm \"{team}\" tự động thực thi",
+  "agent_teams_draft_convert_no_workflow": "Dự án này đã liên kết nhóm nhưng chưa cấu hình quy trình. Hãy cấu hình quy trình trước khi chuyển đổi."
 }

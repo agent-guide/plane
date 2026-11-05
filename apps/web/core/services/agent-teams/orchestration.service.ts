@@ -407,6 +407,7 @@ export interface OrchestrationRuntimeBinding {
   teamId: string;
   teamName: string;
   workflowName: string | null;
+  workflowId: string | null;
   workflowVersion: number | null;
   workflowVersionId: string | null;
   updatedAt: string;
@@ -441,6 +442,8 @@ export async function getProjectRuntimeOverview(
 
 export interface OrchestrationRuntimeArtifact {
   id: string;
+  /** 所属节点 key（叙事流把产出挂到对应步骤下，#3） */
+  nodeKey?: string;
   name: string;
   version: number;
   sizeBytes: number | null;
@@ -475,6 +478,8 @@ export interface OrchestrationWorkItemRuntime {
   artifacts: OrchestrationRuntimeArtifact[];
   pendingApproval: OrchestrationApproval | null;
   timeline: OrchestrationTimelineEvent[];
+  /** 叙事流「排队中」的未来步骤名（剪枝感知，#3） */
+  upcomingSteps?: string[];
 }
 
 /** 工作项运行时面板数据；未绑定（无执行记录）返回 null。 */

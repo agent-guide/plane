@@ -19,6 +19,7 @@ import { useIssues } from "@/hooks/store/use-issues";
 import { IssuesStoreContext } from "@/hooks/use-issue-layout-store";
 // local imports
 import { IssuePeekOverview } from "../../peek-overview";
+import { IssueStateDeepLink } from "@/components/issues/issue-state-deep-link";
 import { CalendarLayout } from "../calendar/roots/project-root";
 import { BaseGanttRoot } from "../gantt";
 import { KanBanLayout } from "../kanban/roots/project-root";
@@ -78,6 +79,8 @@ export const ProjectLayoutRoot = observer(function ProjectLayoutRoot() {
       >
         {({ filter: projectWorkItemsFilter }) => (
           <div className="relative flex h-full w-full flex-col overflow-hidden">
+            {/* 状态深链（概览计数跳转，#4）：实例就绪后应用一次 */}
+            <IssueStateDeepLink filter={projectWorkItemsFilter ?? null} />
             {projectWorkItemsFilter && <WorkItemFiltersRow filter={projectWorkItemsFilter} />}
             <div className="relative h-full w-full overflow-auto bg-surface-1">
               {/* mutation loader */}

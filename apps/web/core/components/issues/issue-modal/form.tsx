@@ -41,6 +41,7 @@ import {
 import { useIssueModal } from "@/hooks/context/use-issue-modal";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
+import { DraftConversionHint } from "@/components/agent-teams/draft-conversion-hint";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useWorkspaceDraftIssues } from "@/hooks/store/workspace-draft";
 import { usePlatformOS } from "@/hooks/use-platform-os";
@@ -382,6 +383,10 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                     handleFormChange={handleFormChange}
                   />
                 </div>
+                {/* Agent Teams extension（#9 转正预期管理）：草稿转正时按所选
+                    项目提示执行归属——已配流程「将由团队自动执行」；已绑团队
+                    未配流程提示先配流程（转正闸门同口径 409）。 */}
+                {isDraft && moveToIssue && <DraftConversionHint workspaceSlug={workspaceSlug?.toString()} projectId={projectId} />}
               </div>
               {watch("parent_id") && selectedParentIssue && (
                 <div className="pb-4">

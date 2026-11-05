@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "Proces odkazuje na členov mimo tímu. Najprv upravte proces alebo členov tímu",
   "agent_teams_workflows_need_bind_title": "Najprv priraďte tím",
   "agent_teams_workflows_need_bind_hint": "Vytvárajte procesy po priradení tímu; členovia procesu pochádzajú z tímu.",
-  "agent_teams_workflows_need_bind_cta": "Priradiť tím"
+  "agent_teams_workflows_need_bind_cta": "Priradiť tím",
+  "agent_teams_stream_queued": "Vo fronte",
+  "agent_teams_stream_expand": "Zobraziť viac",
+  "agent_teams_stream_collapse": "Zobraziť menej",
+  "agent_teams_stream_view_output": "Zobraziť",
+  "agent_teams_state_locked_title": "Stav spravuje tímový workflow",
+  "agent_teams_state_locked_message": "Túto pracovnú položku vykonáva tímový workflow; stav sa spravuje automaticky. Ak ho chcete zmeniť ručne, najprv zrušte vykonávanie v paneli karty.",
+  "agent_teams_draft_convert_auto_exec": "Po prevode ju automaticky vykoná workflow tímu „{team}“",
+  "agent_teams_draft_convert_no_workflow": "Projekt má naviazaný tím, ale workflow ešte nie je nastavený. Pred prevodom ho nastavte."
 }

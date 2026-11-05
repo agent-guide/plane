@@ -18,6 +18,7 @@ import { useTranslation } from "@plane/i18n";
 import { ChevronRightIcon, PlusIcon, UserIcon } from "lucide-react";
 import { IconButton } from "@plane/propel/icon-button";
 import { Tooltip } from "@plane/ui";
+import { teamInk } from "@/components/agent-teams/helper";
 import { cn } from "@plane/utils";
 // components
 import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
@@ -185,6 +186,16 @@ export function SidebarAgentTeamsList({ workspaceSlug }: { workspaceSlug: string
                     dragInstanceId="AGENT_TEAMS"
                     href={href}
                     title={team.name}
+                    leading={
+                      /* 团队色标：名字 hash 取墨色（与团队横幅/概览徽章三处同色），
+                         对齐项目行 Logo 底色块的位与尺寸 */
+                      <span
+                        className="grid size-4 flex-shrink-0 place-items-center rounded-[4px] text-[9px] font-bold text-white"
+                        style={{ backgroundColor: teamInk(team.name) }}
+                      >
+                        {team.name.slice(0, 1).toUpperCase()}
+                      </span>
+                    }
                     isRouteActive={path === href}
                     highlight={path === href}
                     isLastChild={index === visible.length - 1}

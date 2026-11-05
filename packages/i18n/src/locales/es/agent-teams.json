@@ -352,5 +352,13 @@
   "agent_teams_wf_roster_mismatch": "El flujo referencia miembros fuera del equipo. Ajusta primero el flujo o los miembros del equipo",
   "agent_teams_workflows_need_bind_title": "Vincula primero un equipo",
   "agent_teams_workflows_need_bind_hint": "Crea flujos después de vincular un equipo; los miembros del flujo se eligen del equipo.",
-  "agent_teams_workflows_need_bind_cta": "Vincular equipo"
+  "agent_teams_workflows_need_bind_cta": "Vincular equipo",
+  "agent_teams_stream_queued": "En cola",
+  "agent_teams_stream_expand": "Mostrar más",
+  "agent_teams_stream_collapse": "Mostrar menos",
+  "agent_teams_stream_view_output": "Ver",
+  "agent_teams_state_locked_title": "El estado lo mantiene el flujo del equipo",
+  "agent_teams_state_locked_message": "Este elemento de trabajo se está ejecutando mediante un flujo de equipo; su estado se mantiene automáticamente. Para cambiarlo manualmente, cancele primero la ejecución en el panel de la tarjeta.",
+  "agent_teams_draft_convert_auto_exec": "Tras la conversión, lo ejecutará automáticamente el flujo del equipo «{team}»",
+  "agent_teams_draft_convert_no_workflow": "Este proyecto tiene un equipo vinculado pero aún sin flujo configurado. Configure el flujo antes de convertir."
 }
