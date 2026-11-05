@@ -47,8 +47,23 @@ echo "==== [2/4] 打包 api ===="
   --exclude=.pytest_cache --exclude=.git .)
 
 echo "==== [3/4] 上传 ===="
-scp -q -P "$SSH_PORT" /tmp/plane-v2-api.tar.gz "$REMOTE_USER@$SERVER:/tmp/"
-[ "$SKIP_WEB" -eq 0 ] && scp -q -P "$SSH_PORT" /tmp/plane-v2-web.tar.gz "$REMOTE_USER@$SERVER:/tmp/"
+# scp 对老 sshd 偶发「传输完成后关通道报 Connection closed」（文件已完整落
+# 远端）：报错后按远端大小校验兜底，一致则放行，不一致才真失败
+_upload() {
+  local file="$1" base; base="$(basename "$file")"
+  local size; size="$(stat -f%z "$file")"
+  if scp -q -P "$SSH_PORT" "$file" "$REMOTE_USER@$SERVER:/tmp/"; then return 0; fi
+  echo "⚠ scp 报错，校验远端文件完整性（$base）…"
+  local rsize
+  rsize="$(ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" "stat -c%s /tmp/$base 2>/dev/null" || echo 0)"
+  if [ "$rsize" = "$size" ]; then
+    echo "✔ 远端文件完整（$rsize 字节），继续（scp 关通道误报）"
+    return 0
+  fi
+  echo "❌ 上传失败：远端 $rsize / 本地 $size 字节"; return 1
+}
+_upload /tmp/plane-v2-api.tar.gz
+[ "$SKIP_WEB" -eq 0 ] && _upload /tmp/plane-v2-web.tar.gz
 
 echo "==== [4/4] 服务器更新（v2）===="
 ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" V2ROOT="$V2ROOT" 'bash -s' <<'REMOTE'
