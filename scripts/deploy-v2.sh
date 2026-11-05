@@ -52,7 +52,11 @@ echo "==== [3/4] 上传 ===="
 _upload() {
   local file="$1" base; base="$(basename "$file")"
   local size; size="$(stat -f%z "$file")"
-  if scp -q -P "$SSH_PORT" "$file" "$REMOTE_USER@$SERVER:/tmp/"; then return 0; fi
+  local attempt
+  for attempt in 1 2 3; do
+    if scp -q -P "$SSH_PORT" "$file" "$REMOTE_USER@$SERVER:/tmp/"; then return 0; fi
+    echo "⚠ scp 第 $attempt 次失败（Clash 代理间歇抽风常见），重试…"; sleep 3
+  done
   echo "⚠ scp 报错，校验远端文件完整性（$base）…"
   local rsize
   rsize="$(ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" "stat -c%s /tmp/$base 2>/dev/null" || echo 0)"
