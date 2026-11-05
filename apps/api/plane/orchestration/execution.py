@@ -232,7 +232,9 @@ def on_agent_ask(*, execution_id: str, event_id: str, node_ref: str, question: s
     if ex.business_status == "waiting_human":
         execution = ex
     else:
-        execution = transition_execution(execution=ex, target="waiting_human", event_id=event_id, member=None)
+        # member 不传（哨兵 _UNSET）：求助等待期间仍是该 agent 在执行，
+        # 牌不换（曾传 None 被 §7.3 投影摘掉 bot——卡片负责人凭空消失）
+        execution = transition_execution(execution=ex, target="waiting_human", event_id=event_id)
     from .models import BusinessApproval
     if not BusinessApproval.objects.filter(
             execution=execution, node_ref=node_ref,
@@ -252,7 +254,8 @@ def on_ask_answered(*, execution_id: str, event_id: str) -> WorkItemExecution:
     ex = _load_active(execution_id)
     if ex.business_status != "waiting_human":
         raise TeamDomainError(409, "EXECUTION_RESUME_CONFLICT", "Execution is not waiting for a human")
-    return transition_execution(execution=ex, target="running", event_id=event_id, member=None)
+    # member 不传：agent 求助答复后原 agent 继续执行，牌不换
+    return transition_execution(execution=ex, target="running", event_id=event_id)
 
 
 def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> WorkItemExecution:
