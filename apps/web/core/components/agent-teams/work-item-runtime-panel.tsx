@@ -9,7 +9,7 @@
  * 审批操作内嵌等待步骤；未来步骤「排队中」；当前步呼吸灯 + 秒级跳动；
  * 面板自动滚动到当前步；执行中轮询 2s。取消/重试/手动启动沿既有端点。
  */
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { observer } from "mobx-react";
 import useSWR from "swr";
@@ -317,20 +317,30 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     const isLong = content.length > 80 || content.split("\n").length > 2;
     return (
       <div className="mt-1 min-w-0">
-        <p
-          className={`text-body-xs-regular leading-5 break-words whitespace-pre-wrap text-secondary ${
-            expanded ? "max-h-44 overflow-y-auto" : "line-clamp-2"
-          }`}
-        >
-          {content}
-        </p>
+        {/* 展开收起均渲染 markdown：收起态高度截断（两行 40px）+ 底部
+            渐隐（line-clamp 对块级内容无效，高度截断是块级内容的标准收敛） */}
+        <div className={`relative ${!expanded && isLong ? "max-h-10 overflow-hidden" : ""}`}>
+          <MarkdownPreview
+            content={content}
+            className="text-body-xs-regular leading-5 prose-p:my-1 prose-pre:my-1.5"
+          />
+          {!expanded && isLong && (
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-[var(--background-color-layer-1)] to-transparent"
+              aria-hidden
+            />
+          )}
+        </div>
         {isLong && (
           <button
             type="button"
             onClick={() => toggleStepExpanded(step.key)}
             className="hover:text-accent-hover mt-0.5 inline-flex items-center gap-0.5 text-body-xs-medium text-accent-primary"
           >
-            <ChevronDown className={`size-3 transition-transform ${expanded ? "-rotate-90" : ""}`} aria-hidden />
+            <ChevronDown
+              className={`size-3 transition-transform ${expanded ? "rotate-180" : ""}`}
+              aria-hidden
+            />
             {expanded ? t("agent_teams_stream_collapse") : t("agent_teams_stream_expand")}
           </button>
         )}
@@ -395,15 +405,19 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                 const approval = isCurrent ? summary.pendingApproval : null;
                 const duration = stepDuration(step);
                 return (
-                  <Fragment key={step.key}>
                   <div
+                    key={step.key}
                     ref={isCurrent ? currentRef : undefined}
-                    className={`-my-1 -mx-1.5 flex gap-2.5 rounded-md px-1.5 py-1 transition-colors hover:bg-layer-transparent-hover ${isLast ? "" : "mb-5"}`}
+                    className={`relative ${isLast ? "" : "border-l pb-4"} ${
+                      isCurrent ? "border-accent-primary" : "border-subtle"
+                    } pl-4`}
                   >
-                    {/* 图标列：徽章与标题行同高（20px）垂直居中 */}
-                    <div className="flex w-4 flex-shrink-0 flex-col items-center">
-                      <span className="flex h-5 items-center justify-center">{renderStepIcon(step)}</span>
-                    </div>
+                    {/* 图标压线：实心徽章本身不透（hollow 圈穿线为常规时间轴形态） */}
+                    <span className="absolute top-[4px] -left-[10px] rounded-full bg-[var(--background-color-layer-1)] p-0.5">
+                      {renderStepIcon(step)}
+                    </span>
+                    {/* hover 色块为内层包裹条（hug 内容、垂直居中），不承载连线 */}
+                    <div className="-mx-1.5 flex gap-2.5 rounded-md px-2 py-1 transition-colors hover:bg-layer-transparent-hover">
                     {/* 内容列 */}
                     <div className="min-w-0 flex-1">
                       {/* 标题行 = 一句话：成员（谁）· 步骤名（做什么）· 状态（怎么样）；
@@ -454,39 +468,30 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                         </div>
                       )}
                     </div>
+                    </div>
                   </div>
-                  {/* 行间连接线：独立于 hover 行（负 margin 不拉长元素——
-                      曾致连线消失）；ml 对齐图标列中心（w-4/2-0.5px） */}
-                  {!isLast && (
-                    <div
-                      className={`ml-[7px] h-5 w-px ${isCurrent ? "bg-accent-primary" : "bg-[var(--border-color-subtle)]"}`}
-                      aria-hidden
-                    />
-                  )}
-                  </Fragment>
                 );
               })}
               {/* 未来步骤「排队中」（剪枝感知） */}
               {(summary.upcomingSteps ?? []).map((name, index, list) => (
-                <Fragment key={`upcoming-${name}`}>
                 <div
-                  className={`-my-1 -mx-1.5 flex gap-2.5 rounded-md px-1.5 py-1 transition-colors hover:bg-layer-transparent-hover ${index === list.length - 1 ? "" : "mb-5"}`}
+                  key={`upcoming-${name}`}
+                  className={`relative pl-4 ${index === list.length - 1 ? "" : "border-l border-dashed border-subtle pb-4"}`}
                 >
-                  <div className="flex w-4 flex-shrink-0 flex-col items-center">
-                    <span className="flex h-5 items-center justify-center" aria-hidden>
-                      <span className="size-2.5 rounded-full border-[1.5px] border-placeholder" />
-                    </span>
-                  </div>
-                  <div className="flex h-5 min-w-0 flex-1 items-center">
-                    <span className="text-body-xs-regular text-placeholder">
-                      {name} · {t("agent_teams_stream_queued")}
-                    </span>
+                  <span
+                    className="absolute top-[7px] -left-[7px] rounded-full bg-[var(--background-color-layer-1)] p-0.5"
+                    aria-hidden
+                  >
+                    <span className="block size-2.5 rounded-full border-[1.5px] border-placeholder" />
+                  </span>
+                  <div className="-mx-1.5 flex gap-2.5 rounded-md px-2 py-1 transition-colors hover:bg-layer-transparent-hover">
+                    <div className="flex h-5 min-w-0 flex-1 items-center">
+                      <span className="text-body-xs-regular text-placeholder">
+                        {name} · {t("agent_teams_stream_queued")}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                {index < list.length - 1 && (
-                  <div className="ml-[7px] h-5 w-px border-l border-dashed border-subtle" aria-hidden />
-                )}
-                </Fragment>
               ))}
             </div>
 
