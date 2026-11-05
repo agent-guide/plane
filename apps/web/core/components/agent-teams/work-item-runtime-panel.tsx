@@ -77,7 +77,11 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
 }: WorkItemRuntimePanelProps) {
   const { t } = useTranslation();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
-  // 执行中 2s 轮询（准直播），终态/未绑定停（#3）
+  // 执行中 2s 轮询（准直播），终态/未绑定停（#3）。
+  // 手动定时器而非 SWR refreshInterval：实测线上 refreshInterval(2s) 与
+  // 默认 dedupingInterval(2s) 同窗互相吞，轮询静默失效（2026-11-05
+  // 服务端日志实证：请求间隔 20-60s）；定时器 + mutate 行为确定，
+  // 错误下一拍自愈（shouldRetryOnError 不再杀死轮询）
   const {
     data: summary,
     mutate: mutateSummary,
@@ -90,6 +94,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     {
       refreshInterval: (latest: OrchestrationWorkItemRuntime | null | undefined) =>
         latest && !TERMINAL.has(latest.businessStatus) ? 2000 : 0,
+      dedupingInterval: 500,
       shouldRetryOnError: false,
     }
   );
@@ -103,6 +108,13 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   const [previewArtifact, setPreviewArtifact] = useState<OrchestrationRuntimeArtifact | null>(null);
 
   const isActive = !!summary && !TERMINAL.has(summary.businessStatus);
+  // 轮询兜底定时器：活跃期每 2s 强制 revalidate（与 refreshInterval 双保险；
+  // mutate 失败不清数据，下一拍重试）
+  useEffect(() => {
+    if (!isActive) return;
+    const timer = setInterval(() => void mutateSummary(), 2000);
+    return () => clearInterval(timer);
+  }, [isActive, mutateSummary]);
   // 秒级跳动：执行中每秒刷新一次（呼吸灯耗时的「活」感，#3 准直播）
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
