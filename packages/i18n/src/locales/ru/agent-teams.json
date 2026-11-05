@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "Список команд появится здесь после подключения контракта API консоли среды выполнения.",
   "agent_teams_detail_subtitle": "Обзор команды, участники, проекты и рабочие элементы — представление только для чтения на основе Agent Team Runtime API. Управление участниками и политиками выполняется в консоли администрирования.",
   "agent_teams_detail_pending": "Сведения о команде появятся здесь после подключения контракта API консоли среды выполнения.",
+  "agent_teams_panel_executed_by_prefix": "Выполняет ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Команда агентов",
   "agent_teams_panel_pending": "Сводка среды выполнения появится здесь после подключения Agent Team Runtime API.",
   "agent_teams_summary_badge": "Запуск агента",

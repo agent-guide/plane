@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "La lista de equipos aparecerá aquí cuando se conecte el contrato de la API de la consola del runtime.",
   "agent_teams_detail_subtitle": "Resumen del equipo, miembros, proyectos y elementos de trabajo — vista de solo lectura respaldada por la Agent Team Runtime API. La gestión de miembros y políticas se realiza en la consola de administración.",
   "agent_teams_detail_pending": "El detalle del equipo aparecerá aquí cuando se conecte el contrato de la API de la consola del runtime.",
+  "agent_teams_panel_executed_by_prefix": "Ejecutado por ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Equipo de agentes",
   "agent_teams_panel_pending": "El resumen del runtime aparecerá aquí cuando se conecte la Agent Team Runtime API.",
   "agent_teams_summary_badge": "Ejecución de agente",

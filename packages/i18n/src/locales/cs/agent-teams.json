@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "Seznam týmů se zde zobrazí po připojení kontraktu API konzole runtime.",
   "agent_teams_detail_subtitle": "Přehled týmu, členové, projekty a pracovní položky — zobrazení jen pro čtení zajišťované Agent Team Runtime API. Správa členů a zásad probíhá v administrátorské konzoli.",
   "agent_teams_detail_pending": "Detail týmu se zde zobrazí po připojení kontraktu API konzole runtime.",
+  "agent_teams_panel_executed_by_prefix": "Provádí ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Tým agentů",
   "agent_teams_panel_pending": "Přehled runtime se zde zobrazí po připojení Agent Team Runtime API.",
   "agent_teams_summary_badge": "Běh agenta",

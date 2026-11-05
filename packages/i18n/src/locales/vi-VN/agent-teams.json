@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "Danh sách nhóm sẽ xuất hiện ở đây khi hợp đồng API của bảng điều khiển runtime được kết nối.",
   "agent_teams_detail_subtitle": "Tổng quan nhóm, thành viên, dự án và hạng mục công việc — chế độ xem chỉ đọc dựa trên Agent Team Runtime API. Quản lý thành viên và chính sách được thực hiện trong bảng điều khiển quản trị.",
   "agent_teams_detail_pending": "Chi tiết nhóm sẽ xuất hiện ở đây khi hợp đồng API của bảng điều khiển runtime được kết nối.",
+  "agent_teams_panel_executed_by_prefix": "Được thực thi bởi ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Nhóm agent",
   "agent_teams_panel_pending": "Tóm tắt runtime sẽ xuất hiện ở đây khi Agent Team Runtime API được kết nối.",
   "agent_teams_summary_badge": "Lượt thực thi agent",

@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "Çalışma zamanı konsolu API sözleşmesi bağlandığında ekip listesi burada görünecek.",
   "agent_teams_detail_subtitle": "Ekip genel bakışı, üyeler, projeler ve iş öğeleri — Agent Team Runtime API tarafından desteklenen salt okunur görünüm. Üye ve politika yönetimi yönetim konsolunda yapılır.",
   "agent_teams_detail_pending": "Çalışma zamanı konsolu API sözleşmesi bağlandığında ekip ayrıntıları burada görünecek.",
+  "agent_teams_panel_executed_by_prefix": "Şunu tarafından yürütülür: ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Agent ekibi",
   "agent_teams_panel_pending": "Agent Team Runtime API bağlandığında çalışma zamanı özeti burada görünecek.",
   "agent_teams_summary_badge": "Agent çalıştırması",

@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "Daftar tim akan muncul di sini setelah kontrak API konsol runtime terhubung.",
   "agent_teams_detail_subtitle": "Ringkasan tim, anggota, proyek, dan item kerja — tampilan hanya-baca yang didukung Agent Team Runtime API. Pengelolaan anggota dan kebijakan dilakukan di konsol admin.",
   "agent_teams_detail_pending": "Detail tim akan muncul di sini setelah kontrak API konsol runtime terhubung.",
+  "agent_teams_panel_executed_by_prefix": "Dijalankan oleh ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Tim agent",
   "agent_teams_panel_pending": "Ringkasan runtime akan muncul di sini setelah Agent Team Runtime API terhubung.",
   "agent_teams_summary_badge": "Eksekusi agent",

@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "Die Teamliste erscheint hier, sobald der Runtime-Konsolen-API-Vertrag angebunden ist.",
   "agent_teams_detail_subtitle": "Teamübersicht, Mitglieder, Projekte und Arbeitselemente — schreibgeschützte Ansicht über die Agent Team Runtime API. Mitglieder- und Richtlinienverwaltung erfolgt in der Admin-Konsole.",
   "agent_teams_detail_pending": "Die Teamdetails erscheinen hier, sobald der Runtime-Konsolen-API-Vertrag angebunden ist.",
+  "agent_teams_panel_executed_by_prefix": "Ausgeführt von ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Agent-Team",
   "agent_teams_panel_pending": "Die Laufzeitübersicht erscheint hier, sobald die Agent Team Runtime API angebunden ist.",
   "agent_teams_summary_badge": "Agent-Ausführung",

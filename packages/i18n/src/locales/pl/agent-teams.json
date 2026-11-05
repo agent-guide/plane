@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "Lista zespołów pojawi się tutaj po podłączeniu kontraktu API konsoli środowiska uruchomieniowego.",
   "agent_teams_detail_subtitle": "Przegląd zespołu, członkowie, projekty i elementy pracy — widok tylko do odczytu oparty na Agent Team Runtime API. Zarządzanie członkami i zasadami odbywa się w konsoli administracyjnej.",
   "agent_teams_detail_pending": "Szczegóły zespołu pojawią się tutaj po podłączeniu kontraktu API konsoli środowiska uruchomieniowego.",
+  "agent_teams_panel_executed_by_prefix": "Wykonuje ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Zespół agentów",
   "agent_teams_panel_pending": "Podsumowanie środowiska uruchomieniowego pojawi się tutaj po podłączeniu Agent Team Runtime API.",
   "agent_teams_summary_badge": "Przebieg agenta",

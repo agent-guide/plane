@@ -4,6 +4,8 @@
   "agent_teams_list_pending": "Lista echipelor va apărea aici după conectarea contractului API al consolei runtime.",
   "agent_teams_detail_subtitle": "Prezentarea echipei, membri, proiecte și elemente de lucru — vizualizare doar în citire, susținută de Agent Team Runtime API. Gestionarea membrilor și a politicilor se face în consola de administrare.",
   "agent_teams_detail_pending": "Detaliile echipei vor apărea aici după conectarea contractului API al consolei runtime.",
+  "agent_teams_panel_executed_by_prefix": "Executat de ",
+  "agent_teams_panel_executed_by_suffix": "",
   "agent_teams_panel_title": "Echipă de agenți",
   "agent_teams_panel_pending": "Rezumatul runtime va apărea aici după conectarea Agent Team Runtime API.",
   "agent_teams_summary_badge": "Execuție agent",
