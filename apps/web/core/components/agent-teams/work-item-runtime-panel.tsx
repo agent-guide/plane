@@ -303,6 +303,10 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       const waited = Math.round((nowTick - new Date(step.firstAt).getTime() || 0) / 60000);
       return t("agent_teams_panel_waiting_for", { count: Math.max(waited, 1) });
     }
+    // 审批已作答：状态位显示所选选项文案（如「退回修改」）而非裸枚举
+    if ((step.status === "approved" || step.status === "rejected") && step.output) {
+      return step.output;
+    }
     const statusKey = `agent_teams_status_${step.status}`;
     const statusText = t(statusKey);
     return statusText !== statusKey ? statusText : step.status;

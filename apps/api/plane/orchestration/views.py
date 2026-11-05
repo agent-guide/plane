@@ -963,6 +963,8 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
                 "status": a.result, "nodeKey": a.node_ref,
                 "nodeName": node_names.get(a.node_ref, a.node_ref), "memberName": None,
                 "createdAt": (a.answered_at or a.created_at).isoformat(),
+                # 已作答时 reason=所选选项文案（叙事流状态位显示它而非裸枚举）
+                "output": (a.reason if a.result != "pending" else None),
             })
         if execution.business_status in TERMINAL_STATUSES and execution.completed_at:
             events.append({
