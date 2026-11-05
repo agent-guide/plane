@@ -161,10 +161,20 @@ def _ensure_pending_approval(execution, member, node_ref: str = "human", *, defa
         {"label": "Approve", "value": "approve", "terminal": False},
         {"label": "Reject", "value": "reject", "terminal": True},
     ]
-    # 问句 = 画布配置文案（快照语义）。待确认的产出内容不在问句里重复——
-    # 执行面板的叙事流已逐步展示各步产出，收件箱详情有 contextArtifacts
-    # 工件引用兜底；三处同屏时不再出现同一段 JSON 两遍（2026-11-05 反馈）
+    # 问句 = 画布配置文案 + 需要拍板的内容本身（直接前序步骤的产出，
+    # agent 归纳的 markdown 原文）。不逐节点罗列、不加【xx 的输出】
+    # 工程化包装——审批人看的是待确认内容，不是执行日志回放
     question = (node or {}).get("message") or ""
+    try:
+        from .node_runtime import NodeRuntimeRecord
+        prior = NodeRuntimeRecord.objects.filter(
+            execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
+        ).exclude(node_key=node_ref).order_by("-updated_at").first()
+        content = (((prior.result or {}).get("output")) or "").strip() if prior else ""
+        if content:
+            question = (question + "\n\n" if question else "") + content
+    except Exception:
+        pass
     # assignee：人类成员 > definition 钉的审批人 > 不钉（全员可答）
     assignee_id = getattr(member, "user_id", None) or _as_uuid((node or {}).get("approverUserId")) or _as_uuid(default_assignee_id)
     BusinessApproval.objects.create(
