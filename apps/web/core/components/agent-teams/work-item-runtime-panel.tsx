@@ -77,7 +77,17 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
 }: WorkItemRuntimePanelProps) {
   const { t } = useTranslation();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
-  // 执行中 2s 轮询（准直播），终态/未绑定停（#3）
+  // 轮询间隔回调必须 useCallback 稳定引用：SWR 的轮询 effect 以
+  // [refreshInterval, ...] 为依赖，内联箭头函数每次渲染都是新引用——
+  // 面板每秒秒跳重渲染会把 2s 的 setTimeout 反复清掉，轮询静默失效
+  // （2026-11-05 服务端日志实证：请求间隔 20-60s）
+  const pollInterval = useCallback(
+    (latest: OrchestrationWorkItemRuntime | null | undefined) =>
+      latest && !TERMINAL.has(latest.businessStatus) ? 2000 : 0,
+    []
+  );
+  // 执行中 2s 轮询（准直播），终态/未绑定停（#3）。dedupingInterval 降到
+  // 1s：轮询 revalidate 带 WITH_DEDUPE，默认 2s 去重窗与 2s 轮询同窗会吞拍
   const {
     data: summary,
     mutate: mutateSummary,
@@ -88,8 +98,8 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       : null,
     () => orchestrationService.getWorkItemRuntime(workspaceSlug, projectId, issueId),
     {
-      refreshInterval: (latest: OrchestrationWorkItemRuntime | null | undefined) =>
-        latest && !TERMINAL.has(latest.businessStatus) ? 2000 : 0,
+      refreshInterval: pollInterval,
+      dedupingInterval: 1000,
       shouldRetryOnError: false,
     }
   );
@@ -453,8 +463,10 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                           )}
                         </span>
                       </div>
-                      {/* 每步结论：节点输出内联（超两行截断就地展开） */}
-                      {renderConclusion(step)}
+                      {/* 每步结论：纯文本结论内联（超两行截断就地展开）；
+                          有工件的步骤不内联正文——内容与「查看产出」弹层同源，
+                          双显即重复，工件类只走弹层 */}
+                      {!step.artifact && renderConclusion(step)}
                       {/* 审批操作内嵌等待步骤：待确认内容（agent 归纳的
                           markdown，规范渲染）+ 操作区。前几步已在流里逐步
                           呈现，审批卡不重复罗列，只带需要拍板的内容 */}
