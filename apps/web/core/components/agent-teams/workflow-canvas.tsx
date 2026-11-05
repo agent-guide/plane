@@ -91,7 +91,7 @@ function normalizeOptions(raw: unknown): NodeOption[] {
     .map((o) => ({
       label: String(o.label ?? o.value ?? ""),
       value: String(o.value ?? o.label ?? ""),
-      terminate: o.value === "reject" || o.terminate === true,
+      terminate: o.value === "reject" || o.terminate === true || o.terminal === true,
     }))
     .filter((o) => o.label);
 }
@@ -105,7 +105,7 @@ function editableOptions(raw: unknown): NodeOption[] {
     .map((o) => ({
       label: String(o.label ?? ""),
       value: o.value ? String(o.value) : undefined,
-      terminate: o.value === "reject" || o.terminate === true,
+      terminate: o.value === "reject" || o.terminate === true || o.terminal === true,
     }));
 }
 
@@ -259,7 +259,9 @@ function flowToGraphNodes(nodes: FlowNode[], edges: Edge[]): WorkflowGraphNode[]
           .map((o) => ({
             label: o.label.trim(),
             value: o.terminate ? "reject" : (o.value || o.label).trim(),
-            terminate: o.terminate === true,
+            // 序列化键与审批消费端契约对齐（terminal）——历史写 terminate
+            // 曾使所有选项终止性丢失（2026-11-05）
+            terminal: o.terminate === true,
           }));
       }
     }

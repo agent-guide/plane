@@ -161,6 +161,14 @@ def _ensure_pending_approval(execution, member, node_ref: str = "human", *, defa
         {"label": "Approve", "value": "approve", "terminal": False},
         {"label": "Reject", "value": "reject", "terminal": True},
     ]
+    # 键名规范化（2026-11-05）：画布序列化历史写 terminate、审批消费端读
+    # terminal——键名分叉使所有选项终止性丢失（点「终止」也会继续执行）。
+    # 双键兼容读取，落库一律 terminal。
+    options = [{
+        "label": o.get("label", ""),
+        "value": o.get("value"),
+        "terminal": bool(o.get("terminal", o.get("terminate", False))),
+    } for o in options if isinstance(o, dict) and o.get("label")]
     # 问句 = 画布配置文案 + 需要拍板的内容本身（直接前序步骤的产出，
     # agent 归纳的 markdown 原文）。不逐节点罗列、不加【xx 的输出】
     # 工程化包装——审批人看的是待确认内容，不是执行日志回放
