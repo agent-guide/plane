@@ -1184,6 +1184,20 @@ class DagNodeStartView(DagNodeRuntimeBase):
         if not execution:
             return Response({"error": "run not found"}, status=404)
         record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
+        # start 幂等守卫（2026-11-05 求助竞态）：人工答复等待期 Airflow 任务
+        # sensor 超时重试会重打 start——不得把已 SUCCESS 的记录重置 RUNNING
+        # （曾致旁路重跑的收口被盖掉、DAG 永久卡死），也不得对同一 attempt
+        # 重复入队 agent.invoke（幂等键兜底外的第二道闸）
+        if record.status == NodeRuntimeRecord.Status.SUCCESS:
+            return Response({"accepted": True, "status": record.status})
+        attempt = int(request.data.get("attempt", 1))
+        if OrchestrationOutbox.objects.filter(
+            idempotency_key=f"agent_call:{execution.id}:{node_key}:{attempt}"
+        ).exclude(state=OrchestrationOutbox.State.FAILED).exists():
+            record.status = NodeRuntimeRecord.Status.RUNNING
+            record.attempt = attempt
+            record.save(update_fields=["status", "attempt", "updated_at"])
+            return Response({"accepted": True, "status": record.status})
         definition = (execution.binding.workflow_version.definition or {})
         # 剪枝闸门：条件已选别的分支时 start 直接判 skipped（handoff/命令都不发）
         if self._prune_if_unreachable(execution, definition, node_key):
