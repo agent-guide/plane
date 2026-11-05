@@ -76,7 +76,6 @@
       "time_zone": "Fuseau horaire"
     },
     "stats": {
-      "workload": "Charge de travail",
       "overview": "Vue d’ensemble",
       "created": "Éléments de travail créés",
       "assigned": "Éléments de travail assignés",
@@ -94,7 +93,8 @@
         "empty": "Nous n’avons pas trouvé de données. Veuillez consulter vos contributions",
         "button": "Télécharger l'activité du jour",
         "button_loading": "Téléchargement"
-      }
+      },
+      "approvals": "Éléments à faire"
     },
     "actions": {
       "profile": "Profil",
@@ -110,7 +110,8 @@
       "assigned": "Assigné",
       "created": "Créé",
       "subscribed": "Suivi",
-      "activity": "Activité"
+      "activity": "Activité",
+      "approvals": "À faire"
     },
     "empty_state": {
       "activity": {

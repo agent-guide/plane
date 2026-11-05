@@ -76,7 +76,6 @@
       "time_zone": "Fuso horário"
     },
     "stats": {
-      "workload": "Carga de trabalho",
       "overview": "Visão geral",
       "created": "Itens de trabalho criados",
       "assigned": "Itens de trabalho atribuídos",
@@ -94,7 +93,8 @@
         "empty": "Não foi possível encontrar dados. Por favor, verifique suas entradas",
         "button": "Baixar atividade de hoje",
         "button_loading": "Baixando"
-      }
+      },
+      "approvals": "Itens a fazer"
     },
     "actions": {
       "profile": "Perfil",
@@ -110,7 +110,8 @@
       "assigned": "Atribuído",
       "created": "Criado",
       "subscribed": "Inscrito",
-      "activity": "Atividade"
+      "activity": "Atividade",
+      "approvals": "A fazer"
     },
     "empty_state": {
       "activity": {

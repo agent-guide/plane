@@ -76,7 +76,6 @@
       "time_zone": "タイムゾーン"
     },
     "stats": {
-      "workload": "作業負荷",
       "overview": "概要",
       "created": "作成した作業項目",
       "assigned": "割り当てられた作業項目",
@@ -94,7 +93,8 @@
         "empty": "データが見つかりませんでした。入力内容を確認してください",
         "button": "今日のアクティビティをダウンロード",
         "button_loading": "ダウンロード中"
-      }
+      },
+      "approvals": "やることの作業項目"
     },
     "actions": {
       "profile": "プロフィール",
@@ -110,7 +110,8 @@
       "assigned": "割り当て済み",
       "created": "作成済み",
       "subscribed": "購読中",
-      "activity": "アクティビティ"
+      "activity": "アクティビティ",
+      "approvals": "やること"
     },
     "empty_state": {
       "activity": {

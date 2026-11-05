@@ -17,13 +17,15 @@ import { useTranslation } from "@plane/i18n";
 // plane imports
 import { calculateTimeAgo } from "@plane/utils";
 // icons
-import { Bot } from "lucide-react";
+import { Bot, FileBox } from "lucide-react";
 // components
 import { useAgentApprovalsSelection } from "@/components/agent-teams/approvals-context";
 import { ApprovalAnswerArea } from "@/components/agent-teams/approval-answer";
+import { AgentArtifactPreviewModal } from "@/components/agent-teams/artifact-preview-modal";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 // services
+import type { OrchestrationRuntimeArtifact } from "@/services/agent-teams/orchestration.service";
 import { orchestrationService } from "@/services/agent-teams/orchestration.service";
 import { usePendingApprovals } from "@/services/agent-teams/runtime-swr";
 
@@ -39,6 +41,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
   const [answering, setAnswering] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
   const [errorKey, setErrorKey] = useState<"answer" | "">("");
+  const [previewArtifact, setPreviewArtifact] = useState<OrchestrationRuntimeArtifact | null>(null);
 
   if (!selected) return null;
 
@@ -108,6 +111,28 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
             generic approve-now copy. */}
         <MarkdownPreview content={selected.question || t("agent_teams_panel_approve_now")} />
 
+        {/* 审批依据：执行已产出工件（引用式上下文——问句保持简明，
+            依据点名开预览弹层看全文，与工作卡执行面板同源） */}
+        {(selected.contextArtifacts ?? []).length > 0 && (
+          <div className="flex flex-col gap-1.5 rounded-lg border border-subtle bg-layer-1 px-3 py-2.5">
+            <span className="text-caption-sm-regular text-placeholder">
+              {t("agent_teams_stream_approval_basis")}
+            </span>
+            {(selected.contextArtifacts ?? []).map((artifact) => (
+              <button
+                key={artifact.id}
+                type="button"
+                onClick={() => setPreviewArtifact(artifact)}
+                className="hover:text-accent-hover inline-flex items-center gap-1.5 text-left text-body-xs-medium text-accent-primary"
+              >
+                <FileBox className="size-3.5 flex-shrink-0" aria-hidden />
+                <span className="truncate">{artifact.name}</span>
+                <span className="flex-shrink-0 font-normal text-tertiary">v{artifact.version}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {errorKey === "answer" && (
           <div className="text-body-sm-regular text-danger-primary">{t("agent_teams_inbox_answer_failed")}</div>
         )}
@@ -122,6 +147,8 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
           onAnswer={(decision, reason, key) => void handleAnswer(decision, reason, key)}
         />
       </div>
+
+      <AgentArtifactPreviewModal artifact={previewArtifact} onClose={() => setPreviewArtifact(null)} />
     </div>
   );
 });

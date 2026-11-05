@@ -161,18 +161,18 @@ def _ensure_pending_approval(execution, member, node_ref: str = "human", *, defa
         {"label": "Approve", "value": "approve", "terminal": False},
         {"label": "Reject", "value": "reject", "terminal": True},
     ]
-    # 问题注入前置节点输出（用户友好：审批人直接看到 agent 产出而非一行指令）
+    # 问句 = 画布配置文案 + 需要拍板的内容本身（直接前序步骤的产出，
+    # agent 归纳的 markdown 原文）。不逐节点罗列、不加【xx 的输出】
+    # 工程化包装——审批人看的是待确认内容，不是执行日志回放
     question = (node or {}).get("message") or ""
     try:
         from .node_runtime import NodeRuntimeRecord
-        prior = [
-            f"【{(execution.binding.workflow_version.definition or {}).get('nodes') and next((n.get('name') for n in (execution.binding.workflow_version.definition or {}).get('nodes') or [] if n.get('key') == r.node_key), r.node_key)} 的输出】\n{(r.result or {}).get('output', '')}"
-            for r in NodeRuntimeRecord.objects.filter(
-                execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
-            ).exclude(node_key=node_ref).order_by("updated_at")
-        ]
-        if prior:
-            question = (question + "\n\n" if question else "") + "\n\n".join(prior)
+        prior = NodeRuntimeRecord.objects.filter(
+            execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
+        ).exclude(node_key=node_ref).order_by("-updated_at").first()
+        content = (((prior.result or {}).get("output")) or "").strip() if prior else ""
+        if content:
+            question = (question + "\n\n" if question else "") + content
     except Exception:
         pass
     # assignee：人类成员 > definition 钉的审批人 > 不钉（全员可答）

@@ -76,7 +76,6 @@
       "time_zone": "Múi giờ"
     },
     "stats": {
-      "workload": "Khối lượng công việc",
       "overview": "Tổng quan",
       "created": "Mục công việc đã tạo",
       "assigned": "Mục công việc đã giao",
@@ -94,7 +93,8 @@
         "empty": "Chúng tôi không tìm thấy dữ liệu. Vui lòng kiểm tra đầu vào của bạn",
         "button": "Tải xuống hoạt động hôm nay",
         "button_loading": "Đang tải xuống"
-      }
+      },
+      "approvals": "Mục cần làm"
     },
     "actions": {
       "profile": "Hồ sơ",
@@ -110,7 +110,8 @@
       "assigned": "Đã giao",
       "created": "Đã tạo",
       "subscribed": "Đã đăng ký",
-      "activity": "Hoạt động"
+      "activity": "Hoạt động",
+      "approvals": "Việc cần làm"
     },
     "empty_state": {
       "activity": {

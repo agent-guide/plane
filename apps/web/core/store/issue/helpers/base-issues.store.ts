@@ -34,7 +34,12 @@ import { convertToISODateString } from "@plane/utils";
 import { CycleService } from "@/services/cycle.service";
 import { IssueArchiveService, IssueService } from "@/services/issue";
 import { ModuleService } from "@/services/module.service";
-import { isProjectNotBoundError, notifyProjectNotBound } from "@/services/agent-teams/not-bound-guard";
+import {
+  isProjectNotBoundError,
+  notifyProjectNotBound,
+  isExecutionStateLockedError,
+  notifyExecutionStateLocked,
+} from "@/services/agent-teams/not-bound-guard";
 // agent teams extension (§12.6.1 new-item catch-up)
 //
 import type { IIssueRootStore } from "../root.store";
@@ -595,6 +600,12 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
       // If errored out update store again to revert the change
       this.rootIssueStore.issues.updateIssue(issueId, issueBeforeUpdate ?? {});
       this.updateIssueList(issueBeforeUpdate, { ...issueBeforeUpdate, ...data } as TIssue);
+      // Agent Teams extension（状态锁 #11）：执行卡改状态被 409 拒——乐观
+      // 更新已回滚（看板弹回/列表复原），此处统一解释；对齐 not-bound-guard 模式
+      if (isExecutionStateLockedError(error)) {
+        notifyExecutionStateLocked();
+        return; // 已解释的预期拒绝：不再向上抛（避免各视图再弹通用错误）
+      }
       throw error;
     }
   }

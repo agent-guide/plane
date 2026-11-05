@@ -36,9 +36,11 @@ export default defineConfig(() => ({
     // 本地 dev：web(3000) 与 api(8001) 分离端口——同源相对路径请求（编排域
     // 服务、表单登录）代理到 API；生产同域部署不受影响
     proxy: {
-      "/api": { target: process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8001", changeOrigin: true },
-      "/auth": { target: process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8001", changeOrigin: true },
-      "/spaces": { target: process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8001", changeOrigin: true },
+      // PROXY_TARGET：本地验证时指到测试服（同源代理，规避跨域 cookie/CSRF）；
+      // 不设则回落 VITE_API_BASE_URL / 本地 API
+      "/api": { target: process.env.PROXY_TARGET ?? process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8001", changeOrigin: true },
+      "/auth": { target: process.env.PROXY_TARGET ?? process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8001", changeOrigin: true },
+      "/spaces": { target: process.env.PROXY_TARGET ?? process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8001", changeOrigin: true },
     },
     // Vite 8 turns on browser-console forwarding automatically when it detects
     // an AI agent driving the dev server (see resolveForwardConsoleOptions in

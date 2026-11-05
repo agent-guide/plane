@@ -76,7 +76,6 @@
       "time_zone": "Zeitzone"
     },
     "stats": {
-      "workload": "Auslastung",
       "overview": "Übersicht",
       "created": "Erstellte Elemente",
       "assigned": "Zugewiesene Elemente",
@@ -94,7 +93,8 @@
         "empty": "Keine Aktivität gefunden.",
         "button": "Heutige Aktivität herunterladen",
         "button_loading": "Wird heruntergeladen"
-      }
+      },
+      "approvals": "Zu erledigende Arbeitselemente"
     },
     "actions": {
       "profile": "Profil",
@@ -110,7 +110,8 @@
       "assigned": "Zugewiesen",
       "created": "Erstellt",
       "subscribed": "Abonniert",
-      "activity": "Aktivität"
+      "activity": "Aktivität",
+      "approvals": "Zu erledigen"
     },
     "empty_state": {
       "activity": {

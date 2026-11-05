@@ -76,7 +76,6 @@
       "time_zone": "시간대"
     },
     "stats": {
-      "workload": "작업량",
       "overview": "개요",
       "created": "생성된 작업 항목",
       "assigned": "할당된 작업 항목",
@@ -94,7 +93,8 @@
         "empty": "데이터를 찾을 수 없습니다. 입력을 확인하세요",
         "button": "오늘의 활동 다운로드",
         "button_loading": "다운로드 중"
-      }
+      },
+      "approvals": "할 일 작업 항목"
     },
     "actions": {
       "profile": "프로필",
@@ -110,7 +110,8 @@
       "assigned": "할당됨",
       "created": "생성됨",
       "subscribed": "구독됨",
-      "activity": "활동"
+      "activity": "활동",
+      "approvals": "할 일"
     },
     "empty_state": {
       "activity": {

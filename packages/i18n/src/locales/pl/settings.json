@@ -76,7 +76,6 @@
       "time_zone": "Strefa czasowa"
     },
     "stats": {
-      "workload": "Obciążenie",
       "overview": "Przegląd",
       "created": "Utworzone elementy",
       "assigned": "Przypisane elementy",
@@ -94,7 +93,8 @@
         "empty": "Brak aktywności.",
         "button": "Pobierz dzisiejszą aktywność",
         "button_loading": "Pobieranie"
-      }
+      },
+      "approvals": "Elementy do zrobienia"
     },
     "actions": {
       "profile": "Profil",
@@ -110,7 +110,8 @@
       "assigned": "Przypisane",
       "created": "Utworzone",
       "subscribed": "Subskrybowane",
-      "activity": "Aktywność"
+      "activity": "Aktywność",
+      "approvals": "Do zrobienia"
     },
     "empty_state": {
       "activity": {

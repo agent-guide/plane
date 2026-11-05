@@ -76,7 +76,6 @@
       "time_zone": "Časové pásmo"
     },
     "stats": {
-      "workload": "Vytížení",
       "overview": "Přehled",
       "created": "Vytvořené položky",
       "assigned": "Přiřazené položky",
@@ -94,7 +93,8 @@
         "empty": "Nenalezena žádná aktivita.",
         "button": "Stáhnout dnešní aktivitu",
         "button_loading": "Stahování"
-      }
+      },
+      "approvals": "Položky k vyřízení"
     },
     "actions": {
       "profile": "Profil",
@@ -110,7 +110,8 @@
       "assigned": "Přiřazeno",
       "created": "Vytvořeno",
       "subscribed": "Odebíráno",
-      "activity": "Aktivita"
+      "activity": "Aktivita",
+      "approvals": "K vyřízení"
     },
     "empty_state": {
       "activity": {

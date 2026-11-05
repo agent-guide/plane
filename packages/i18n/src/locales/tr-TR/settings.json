@@ -76,7 +76,6 @@
       "time_zone": "Saat Dilimi"
     },
     "stats": {
-      "workload": "İş Yükü",
       "overview": "Genel Bakış",
       "created": "Oluşturulan iş öğeleri",
       "assigned": "Atanan iş öğeleri",
@@ -94,7 +93,8 @@
         "empty": "Veri bulunamadı. Lütfen girdilerinizi kontrol edin",
         "button": "Bugünün aktivitesini indir",
         "button_loading": "İndiriliyor"
-      }
+      },
+      "approvals": "Yapılacak iş öğeleri"
     },
     "actions": {
       "profile": "Profil",
@@ -110,7 +110,8 @@
       "assigned": "Atanan",
       "created": "Oluşturulan",
       "subscribed": "Abone olunan",
-      "activity": "Aktivite"
+      "activity": "Aktivite",
+      "approvals": "Yapılacaklar"
     },
     "empty_state": {
       "activity": {

@@ -8,6 +8,7 @@ import React from "react";
 // components
 import { PageHead } from "@/components/core/page-title";
 import { ProfileIssuesPage } from "@/components/profile/profile-issues";
+import { ProfileApprovalsView } from "../approvals";
 import type { Route } from "./+types/page";
 
 const ProfilePageHeader = {
@@ -22,6 +23,11 @@ function isValidProfileViewId(viewId: string): viewId is keyof typeof ProfilePag
 
 function ProfileIssuesTypePage({ params }: Route.ComponentProps) {
   const { profileViewId } = params;
+
+  // Agent Teams extension：待确认（团队审批）——split view 页
+  if (profileViewId === "approvals") {
+    return <ProfileApprovalsView />;
+  }
 
   if (!isValidProfileViewId(profileViewId)) return null;
 

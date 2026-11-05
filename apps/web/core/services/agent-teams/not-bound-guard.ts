@@ -14,6 +14,26 @@ export function isProjectNotBoundError(error: unknown): boolean {
   return err?.response?.data?.code === "PROJECT_NOT_BOUND" || String(err?.message ?? "").includes("PROJECT_NOT_BOUND");
 }
 
+/** 状态锁（#11）：执行期间的卡改状态被 409 拒（issueService.patchIssue 抛
+ * 的已是 response.data 形态，兼容 axios 原始形态）。 */
+export function isExecutionStateLockedError(error: unknown): boolean {
+  const err = error as { response?: { data?: { code?: string } }; code?: string; message?: string };
+  return (
+    err?.response?.data?.code === "EXECUTION_STATE_LOCKED" ||
+    err?.code === "EXECUTION_STATE_LOCKED" ||
+    String(err?.message ?? "").includes("EXECUTION_STATE_LOCKED")
+  );
+}
+
+/** 状态锁提示（看板拖拽回弹/列表改状态被拒时的统一解释）。 */
+export function notifyExecutionStateLocked(): void {
+  setToast({
+    type: TOAST_TYPE.INFO,
+    title: translate("agent_teams_state_locked_title"),
+    message: translate("agent_teams_state_locked_message"),
+  });
+}
+
 /** 未绑定提示（i18next 全局实例——store/非组件上下文可用）。 */
 export function notifyProjectNotBound(): void {
   setToast({

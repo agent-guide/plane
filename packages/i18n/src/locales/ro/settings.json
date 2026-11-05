@@ -76,7 +76,6 @@
       "time_zone": "Fus orar"
     },
     "stats": {
-      "workload": "Volum de muncă",
       "overview": "Prezentare generală",
       "created": "Activități create",
       "assigned": "Activități atribuite",
@@ -94,7 +93,8 @@
         "empty": "Nu am găsit date. Te rugăm să verifici activitățile tale.",
         "button": "Descarcă activitatea de azi",
         "button_loading": "Se descarcă"
-      }
+      },
+      "approvals": "Elemente de făcut"
     },
     "actions": {
       "profile": "Profil",
@@ -110,7 +110,8 @@
       "assigned": "Atribuite",
       "created": "Create",
       "subscribed": "Urmărite",
-      "activity": "Activitate"
+      "activity": "Activitate",
+      "approvals": "De făcut"
     },
     "empty_state": {
       "activity": {

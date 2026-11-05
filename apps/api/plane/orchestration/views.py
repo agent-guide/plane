@@ -115,6 +115,35 @@ def _binding_json(b: ProjectTeamBinding):
     }
 
 
+def _artifacts_json(execution):
+    """执行已产出工件列表（预览内容=节点输出正文）。
+
+    侧板工件引用、审批卡「依据」两处共用——审批问句只保留画布配置文案，
+    上下文以工件引用呈现，不再把前置节点输出原文注入问句。
+    """
+    frozen_version_id = (execution.frozen_context or {}).get("workflowVersionId")
+    definition = None
+    if frozen_version_id:
+        from .models import WorkflowVersion
+        definition = WorkflowVersion.objects.filter(
+            id=frozen_version_id).values_list("definition", flat=True).first()
+    if definition is None:
+        definition = execution.binding.workflow_version.definition or {}
+    node_names = {n.get("key"): (n.get("name") or n.get("key"))
+                  for n in ((definition or {}).get("nodes") or [])}
+    return [{
+        "id": a.id,
+        "nodeKey": a.storage_ref.rsplit("/", 1)[-1],
+        "name": (node_names.get(a.storage_ref.rsplit("/", 1)[-1]) or a.storage_ref.rsplit("/", 1)[-1]
+                 or a.content_hash[:12]),
+        "version": a.version, "sizeBytes": None,
+        "contentUrl": a.storage_ref,
+        # 正文即节点输出（orchestration:// 是逻辑引用非下载 URL——页内直接可看）
+        "content": ((execution.node_records.filter(
+            node_key=a.storage_ref.rsplit("/", 1)[-1]).first().result or {}).get("output") or "")[:50000],
+    } for a in execution.artifacts.order_by("version")]
+
+
 def _approval_json(a: BusinessApproval):
     """审批列表/详情一体（旧收件箱列表+详情两次取数，新域一次给全）。"""
     e = a.execution
@@ -127,6 +156,8 @@ def _approval_json(a: BusinessApproval):
         # 消费面（卡片列表/详情头）：团队与工作项上下文
         "teamId": e.binding.team_id, "teamName": e.binding.team.name,
         "projectId": str(e.issue.project_id), "issueId": e.issue_id, "taskTitle": e.issue.name,
+        # 审批依据：执行已产出工件（引用式上下文，问句保持简明）
+        "contextArtifacts": _artifacts_json(e),
     }
 
 
@@ -877,18 +908,8 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             pending_node = execution.node_records.filter(status="success").order_by("-updated_at").first()
             step = "human"
 
-        # 节点名映射（definition 快照）：时间线/工件呈现用节点名而非机器 key
-        artifacts = [{
-            "id": a.id,
-            "nodeKey": a.storage_ref.rsplit("/", 1)[-1],
-            "name": (node_names.get(a.storage_ref.rsplit("/", 1)[-1]) or a.storage_ref.rsplit("/", 1)[-1]
-                     or a.content_hash[:12]),
-            "version": a.version, "sizeBytes": None,
-            "contentUrl": a.storage_ref,
-            # 正文即节点输出（orchestration:// 是逻辑引用非下载 URL——页内直接可看）
-            "content": ((execution.node_records.filter(
-                node_key=a.storage_ref.rsplit("/", 1)[-1]).first().result or {}).get("output") or "")[:50000],
-        } for a in execution.artifacts.order_by("version")]
+        # 工件列表：与审批「依据」同一 helper（节点名映射在 helper 内按冻结快照解析）
+        artifacts = _artifacts_json(execution)
 
         from django.db.models import Q
         pending = execution.approvals.filter(

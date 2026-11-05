@@ -76,7 +76,6 @@
       "time_zone": "Zona horaria"
     },
     "stats": {
-      "workload": "Carga de trabajo",
       "overview": "Resumen",
       "created": "Elementos de trabajo creados",
       "assigned": "Elementos de trabajo asignados",
@@ -94,7 +93,8 @@
         "empty": "No pudimos encontrar datos. Por favor revisa tus entradas",
         "button": "Descargar actividad de hoy",
         "button_loading": "Descargando"
-      }
+      },
+      "approvals": "Elementos pendientes"
     },
     "actions": {
       "profile": "Perfil",
@@ -110,7 +110,8 @@
       "assigned": "Asignado",
       "created": "Creado",
       "subscribed": "Suscrito",
-      "activity": "Actividad"
+      "activity": "Actividad",
+      "approvals": "Pendiente"
     },
     "empty_state": {
       "activity": {

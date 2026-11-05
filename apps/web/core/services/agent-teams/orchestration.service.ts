@@ -541,6 +541,8 @@ export interface OrchestrationApproval {
   projectId: string;
   issueId: string;
   taskTitle: string;
+  /** 审批依据：执行已产出工件（引用式上下文；点开预览弹层看全文）。 */
+  contextArtifacts?: OrchestrationRuntimeArtifact[];
 }
 
 export async function listMyApprovals(workspace: string): Promise<OrchestrationApproval[]> {

@@ -76,7 +76,6 @@
       "time_zone": "時區"
     },
     "stats": {
-      "workload": "工作量",
       "overview": "概覽",
       "created": "已建立的工作事項",
       "assigned": "已指派的工作事項",
@@ -94,7 +93,8 @@
         "empty": "我們找不到資料。請檢查您的輸入",
         "button": "下載今天的活動",
         "button_loading": "下載中"
-      }
+      },
+      "approvals": "待辦的工作項"
     },
     "actions": {
       "profile": "個人資料",
@@ -110,7 +110,8 @@
       "assigned": "已指派",
       "created": "已建立",
       "subscribed": "已訂閱",
-      "activity": "活動"
+      "activity": "活動",
+      "approvals": "待辦"
     },
     "empty_state": {
       "activity": {

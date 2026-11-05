@@ -76,7 +76,6 @@
       "time_zone": "Zona waktu"
     },
     "stats": {
-      "workload": "Beban kerja",
       "overview": "Ikhtisar",
       "created": "Item kerja yang dibuat",
       "assigned": "Item kerja yang ditugaskan",
@@ -94,7 +93,8 @@
         "empty": "Kami tidak dapat menemukan data. Silakan lihat input Anda",
         "button": "Unduh aktivitas hari ini",
         "button_loading": "Mengunduh"
-      }
+      },
+      "approvals": "Item yang harus dikerjakan"
     },
     "actions": {
       "profile": "Profil",
@@ -110,7 +110,8 @@
       "assigned": "Ditugaskan",
       "created": "Dibuat",
       "subscribed": "Disubscribe",
-      "activity": "Aktivitas"
+      "activity": "Aktivitas",
+      "approvals": "Yang harus dikerjakan"
     },
     "empty_state": {
       "activity": {

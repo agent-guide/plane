@@ -6,18 +6,15 @@
 
 import useSWR from "swr";
 // plane imports
-import { GROUP_CHOICES } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
-import type { IUserStateDistribution, TStateGroups } from "@plane/types";
+import type { IUserStateDistribution } from "@plane/types";
 import { ContentWrapper } from "@plane/ui";
 // components
 import { PageHead } from "@/components/core/page-title";
 import { ProfileActivity } from "@/components/profile/overview/activity";
 import { ProfilePriorityDistribution } from "@/components/profile/overview/priority-distribution";
 import { ProfileStateDistribution } from "@/components/profile/overview/state-distribution";
-import { ProfilePendingApprovals } from "@/components/profile/overview/pending-approvals";
 import { ProfileStats } from "@/components/profile/overview/stats";
-import { ProfileWorkload } from "@/components/profile/overview/workload";
 // constants
 import { USER_PROFILE_DATA } from "@plane/constants";
 // services
@@ -33,21 +30,15 @@ export default function ProfileOverviewPage({ params }: Route.ComponentProps) {
     userService.getUserProfileData(workspaceSlug, userId)
   );
 
-  const stateDistribution: IUserStateDistribution[] = Object.keys(GROUP_CHOICES).map((key) => {
-    const group = userProfile?.state_distribution.find((g) => g.state_group === key);
-
-    if (group) return group;
-    else return { state_group: key as TStateGroups, state_count: 0 };
-  });
+  // 直接透传后端按具体状态的聚合（#2）：不再按五大组折叠——等待确认/失败等
+  // 细语义逐条可见，与看板列名同词
+  const stateDistribution: IUserStateDistribution[] = userProfile?.state_distribution ?? [];
 
   return (
     <>
       <PageHead title={t("profile.page_label")} />
       <ContentWrapper className="space-y-7">
         <ProfileStats userProfile={userProfile} />
-        {/* 待我确认置顶（#2）：跨项目团队审批作为主动工作清单，先于统计区 */}
-        <ProfilePendingApprovals workspaceSlug={workspaceSlug} />
-        <ProfileWorkload stateDistribution={stateDistribution} />
         <div className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-2">
           <ProfilePriorityDistribution userProfile={userProfile} />
           <ProfileStateDistribution stateDistribution={stateDistribution} userProfile={userProfile} />

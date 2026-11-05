@@ -20,13 +20,14 @@ import { Button } from "@plane/propel/button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { EModalWidth, ModalCore } from "@plane/ui";
 // icons
-import { Bot, Check, ChevronDown, Clock, FileBox, Minus, X } from "lucide-react";
+import { Bot, Check, ChevronDown, Clock, Minus, X } from "lucide-react";
 import { StateGroupIcon } from "@plane/propel/icons";
 import type { TStateGroups } from "@plane/types";
 
 // components
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { ApprovalAnswerArea } from "@/components/agent-teams/approval-answer";
+import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import Link from "next/link";
 // services
@@ -255,40 +256,31 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     });
   };
 
-  /** 步骤状态图标：实心徽章（✓/✗/−）压导轨线，当前步呼吸点，未来步空心圈 */
+  /** 步骤状态图标：细线轻量款——✓/✗/− 裸图标（无圆盘底色，不抢步骤名），
+      当前步呼吸点，未来步空心圈。颜色只用平台语义 token。 */
   const renderStepIcon = (step: StreamStep) => {
     const isCurrent = step.key === currentStepKey;
     if (step.status === "success") {
-      return (
-        <span className="bg-green-500 grid size-3.5 flex-shrink-0 place-items-center rounded-full" aria-hidden>
-          <Check className="size-2.5 text-white" strokeWidth={3} />
-        </span>
-      );
+      return <Check className="size-4 flex-shrink-0 text-success-primary" strokeWidth={2.5} aria-hidden />;
     }
     if (step.status === "failed") {
-      return (
-        <span className="grid size-3.5 flex-shrink-0 place-items-center rounded-full bg-danger-primary" aria-hidden>
-          <X className="size-2.5 text-white" strokeWidth={3} />
-        </span>
-      );
+      return <X className="size-4 flex-shrink-0 text-danger-primary" strokeWidth={2.5} aria-hidden />;
     }
     if (step.status === "skipped") {
-      return (
-        <span className="grid size-3.5 flex-shrink-0 place-items-center rounded-full bg-layer-2" aria-hidden>
-          <Minus className="size-2.5 text-placeholder" strokeWidth={3} />
-        </span>
-      );
+      return <Minus className="size-4 flex-shrink-0 text-placeholder" strokeWidth={2.5} aria-hidden />;
     }
     if (isCurrent) {
       return (
-        <span className="relative grid size-3.5 flex-shrink-0 place-items-center" aria-hidden>
-          <span className="absolute inline-flex size-3.5 animate-ping rounded-full bg-accent-primary opacity-30" />
+        <span className="relative grid size-4 flex-shrink-0 place-items-center" aria-hidden>
+          <span className="absolute inline-flex size-4 animate-ping rounded-full bg-accent-primary opacity-30" />
           <span className="relative inline-flex size-2 rounded-full bg-accent-primary" />
         </span>
       );
     }
     return (
-      <span className="border-placeholder size-3.5 flex-shrink-0 rounded-full border-[1.5px] bg-layer-1" aria-hidden />
+      <span className="grid size-4 flex-shrink-0 place-items-center" aria-hidden>
+        <span className="size-2 rounded-full border-[1.5px] border-placeholder" />
+      </span>
     );
   };
 
@@ -317,9 +309,9 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     const expanded = expandedSteps.has(step.key);
     const isLong = content.length > 80 || content.split("\n").length > 2;
     return (
-      <div className="mt-0.5 min-w-0">
+      <div className="mt-1 min-w-0">
         <p
-          className={`text-caption-sm-regular break-words whitespace-pre-wrap text-tertiary ${
+          className={`text-body-xs-regular leading-5 break-words whitespace-pre-wrap text-secondary ${
             expanded ? "max-h-44 overflow-y-auto" : "line-clamp-2"
           }`}
         >
@@ -329,7 +321,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           <button
             type="button"
             onClick={() => toggleStepExpanded(step.key)}
-            className="hover:text-accent-hover mt-0.5 inline-flex items-center gap-0.5 text-caption-sm-medium text-accent-primary"
+            className="hover:text-accent-hover mt-0.5 inline-flex items-center gap-0.5 text-body-xs-medium text-accent-primary"
           >
             <ChevronDown className={`size-3 transition-transform ${expanded ? "-rotate-90" : ""}`} aria-hidden />
             {expanded ? t("agent_teams_stream_collapse") : t("agent_teams_stream_expand")}
@@ -353,7 +345,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           t("agent_teams_panel_title")
         )}
         {summary?.durationSeconds != null && (
-          <span className="font-normal ml-auto flex items-center gap-1 text-caption-sm-regular text-tertiary">
+          <span className="font-normal ml-auto flex items-center gap-1 text-body-xs-regular text-tertiary">
             <Clock className="size-3" aria-hidden />
             {durationText(summary.durationSeconds)}
           </span>
@@ -371,7 +363,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               type="button"
               disabled={starting}
               onClick={() => void handleStart()}
-              className="hover:text-accent-hover text-caption-sm-medium text-accent-primary disabled:opacity-60"
+              className="hover:text-accent-hover text-body-xs-medium text-accent-primary disabled:opacity-60"
             >
               {starting ? t("agent_teams_panel_retrying") : t("agent_teams_panel_retry")}
             </button>
@@ -380,9 +372,10 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">{t("agent_teams_panel_not_bound")}</div>
         ) : (
           <>
+            {/* 流容器卡片化：侧板属性行之间给执行流一个明确的独立区块边界 */}
             {/* 终态一句话（成功/失败/取消）——流的收尾，不抢状态字段的活 */}
             {isTerminal && summary.issueState && (
-              <div className="mb-2 flex items-center gap-1.5 text-caption-sm-medium text-secondary">
+              <div className="mb-2 flex items-center gap-1.5 text-body-xs-medium text-secondary">
                 <StateGroupIcon
                   stateGroup={(summary.issueState.group ?? "started") as TStateGroups}
                   color={summary.issueState.color}
@@ -392,7 +385,9 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               </div>
             )}
 
-            {/* 单列叙事流：步骤 = 节点归并（名称 · 执行者 · 状态 · 耗时 · 结论内联） */}
+            {/* 单列叙事流：固定图标列（16px）与标题行（20px）等高对齐，
+                连接线从徽章中心垂直贯穿；字号两级（13 标题 / 12 辅助），
+                行距节奏统一（步内 2/4px、步间 16px） */}
             <div className="flex flex-col">
               {steps.map((step, index) => {
                 const isCurrent = step.key === currentStepKey;
@@ -403,64 +398,79 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                   <div
                     key={step.key}
                     ref={isCurrent ? currentRef : undefined}
-                    className={`relative pb-3 pl-4 ${isLast ? "" : "border-l"} ${
-                      isCurrent ? "border-accent-primary" : "border-subtle"
-                    }`}
+                    className={`-my-1 -mx-1.5 mb-5 flex gap-2.5 rounded-md px-1.5 py-1 transition-colors hover:bg-layer-transparent-hover ${isLast ? "mb-0" : ""}`}
                   >
-                    <span className="absolute top-[5px] -left-[7px]">{renderStepIcon(step)}</span>
-                    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                      <span className={`text-caption-sm-medium ${isCurrent ? "text-primary" : "text-secondary"}`}>
-                        {step.name}
-                      </span>
-                      {step.memberName && (
-                        <span className="text-caption-sm-regular text-tertiary">· {step.memberName}</span>
-                      )}
-                      <span
-                        className={`text-caption-sm-regular ${isCurrent ? "text-accent-primary" : "text-tertiary"}`}
-                      >
-                        · {stepStatusText(step)}
-                      </span>
-                      {duration && (
-                        <span className="text-[10px] text-placeholder tabular-nums" title={step.firstAt}>
-                          · {duration}
-                        </span>
+                    {/* 图标列：徽章与标题行同高（20px）垂直居中；连接线负
+                        margin 穿过行间距续到下一步（间距在色块外，内容垂直居中） */}
+                    <div className="flex h-full w-4 flex-shrink-0 flex-col items-center">
+                      <span className="flex h-5 items-center justify-center">{renderStepIcon(step)}</span>
+                      {!isLast && (
+                        <span
+                          className={`mt-1 mb-[-20px] w-px flex-1 ${isCurrent ? "bg-accent-primary" : "bg-[var(--border-color-subtle)]"}`}
+                          aria-hidden
+                        />
                       )}
                     </div>
-                    {/* 每步结论：节点输出内联（超两行截断就地展开） */}
-                    {renderConclusion(step)}
-                    {/* 产出工件 chip：唯一走查看弹层的入口 */}
-                    {step.artifact && (
-                      <button
-                        type="button"
-                        onClick={() => setPreviewArtifact(step.artifact)}
-                        title={t("agent_teams_panel_artifact_open")}
-                        className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-subtle bg-layer-1 px-2 py-1 text-caption-sm-regular text-secondary transition-colors hover:border-strong hover:text-primary"
-                      >
-                        <FileBox className="size-3 flex-shrink-0 text-tertiary" aria-hidden />
-                        <span className="truncate">
-                          {t("agent_teams_stream_artifact_generated")} {step.artifact.name}
-                          <span className="text-placeholder"> · v{step.artifact.version}</span>
+                    {/* 内容列 */}
+                    <div className="min-w-0 flex-1">
+                      {/* 标题行 = 一句话：成员（谁）· 步骤名（做什么）· 状态（怎么样）；
+                          右侧：查看产出（有工件时内联，不单独占行）+ 耗时 */}
+                      <div className="flex h-5 items-center justify-between gap-2">
+                        <span className="truncate text-body-xs-regular">
+                          {step.memberName && (
+                            <span className="text-body-xs-medium text-primary">{step.memberName}</span>
+                          )}
+                          {step.memberName && <span className="text-placeholder"> · </span>}
+                          <span className={isCurrent ? "text-primary" : "text-secondary"}>{step.name}</span>
+                          <span className="text-placeholder"> · </span>
+                          <span
+                            className={
+                              isCurrent
+                                ? "text-accent-primary"
+                                : step.status === "failed"
+                                  ? "text-danger-primary"
+                                  : "text-tertiary"
+                            }
+                          >
+                            {stepStatusText(step)}
+                          </span>
                         </span>
-                        <span className="flex-shrink-0 text-caption-sm-medium text-accent-primary">
-                          {t("agent_teams_stream_view_output")}
+                        <span className="flex flex-shrink-0 items-center gap-2">
+                          {step.artifact && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewArtifact(step.artifact)}
+                              title={t("agent_teams_panel_artifact_open")}
+                              className="hover:text-accent-hover inline-flex items-center gap-1 text-body-xs-medium text-accent-primary"
+                            >
+                              {t("agent_teams_stream_artifact_view")}
+                            </button>
+                          )}
+                          {duration && (
+                            <span className="text-body-xs-regular text-placeholder" title={step.firstAt}>
+                              {duration}
+                            </span>
+                          )}
                         </span>
-                      </button>
-                    )}
-                    {/* 审批操作内嵌等待步骤（freeText/选项/批准-驳回三形态） */}
-                    {approval && (
-                      <div className="mt-1.5 flex flex-col gap-1.5 rounded-lg border border-subtle bg-layer-2 px-3 py-2.5">
-                        <p className="line-clamp-3 text-caption-sm-regular whitespace-pre-wrap text-secondary">
-                          {approval.question || approval.taskTitle}
-                        </p>
-                        <ApprovalAnswerArea
-                          approval={{ freeText: approval.freeText, options: approval.options ?? [] }}
-                          answering={answering}
-                          textAnswer={textAnswer}
-                          onTextChange={setTextAnswer}
-                          onAnswer={(decision, reason) => void handleAnswer(decision, reason)}
-                        />
                       </div>
-                    )}
+                      {/* 每步结论：节点输出内联（超两行截断就地展开） */}
+                      {renderConclusion(step)}
+                      {/* 审批操作内嵌等待步骤：待确认内容（agent 归纳的
+                          markdown，规范渲染）+ 操作区。前几步已在流里逐步
+                          呈现，审批卡不重复罗列，只带需要拍板的内容 */}
+                      {approval && (
+                        <div className="mt-2 flex flex-col gap-2 rounded-lg border border-subtle bg-layer-2 px-3 py-2.5">
+                          <MarkdownPreview content={approval.question || approval.taskTitle} />
+                          <ApprovalAnswerArea
+                            approval={{ freeText: approval.freeText, options: approval.options ?? [] }}
+                            answering={answering}
+                            textAnswer={textAnswer}
+                            onTextChange={setTextAnswer}
+                            onAnswer={(decision, reason) => void handleAnswer(decision, reason)}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -468,15 +478,21 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               {(summary.upcomingSteps ?? []).map((name, index, list) => (
                 <div
                   key={`upcoming-${name}`}
-                  className={`relative pb-3 pl-4 ${index === list.length - 1 ? "" : "border-l border-dashed border-subtle"}`}
+                  className={`-my-1 -mx-1.5 flex gap-2.5 rounded-md px-1.5 py-1 transition-colors hover:bg-layer-transparent-hover ${index === list.length - 1 ? "" : "mb-5"}`}
                 >
-                  <span
-                    className="border-placeholder absolute top-[7px] -left-[5px] size-2.5 rounded-full border-[1.5px] bg-layer-1"
-                    aria-hidden
-                  />
-                  <span className="text-caption-sm-regular text-placeholder">
-                    {name} · {t("agent_teams_stream_queued")}
-                  </span>
+                  <div className="flex h-full w-4 flex-shrink-0 flex-col items-center">
+                    <span className="flex h-5 items-center justify-center" aria-hidden>
+                      <span className="size-2.5 rounded-full border-[1.5px] border-placeholder" />
+                    </span>
+                    {index < list.length - 1 && (
+                      <span className="mt-1 mb-[-20px] w-px flex-1 border-l border-dashed border-subtle" aria-hidden />
+                    )}
+                  </div>
+                  <div className="flex h-5 min-w-0 flex-1 items-center">
+                    <span className="text-body-xs-regular text-placeholder">
+                      {name} · {t("agent_teams_stream_queued")}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -489,7 +505,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                     type="button"
                     disabled={cancelling}
                     onClick={() => void handleCancel()}
-                    className="text-caption-sm-regular text-tertiary hover:text-danger-primary disabled:opacity-60"
+                    className="text-body-xs-regular text-tertiary hover:text-danger-primary disabled:opacity-60"
                   >
                     {t("agent_teams_panel_cancel")}
                   </button>
@@ -497,7 +513,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                   <button
                     type="button"
                     onClick={() => setRetryConfirmOpen(true)}
-                    className="hover:text-accent-hover text-caption-sm-medium text-accent-primary"
+                    className="hover:text-accent-hover text-body-xs-medium text-accent-primary"
                   >
                     {t("agent_teams_panel_retry")}
                   </button>
@@ -518,7 +534,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               <h3 className="text-base-medium text-primary">{t("agent_teams_panel_retry")}</h3>
               <p className="text-body-sm-regular text-secondary">{t("agent_teams_panel_retry_confirm")}</p>
               {retryError && (
-                <p className="rounded bg-danger-subtle px-2.5 py-1.5 text-caption-sm-medium text-danger-primary">
+                <p className="rounded bg-danger-subtle px-2.5 py-1.5 text-body-xs-medium text-danger-primary">
                   {retryError}
                 </p>
               )}

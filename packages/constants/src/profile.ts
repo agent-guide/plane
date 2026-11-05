@@ -14,6 +14,14 @@ export const PROFILE_VIEWER_TAB = [
     i18n_label: "profile.tabs.summary",
     selected: "/",
   },
+  // Agent Teams extension：待确认（团队审批）——所有成员都可能有待办，
+  // 放 viewer tab 而非 admins tab
+  {
+    key: "approvals",
+    route: "approvals",
+    i18n_label: "profile.tabs.approvals",
+    selected: "/approvals/",
+  },
 ];
 
 export const PROFILE_ADMINS_TAB = [

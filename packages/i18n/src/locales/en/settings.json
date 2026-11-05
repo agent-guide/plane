@@ -76,7 +76,6 @@
       "time_zone": "Timezone"
     },
     "stats": {
-      "workload": "Workload",
       "overview": "Overview",
       "created": "Work items created",
       "assigned": "Work items assigned",
@@ -94,7 +93,8 @@
         "empty": "We couldn't find data. Kindly view your inputs",
         "button": "Download today's activity",
         "button_loading": "Downloading"
-      }
+      },
+      "approvals": "To-do work items"
     },
     "actions": {
       "profile": "Profile",
@@ -110,7 +110,8 @@
       "assigned": "Assigned",
       "created": "Created",
       "subscribed": "Subscribed",
-      "activity": "Activity"
+      "activity": "Activity",
+      "approvals": "To-do"
     },
     "empty_state": {
       "activity": {

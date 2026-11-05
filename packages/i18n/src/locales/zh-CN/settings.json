@@ -76,7 +76,6 @@
       "time_zone": "时区"
     },
     "stats": {
-      "workload": "工作量",
       "overview": "概览",
       "created": "已创建的工作项",
       "assigned": "已分配的工作项",
@@ -94,7 +93,8 @@
         "empty": "我们找不到数据。请查看您的输入",
         "button": "下载今天的活动",
         "button_loading": "下载中"
-      }
+      },
+      "approvals": "待办的工作项"
     },
     "actions": {
       "profile": "个人资料",
@@ -110,7 +110,8 @@
       "assigned": "已分配",
       "created": "已创建",
       "subscribed": "已订阅",
-      "activity": "活动"
+      "activity": "活动",
+      "approvals": "待办"
     },
     "empty_state": {
       "activity": {
