@@ -224,12 +224,23 @@ class IssueViewSet(BaseViewSet):
         return issues
 
     def apply_annotations(self, issues):
+        # Agent Teams extension（编排域，2026-11-05 修正）：执行中标记注解加在
+        # 服务主列表的视图上——首版误加到分页视图（IssuePaginatedViewSet），
+        # 主列表（前端 getIssuesFromServer 实际消费的端点）没带上。
+        from plane.orchestration.models import WorkItemExecution
+        from plane.orchestration.state_machine import TERMINAL_STATUSES
         issues = (
             issues.annotate(
                 cycle_id=Subquery(
                     CycleIssue.objects.filter(issue=OuterRef("id"), deleted_at__isnull=True).values("cycle_id")[:1]
                 )
             )
+            .annotate(
+                execution_active=Exists(
+                    WorkItemExecution.objects.filter(
+                        issue_id=OuterRef("id")).exclude(
+                        business_status__in=list(TERMINAL_STATUSES))
+                ))
             .annotate(
                 link_count=Subquery(
                     IssueLink.objects.filter(issue=OuterRef("id"))

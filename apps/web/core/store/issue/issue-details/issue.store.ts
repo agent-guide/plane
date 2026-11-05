@@ -170,6 +170,8 @@ export class IssueStore implements IIssueStore {
       is_draft: issue?.is_draft,
       is_subscribed: issue?.is_subscribed,
       is_epic: issue?.is_epic,
+      // Agent Teams extension：执行中标记（状态锁只读提示，#11）
+      execution_active: issue?.execution_active,
     };
 
     this.rootIssueDetailStore.rootIssueStore.issues.addIssue([issuePayload]);
