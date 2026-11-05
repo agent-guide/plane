@@ -901,8 +901,11 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
         definition_nodes = {
             n.get("key"): n for n in ((execution.binding.workflow_version.definition or {}).get("nodes") or [])}
         frozen_members = (execution.frozen_context or {}).get("members") or []
+        # frozen 快照不存 role（成员收敛 §3.3 只钉 id/kind/userId）——AI 步骤
+        # 执行者用 agent 目录显示名（names，与成员页同源），不读快照 role
         agent_role_by_def = {
-            str(m.get("agentDefinitionId")): m.get("role") for m in frozen_members if m.get("kind") == "agent"}
+            str(m.get("agentDefinitionId")): names.get(str(m.get("agentDefinitionId")))
+            for m in frozen_members if m.get("kind") == "agent"}
         human_ids = {m.get("userId") for m in frozen_members if m.get("kind") == "human" and m.get("userId")}
         human_names = {}  # 指定审批人 → 显示名（人工步骤的「谁在做」）
         if human_ids:
