@@ -211,6 +211,42 @@ def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
     return resumed
 
 
+def on_agent_ask(*, execution_id: str, event_id: str, node_ref: str, question: str) -> WorkItemExecution:
+    """agent 能力化求助（2026-11-05 定案）：AI 节点执行中发现缺数据 →
+    running→waiting_human + 建自由文本审批单（问题=agent 提问）。
+
+    与 human_handoff 的区别：节点不结束（保持 RUNNING），答复后同节点
+    重跑（attempt+1，prompt 注入人工补充）——图上无人工节点、无分支，
+    人工介入完全由 agent 运行时发起。幂等同 handoff：已等待时仅保证
+    待审批存在。
+    """
+    ex = _load_active(execution_id)
+    if ex.business_status == "waiting_human":
+        execution = ex
+    else:
+        execution = transition_execution(execution=ex, target="waiting_human", event_id=event_id, member=None)
+    from .models import BusinessApproval
+    if not BusinessApproval.objects.filter(
+            execution=execution, node_ref=node_ref,
+            result=BusinessApproval.Result.PENDING).exists():
+        BusinessApproval.objects.create(
+            execution=execution, node_ref=node_ref,
+            question=question[:2000] or "请补充资料",
+            options=[], free_text=True, assignee_id=None,
+        )
+    return execution
+
+
+def on_ask_answered(*, execution_id: str, event_id: str) -> WorkItemExecution:
+    """agent 求助已答复：waiting_human→running（节点保持 RUNNING，区别于
+    human_resume 的「人工节点收口 success」）。节点重跑由作答端点发
+    agent.invoke（attempt+1，payload 带答复）驱动，不在此处。"""
+    ex = _load_active(execution_id)
+    if ex.business_status != "waiting_human":
+        raise TeamDomainError(409, "EXECUTION_RESUME_CONFLICT", "Execution is not waiting for a human")
+    return transition_execution(execution=ex, target="running", event_id=event_id, member=None)
+
+
 def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> WorkItemExecution:
     """取消执行（非终态）：置 cancelled + 作废待审批 + outbox engine.cancel。
 
@@ -276,6 +312,7 @@ EVENT_HANDLERS = {
     "engine.started": lambda p: on_engine_started(**p),
     "engine.human_handoff": lambda p: on_human_handoff(**p),
     "engine.human_resume": lambda p: on_human_resume(**p),
+    "engine.agent_ask": lambda p: on_agent_ask(**p),
     "engine.terminal": lambda p: on_engine_terminal(**p),
     "engine.reconcile_stale": lambda p: on_reconcile_stale(**p),
 }
@@ -294,7 +331,7 @@ def process_event(*, external_event_id: str, event_type: str, payload: dict) -> 
         execution_id = payload.get("executionId") or payload.get("execution_id", "")
         event_id = external_event_id  # last_event_id 幂等锚 = 外部事件 id
         kwargs = {"execution_id": execution_id, "event_id": event_id}
-        for k in ("engine_run_ref", "member", "engine_status"):
+        for k in ("engine_run_ref", "member", "engine_status", "question"):
             if k in payload:
                 kwargs[k] = payload[k]
         # 人工交接事件带节点 key（缺省 "human"）

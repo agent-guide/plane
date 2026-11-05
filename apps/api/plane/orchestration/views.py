@@ -674,6 +674,43 @@ class ApprovalsEndpoint(BaseAPIView):
         approval.answered_at = timezone.now()
         approval.save(update_fields=["result", "reason", "answered_at"])
         from . import execution as execution_svc
+        # agent 求助单（AI 节点发起，能力化人工介入）：答复 = 补充资料 →
+        # 同节点重跑（attempt+1，prompt 注入答复）；拒绝 = 终止执行
+        _definition = approval.execution.binding.workflow_version.definition or {}
+        _node_type = next((n.get("type") for n in (_definition.get("nodes") or [])
+                           if n.get("key") == approval.node_ref), None)
+        if _node_type in ("ai", "condition"):
+            if decision == BusinessApproval.Result.REJECTED:
+                try:
+                    execution_svc.cancel_execution(
+                        execution=approval.execution, event_id=f"approval:{approval.id}")
+                except Exception:
+                    pass
+                return Response({"id": str(approval.id), "result": decision})
+            execution_svc.on_ask_answered(
+                execution_id=approval.execution_id, event_id=f"approval:{approval.id}")
+            from .node_runtime import NodeRuntimeRecord
+            from .models import OrchestrationOutbox
+            import hashlib, json as _json2
+            record = NodeRuntimeRecord.objects.filter(
+                execution=approval.execution, node_key=approval.node_ref).first()
+            attempt = (record.attempt + 1) if record else 1
+            if record:
+                NodeRuntimeRecord.objects.filter(id=record.id).update(attempt=attempt)
+            payload = {
+                "executionId": approval.execution_id, "nodeKey": approval.node_ref,
+                "attempt": attempt,
+                "humanAnswer": approval.reason or "",
+            }
+            OrchestrationOutbox.objects.get_or_create(
+                idempotency_key=f"agent_call:{approval.execution_id}:{approval.node_ref}:{attempt}",
+                defaults={
+                    "command_type": "agent.invoke", "payload": payload,
+                    "payload_hash": hashlib.sha256(
+                        _json2.dumps(payload, sort_keys=True).encode()).hexdigest(),
+                },
+            )
+            return Response({"id": str(approval.id), "result": decision})
         if decision == BusinessApproval.Result.REJECTED:
             # 驳回/终止选项（等价旧链 reject terminal 语义）：答复即取消执行，
             # 不恢复流程——作废其余待审批并转投引擎取消
