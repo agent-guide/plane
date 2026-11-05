@@ -877,6 +877,7 @@ export function WorkflowCanvasEditor({
                         <div key={index} className="flex items-center gap-2">
                           <Input
                             mode="primary"
+                            value={option.label}
                             placeholder={labels.optionLabel}
                             onChange={(e) => {
                               const next = [...all];
