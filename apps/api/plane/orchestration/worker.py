@@ -472,18 +472,46 @@ def process_outbox_once(*, dag_root: Path) -> dict:
             command.attempts += 1
             command.save(update_fields=["state", "attempts", "updated_at"])
             stats["failed"] += 1
-            # agent 调用异常（网关瞬时错误等）不立即投节点失败：立即终态会
-            # 与 Airflow 任务重试竞态——重试成功后出现「节点全绿 + tsw 已落库
-            # + 执行却 failed」的不一致（2026-11-05 实证）。记录保持 running，
-            # 重试阶梯：Airflow sensor 超时→任务重试→start attempt+1→重投；
-            # 重试耗尽由 reconcile_runs_once 按 run 终态收 engine.terminal。
-            # 仅把错误文本暂存节点记录（observe 可见尝试中的失败原因）。
+            # agent 调用异常的重试预算感知处置（2026-11-05 定案）：
+            # - attempt 未超节点 retries 预算（网关瞬时错误）：不投节点失败——
+            #   立即终态曾与 Airflow 任务重试竞态，重试成功后出现「节点全绿 +
+            #   tsw 已落库 + 执行 failed」不一致。记录保持 running，重试阶梯：
+            #   sensor 超时→任务重试→start attempt+1→重投。
+            # - attempt 超预算（永久失败）：立即投终局保「失败可见」（D 票
+            #   故障注入桥段依赖分钟级可见，不等 run 级对账）。
             if command.command_type == "agent.invoke":
                 import logging
-                logging.getLogger("plane.orchestration").warning(
-                    "agent invoke failed (will retry via engine): %s:%s attempt=%s err=%s",
-                    command.payload.get("executionId"), command.payload.get("nodeKey"),
-                    command.payload.get("attempt", 1), str(exc)[:300])
+                from .dag_publication import AI_DEFAULT_RETRIES
+                attempt = int(command.payload.get("attempt", 1) or 1)
+                budget = None
+                try:
+                    _ex = WorkItemExecution.objects.select_related(
+                        "binding__workflow_version").get(id=command.payload["executionId"])
+                    _node = next((n for n in (
+                        _ex.binding.workflow_version.definition or {}).get("nodes") or []
+                        if n.get("key") == command.payload.get("nodeKey")), {})
+                    budget = (int(_node.get("retries")) if _node.get("retries") is not None
+                              else AI_DEFAULT_RETRIES) + 1
+                except Exception:
+                    pass  # 定义读不到（执行已删等）：走保守立即失败路径
+                if budget and attempt < budget:
+                    logging.getLogger("plane.orchestration").warning(
+                        "agent invoke transient failure (engine retry ladder, attempt %d/%d): %s:%s err=%s",
+                        attempt, budget, command.payload.get("executionId"),
+                        command.payload.get("nodeKey"), str(exc)[:300])
+                else:
+                    try:
+                        _internal_node_call(
+                            "POST",
+                            f"/api/internal/workflow-runs/{command.payload['executionId']}/nodes/"
+                            f"{command.payload['nodeKey']}/fail/",
+                            {"eventId": f"outbox-fail:{command.id}", "eventType": "node.failed",
+                             "attempt": attempt,
+                             "payload": {"nodeKey": command.payload["nodeKey"]},
+                             "result": {"error": str(exc)[:2000]}},
+                        )
+                    except Exception:
+                        pass  # 回投失败不掩盖主错误；节点由引擎超时兜底
     return stats
 
 

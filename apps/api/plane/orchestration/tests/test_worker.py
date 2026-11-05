@@ -171,3 +171,27 @@ class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
         # 任务重试竞态（重试成功后「节点全绿+落库+执行 failed」不一致）。
         # 记录保持 running 由引擎重试阶梯接管；此处验证未回投。
         self.assertEqual(posted.get("path"), None)
+
+    def test_exhausted_retry_budget_posts_node_fail(self):
+        """attempt 超节点重试预算：立即回投终局（失败可见不等 run 级对账）。"""
+        from unittest.mock import patch
+        from plane.orchestration.models import WorkItemExecution, OrchestrationOutbox
+        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        on_engine_started(execution_id=ex.id, event_id="seed3", engine_run_ref=ex.id)
+        WorkItemExecution.objects.filter(id=ex.id).update(business_status="running")
+        import hashlib, json as _json
+        payload = {"executionId": ex.id, "nodeKey": "analyze_0", "attempt": 99}
+        OrchestrationOutbox.objects.create(
+            idempotency_key=f"agent_call:{ex.id}:analyze_0:99",
+            command_type="agent.invoke", payload=payload,
+            payload_hash=hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest())
+        posted = {}
+        def fake_post(method, path, body):
+            posted["path"], posted["body"] = path, body
+        with patch("plane.orchestration.worker._internal_node_call", side_effect=fake_post):
+            with patch("plane.orchestration.worker.invoke_agent_node",
+                       side_effect=RuntimeError("permanent gateway outage")):
+                process_outbox_once(dag_root=None)
+        self.assertIn("/nodes/analyze_0/fail/", posted.get("path", ""))
+        self.assertIn("permanent gateway outage",
+                      str(posted["body"].get("result", {}).get("error", "")))
