@@ -145,7 +145,7 @@ class OutboxConsumerTests(TestCase):
 class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
     """agent.invoke 失败回投节点失败（失败可见性：不等 execution_timeout）。"""
 
-    def test_failed_invoke_posts_node_fail(self):
+    def test_failed_invoke_defers_to_engine_retry(self):
         from unittest.mock import patch
         from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord
         ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
@@ -167,7 +167,7 @@ class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
         self.assertGreaterEqual(stats["failed"], 1)  # engine.start 也可能因 Airflow 未配置失败
         cmd = OrchestrationOutbox.objects.get(idempotency_key=f"agent_call:{ex.id}:analyze_0:1")
         self.assertEqual(cmd.state, OrchestrationOutbox.State.FAILED)
-        # 回投了节点失败（run_ref=executionId，节点键取 payload）
-        self.assertIn(f"/nodes/analyze_0/fail/", posted.get("path", ""))
-        self.assertIn("agent gateway down", str(posted["body"].get("result", {}).get("error", "")))
-        # 节点记录落 failed（DagNodeFailView 语义由端点测试覆盖；此处验证回投参数）
+        # 新契约（2026-11-05）：不立即回投节点失败——立即终态会与 Airflow
+        # 任务重试竞态（重试成功后「节点全绿+落库+执行 failed」不一致）。
+        # 记录保持 running 由引擎重试阶梯接管；此处验证未回投。
+        self.assertEqual(posted.get("path"), None)
