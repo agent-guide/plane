@@ -926,12 +926,15 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             "createdAt": execution.created_at.isoformat(),
         }]
         for n in execution.node_records.order_by("updated_at"):
+            # output：节点输出正文（叙事流每步结论行；失败节点回退 error）。
+            # 截断 4000——页内展开看全文，预览弹层仍走 artifact.content
             events.append({
                 "id": f"node:{n.id}:{n.status}", "kind": "node",
                 "status": n.status, "nodeKey": n.node_key,
                 "nodeName": node_names.get(n.node_key, n.node_key),
                 "memberName": _node_member_name(n.node_key),
                 "createdAt": n.updated_at.isoformat(),
+                "output": ((((n.result or {}).get("output")) or ((n.result or {}).get("error")) or "")[:4000]) or None,
             })
         for a in execution.approvals.order_by("created_at"):
             events.append({

@@ -57,6 +57,8 @@ interface StreamStep {
   status: string;
   firstAt: string;
   lastAt: string;
+  /** 节点输出正文（结论行：内联截断 + 就地展开，统一不走弹层）。 */
+  output: string | null;
   artifact: OrchestrationRuntimeArtifact | null;
 }
 
@@ -117,13 +119,20 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       const existing = byNode.get(event.nodeKey);
       if (!existing) {
         byNode.set(event.nodeKey, {
-          key: event.nodeKey, name, memberName: event.memberName ?? null,
-          status: event.status, firstAt: event.createdAt, lastAt: event.createdAt, artifact: null,
+          key: event.nodeKey,
+          name,
+          memberName: event.memberName ?? null,
+          status: event.status,
+          firstAt: event.createdAt,
+          lastAt: event.createdAt,
+          output: event.output ?? null,
+          artifact: null,
         });
       } else {
         existing.lastAt = event.createdAt;
         existing.status = event.status;
         if (event.memberName) existing.memberName = event.memberName;
+        if (event.output) existing.output = event.output; // 最新事件优先（成功事件在最后）
       }
     }
     const result = Array.from(byNode.values());
@@ -246,12 +255,30 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     });
   };
 
-  /** 步骤状态图标：完成✓ / 失败✗ / 跳过− / 当前（等待/执行中）呼吸点 */
+  /** 步骤状态图标：实心徽章（✓/✗/−）压导轨线，当前步呼吸点，未来步空心圈 */
   const renderStepIcon = (step: StreamStep) => {
     const isCurrent = step.key === currentStepKey;
-    if (step.status === "success") return <Check className="size-3.5 flex-shrink-0 text-green-500" aria-hidden />;
-    if (step.status === "failed") return <X className="size-3.5 flex-shrink-0 text-danger-primary" aria-hidden />;
-    if (step.status === "skipped") return <Minus className="size-3.5 flex-shrink-0 text-placeholder" aria-hidden />;
+    if (step.status === "success") {
+      return (
+        <span className="bg-green-500 grid size-3.5 flex-shrink-0 place-items-center rounded-full" aria-hidden>
+          <Check className="size-2.5 text-white" strokeWidth={3} />
+        </span>
+      );
+    }
+    if (step.status === "failed") {
+      return (
+        <span className="grid size-3.5 flex-shrink-0 place-items-center rounded-full bg-danger-primary" aria-hidden>
+          <X className="size-2.5 text-white" strokeWidth={3} />
+        </span>
+      );
+    }
+    if (step.status === "skipped") {
+      return (
+        <span className="grid size-3.5 flex-shrink-0 place-items-center rounded-full bg-layer-2" aria-hidden>
+          <Minus className="size-2.5 text-placeholder" strokeWidth={3} />
+        </span>
+      );
+    }
     if (isCurrent) {
       return (
         <span className="relative grid size-3.5 flex-shrink-0 place-items-center" aria-hidden>
@@ -260,7 +287,9 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
         </span>
       );
     }
-    return <span className="size-2 flex-shrink-0 rounded-full bg-[var(--text-color-secondary)]" aria-hidden />;
+    return (
+      <span className="border-placeholder size-3.5 flex-shrink-0 rounded-full border-[1.5px] bg-layer-1" aria-hidden />
+    );
   };
 
   const stepDuration = (step: StreamStep): string | null => {
@@ -273,7 +302,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
 
   const stepStatusText = (step: StreamStep): string => {
     if (step.key === currentStepKey && summary?.pendingApproval) {
-      const waited = Math.round(((nowTick - new Date(step.firstAt).getTime()) || 0) / 60000);
+      const waited = Math.round((nowTick - new Date(step.firstAt).getTime() || 0) / 60000);
       return t("agent_teams_panel_waiting_for", { count: Math.max(waited, 1) });
     }
     const statusKey = `agent_teams_status_${step.status}`;
@@ -281,15 +310,16 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     return statusText !== statusKey ? statusText : step.status;
   };
 
+  /** 结论行：节点输出正文统一内联——超两行截断，就地展开看全文（仅工件走弹层）。 */
   const renderConclusion = (step: StreamStep) => {
-    const content = step.artifact?.content?.trim();
+    const content = step.output?.trim();
     if (!content) return null;
     const expanded = expandedSteps.has(step.key);
     const isLong = content.length > 80 || content.split("\n").length > 2;
     return (
-      <div className="min-w-0">
+      <div className="mt-0.5 min-w-0">
         <p
-          className={`whitespace-pre-wrap break-words text-caption-sm-regular text-tertiary ${
+          className={`text-caption-sm-regular break-words whitespace-pre-wrap text-tertiary ${
             expanded ? "max-h-44 overflow-y-auto" : "line-clamp-2"
           }`}
         >
@@ -299,7 +329,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           <button
             type="button"
             onClick={() => toggleStepExpanded(step.key)}
-            className="mt-0.5 inline-flex items-center gap-0.5 text-caption-sm-medium text-accent-primary hover:text-accent-hover"
+            className="hover:text-accent-hover mt-0.5 inline-flex items-center gap-0.5 text-caption-sm-medium text-accent-primary"
           >
             <ChevronDown className={`size-3 transition-transform ${expanded ? "-rotate-90" : ""}`} aria-hidden />
             {expanded ? t("agent_teams_stream_collapse") : t("agent_teams_stream_expand")}
@@ -323,7 +353,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           t("agent_teams_panel_title")
         )}
         {summary?.durationSeconds != null && (
-          <span className="ml-auto flex items-center gap-1 text-caption-sm-regular font-normal text-tertiary">
+          <span className="font-normal ml-auto flex items-center gap-1 text-caption-sm-regular text-tertiary">
             <Clock className="size-3" aria-hidden />
             {durationText(summary.durationSeconds)}
           </span>
@@ -341,7 +371,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               type="button"
               disabled={starting}
               onClick={() => void handleStart()}
-              className="text-caption-sm-medium text-accent-primary hover:text-accent-hover disabled:opacity-60"
+              className="hover:text-accent-hover text-caption-sm-medium text-accent-primary disabled:opacity-60"
             >
               {starting ? t("agent_teams_panel_retrying") : t("agent_teams_panel_retry")}
             </button>
@@ -364,17 +394,20 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
 
             {/* 单列叙事流：步骤 = 节点归并（名称 · 执行者 · 状态 · 耗时 · 结论内联） */}
             <div className="flex flex-col">
-              {steps.map((step) => {
+              {steps.map((step, index) => {
                 const isCurrent = step.key === currentStepKey;
+                const isLast = index === steps.length - 1 && (summary.upcomingSteps ?? []).length === 0;
                 const approval = isCurrent ? summary.pendingApproval : null;
                 const duration = stepDuration(step);
                 return (
                   <div
                     key={step.key}
                     ref={isCurrent ? currentRef : undefined}
-                    className={`relative border-l py-1.5 pl-3 ${isCurrent ? "border-accent-primary" : "border-subtle"}`}
+                    className={`relative pb-3 pl-4 ${isLast ? "" : "border-l"} ${
+                      isCurrent ? "border-accent-primary" : "border-subtle"
+                    }`}
                   >
-                    <div className="absolute top-[9px] -left-[7px] bg-transparent">{renderStepIcon(step)}</div>
+                    <span className="absolute top-[5px] -left-[7px]">{renderStepIcon(step)}</span>
                     <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                       <span className={`text-caption-sm-medium ${isCurrent ? "text-primary" : "text-secondary"}`}>
                         {step.name}
@@ -388,28 +421,35 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                         · {stepStatusText(step)}
                       </span>
                       {duration && (
-                        <span className="text-[10px] tabular-nums text-placeholder" title={step.firstAt}>
-                          {duration}
+                        <span className="text-[10px] text-placeholder tabular-nums" title={step.firstAt}>
+                          · {duration}
                         </span>
                       )}
-                      {step.artifact && (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewArtifact(step.artifact)}
-                          title={t("agent_teams_panel_artifact_open")}
-                          className="inline-flex items-center gap-0.5 text-caption-sm-medium text-accent-primary hover:text-accent-hover"
-                        >
-                          <FileBox className="size-3" aria-hidden />
-                          {t("agent_teams_stream_view_output")}
-                        </button>
-                      )}
                     </div>
-                    {/* 每步结论一句内联（超两行截断就地展开，流管叙事详情管全文） */}
+                    {/* 每步结论：节点输出内联（超两行截断就地展开） */}
                     {renderConclusion(step)}
+                    {/* 产出工件 chip：唯一走查看弹层的入口 */}
+                    {step.artifact && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewArtifact(step.artifact)}
+                        title={t("agent_teams_panel_artifact_open")}
+                        className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-subtle bg-layer-1 px-2 py-1 text-caption-sm-regular text-secondary transition-colors hover:border-strong hover:text-primary"
+                      >
+                        <FileBox className="size-3 flex-shrink-0 text-tertiary" aria-hidden />
+                        <span className="truncate">
+                          {t("agent_teams_stream_artifact_generated")} {step.artifact.name}
+                          <span className="text-placeholder"> · v{step.artifact.version}</span>
+                        </span>
+                        <span className="flex-shrink-0 text-caption-sm-medium text-accent-primary">
+                          {t("agent_teams_stream_view_output")}
+                        </span>
+                      </button>
+                    )}
                     {/* 审批操作内嵌等待步骤（freeText/选项/批准-驳回三形态） */}
                     {approval && (
-                      <div className="mt-1.5 flex flex-col gap-1.5 rounded-md bg-layer-2 px-2.5 py-2">
-                        <p className="line-clamp-3 whitespace-pre-wrap text-caption-sm-regular text-secondary">
+                      <div className="mt-1.5 flex flex-col gap-1.5 rounded-lg border border-subtle bg-layer-2 px-3 py-2.5">
+                        <p className="line-clamp-3 text-caption-sm-regular whitespace-pre-wrap text-secondary">
                           {approval.question || approval.taskTitle}
                         </p>
                         <ApprovalAnswerArea
@@ -425,9 +465,15 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                 );
               })}
               {/* 未来步骤「排队中」（剪枝感知） */}
-              {(summary.upcomingSteps ?? []).map((name) => (
-                <div key={`upcoming-${name}`} className="relative border-l border-dashed border-subtle py-1.5 pl-3">
-                  <span className="absolute top-[11px] -left-[4.5px] size-2 rounded-full border border-placeholder bg-transparent" aria-hidden />
+              {(summary.upcomingSteps ?? []).map((name, index, list) => (
+                <div
+                  key={`upcoming-${name}`}
+                  className={`relative pb-3 pl-4 ${index === list.length - 1 ? "" : "border-l border-dashed border-subtle"}`}
+                >
+                  <span
+                    className="border-placeholder absolute top-[7px] -left-[5px] size-2.5 rounded-full border-[1.5px] bg-layer-1"
+                    aria-hidden
+                  />
                   <span className="text-caption-sm-regular text-placeholder">
                     {name} · {t("agent_teams_stream_queued")}
                   </span>

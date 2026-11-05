@@ -356,6 +356,7 @@
   "agent_teams_stream_queued": "In Warteschlange",
   "agent_teams_stream_expand": "Mehr anzeigen",
   "agent_teams_stream_collapse": "Weniger anzeigen",
+  "agent_teams_stream_artifact_generated": "Generiert",
   "agent_teams_stream_view_output": "Ansehen",
   "agent_teams_state_locked_title": "Der Status wird vom Team-Workflow verwaltet",
   "agent_teams_state_locked_message": "Dieses Arbeitselement wird von einem Team-Workflow ausgeführt; der Status wird automatisch verwaltet. Um ihn manuell zu ändern, brechen Sie zuerst die Ausführung im Kartenbereich ab.",

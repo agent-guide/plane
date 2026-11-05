@@ -357,6 +357,7 @@
   "agent_teams_stream_queued": "En file d'attente",
   "agent_teams_stream_expand": "Afficher plus",
   "agent_teams_stream_collapse": "Afficher moins",
+  "agent_teams_stream_artifact_generated": "Généré",
   "agent_teams_stream_view_output": "Voir",
   "agent_teams_state_locked_title": "L'état est géré par le flux d'équipe",
   "agent_teams_state_locked_message": "Cet élément de travail est exécuté par un flux d'équipe ; son état est géré automatiquement. Pour le modifier manuellement, annulez d'abord l'exécution dans le panneau de la carte.",

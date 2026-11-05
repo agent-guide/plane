@@ -356,6 +356,7 @@
   "agent_teams_stream_queued": "Đang chờ",
   "agent_teams_stream_expand": "Xem thêm",
   "agent_teams_stream_collapse": "Thu gọn",
+  "agent_teams_stream_artifact_generated": "Đã tạo",
   "agent_teams_stream_view_output": "Xem",
   "agent_teams_state_locked_title": "Trạng thái do quy trình nhóm quản lý",
   "agent_teams_state_locked_message": "Mục công việc này đang được quy trình nhóm thực thi; trạng thái được quản lý tự động. Để thay đổi thủ công, trước tiên hãy hủy thực thi trong bảng thẻ.",

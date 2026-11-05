@@ -462,6 +462,8 @@ export interface OrchestrationTimelineEvent {
   nodeName?: string | null;
   memberName: string | null;
   createdAt: string;
+  /** 节点输出正文（叙事流每步结论行；失败节点为错误信息，截断 4000）。 */
+  output?: string | null;
 }
 
 export interface OrchestrationWorkItemRuntime {

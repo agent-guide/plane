@@ -356,6 +356,7 @@
   "agent_teams_stream_queued": "待機中",
   "agent_teams_stream_expand": "展開",
   "agent_teams_stream_collapse": "折りたたむ",
+  "agent_teams_stream_artifact_generated": "生成済み",
   "agent_teams_stream_view_output": "表示",
   "agent_teams_state_locked_title": "状態はチームワークフローが管理しています",
   "agent_teams_state_locked_message": "この作業項目はチームワークフローで実行中のため、状態は自動的に管理されます。手動で変更するには、先にカードパネルから実行をキャンセルしてください。",

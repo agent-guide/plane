@@ -356,6 +356,7 @@
   "agent_teams_stream_queued": "W kolejce",
   "agent_teams_stream_expand": "Pokaż więcej",
   "agent_teams_stream_collapse": "Pokaż mniej",
+  "agent_teams_stream_artifact_generated": "Wygenerowano",
   "agent_teams_stream_view_output": "Zobacz",
   "agent_teams_state_locked_title": "Stanem zarządza przepływ zespołu",
   "agent_teams_state_locked_message": "Ten element pracy jest wykonywany przez przepływ zespołu; stan jest zarządzany automatycznie. Aby zmienić go ręcznie, najpierw anuluj wykonywanie w panelu karty.",

@@ -356,6 +356,7 @@
   "agent_teams_stream_queued": "En cola",
   "agent_teams_stream_expand": "Mostrar más",
   "agent_teams_stream_collapse": "Mostrar menos",
+  "agent_teams_stream_artifact_generated": "Generado",
   "agent_teams_stream_view_output": "Ver",
   "agent_teams_state_locked_title": "El estado lo mantiene el flujo del equipo",
   "agent_teams_state_locked_message": "Este elemento de trabajo se está ejecutando mediante un flujo de equipo; su estado se mantiene automáticamente. Para cambiarlo manualmente, cancele primero la ejecución en el panel de la tarjeta.",

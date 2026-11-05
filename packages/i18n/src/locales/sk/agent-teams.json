@@ -356,6 +356,7 @@
   "agent_teams_stream_queued": "Vo fronte",
   "agent_teams_stream_expand": "Zobraziť viac",
   "agent_teams_stream_collapse": "Zobraziť menej",
+  "agent_teams_stream_artifact_generated": "Vygenerované",
   "agent_teams_stream_view_output": "Zobraziť",
   "agent_teams_state_locked_title": "Stav spravuje tímový workflow",
   "agent_teams_state_locked_message": "Túto pracovnú položku vykonáva tímový workflow; stav sa spravuje automaticky. Ak ho chcete zmeniť ručne, najprv zrušte vykonávanie v paneli karty.",
