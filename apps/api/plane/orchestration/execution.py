@@ -225,6 +225,10 @@ def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> Wor
     execution.completed_at = dj_tz.now()
     execution.transition_version += 1
     execution.save(update_fields=["business_status", "completed_at", "transition_version", "updated_at"])
+    # 状态投影（2026-11-05 修）：取消也要打标——漏掉会让卡停在取消前的状态
+    # （如 Waiting Confirmation），看板上成为可自由拖动的「假活跃」脏卡
+    from .issue_state_sync import sync_issue_state
+    sync_issue_state(issue=execution.issue, business_status="cancelled")
     # 作废待审批（收件箱不残留已取消执行的待办）
     execution.approvals.filter(result=BusinessApproval.Result.PENDING).update(
         result=BusinessApproval.Result.REJECTED, reason="执行已取消", answered_at=dj_tz.now())
