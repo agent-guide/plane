@@ -1209,8 +1209,9 @@ class DagNodeStartView(DagNodeRuntimeBase):
         record.save()
         # 按发布版本 definition 的节点类型分派：人工节点 → handoff（waiting_human
         # + 建待审批）；AI/条件节点 → agent.invoke 命令（worker 真调 agwmngr）
-        node_type = next((n.get("type") for n in (definition.get("nodes") or [])
-                          if n.get("key") == node_key), None)
+        node = next((n for n in (definition.get("nodes") or [])
+                     if n.get("key") == node_key), {})
+        node_type = node.get("type")
         if node_type == "human_approval":
             from . import execution as execution_svc
             execution_svc.on_human_handoff(
@@ -1223,9 +1224,13 @@ class DagNodeStartView(DagNodeRuntimeBase):
             try:
                 from .models import AgentTeamMember
                 from .bot_provisioning import sync_issue_assignee
+                # 按节点 expertId 对应团队成员（曾误取「任一启用 agent」——
+                # 每个节点上牌都是同一个人，WB-2005 审单节点上了录入员）
+                _expert = node.get("expertId")
                 agent_member = AgentTeamMember.objects.filter(
                     team=execution.binding.team, kind="agent", enabled=True,
-                ).order_by("-sequence").first()
+                    agent_definition_id=_expert,
+                ).first() if _expert else None
                 if agent_member is not None:
                     prev_member = execution.current_member
                     WorkItemExecution.objects.filter(id=execution.id).update(
