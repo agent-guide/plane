@@ -2,14 +2,14 @@
  * Copyright © 2026 agent-guide contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  *
- * Agent Teams extension — Work Item detail Extension Slot (design §12.3,
- * §12.5-5, §12.6.4). Shows the orchestration summary (team / current member /
- * workflow step / status / duration / artifacts) and, when a human decision
- * is waiting, inline approve/reject commands. 数据源切换（阶段 2′）：执行
- * 摘要与结构化时间线一次取全（时间线文案归前端 i18n）；作答走编排域审批
- * 端点；取消走执行取消端点；重试=重新受控启动（终态后同工作项新执行）。
+ * Agent Teams extension — 工作卡「团队执行」叙事流面板（2026-11-04 #3 终版）。
+ * 形态：单列时间流（团队归属一行做标题，当前步骤即状态，无独立状态条）——
+ * 事件按节点归并成步骤：名称 · 执行者 · 状态（复用工作卡状态渲染/状态枚举
+ * 文案）· 耗时；每步结论一句内联（超两行截断就地展开）；产出挂对应步骤；
+ * 审批操作内嵌等待步骤；未来步骤「排队中」；当前步呼吸灯 + 秒级跳动；
+ * 面板自动滚动到当前步；执行中轮询 2s。取消/重试/手动启动沿既有端点。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { observer } from "mobx-react";
 import useSWR from "swr";
@@ -20,13 +20,13 @@ import { Button } from "@plane/propel/button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { EModalWidth, ModalCore } from "@plane/ui";
 // icons
-import { Bot, ChevronDown, Clock, ExternalLink, FileBox, GitBranch, User, Users } from "lucide-react";
+import { Bot, Check, ChevronDown, Clock, FileBox, Minus, X } from "lucide-react";
 import { StateGroupIcon } from "@plane/propel/icons";
 import type { TStateGroups } from "@plane/types";
 
 // components
-import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
+import { ApprovalAnswerArea } from "@/components/agent-teams/approval-answer";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import Link from "next/link";
 // services
@@ -47,28 +47,24 @@ type WorkItemRuntimePanelProps = {
 };
 
 const TERMINAL = new Set(["completed", "cancelled", "failed"]);
+const STEP_ACTIVE = new Set(["running", "pending", "queued"]);
 
-function formatEntryTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  // HH:MM — timeline-local times; the full date lives in the title tooltip.
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+/** 步骤（叙事流的行单位）：同一节点的事件归并成一步。 */
+interface StreamStep {
+  key: string;
+  name: string;
+  memberName: string | null;
+  status: string;
+  firstAt: string;
+  lastAt: string;
+  artifact: OrchestrationRuntimeArtifact | null;
 }
 
-/** 结构化时间线 → 文案（全部走 i18n；修复旧链服务端中文硬编码）。 */
-function useTimelineLabel() {
-  const { t } = useTranslation();
-  return useCallback(
-    (event: OrchestrationTimelineEvent): string => {
-      if (event.kind === "approval") return t("agent_teams_timeline_approval");
-      const statusKey = `agent_teams_status_${event.status}`;
-      const statusText = t(statusKey);
-      const status = statusText !== statusKey ? statusText : event.status;
-      if (event.kind === "node") return `${event.nodeName ?? event.nodeKey ?? ""} · ${status}`;
-      return status;
-    },
-    [t]
-  );
+function durationText(seconds: number): string {
+  if (seconds < 60) return `${Math.max(1, Math.floor(seconds))}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${Math.floor(seconds % 60)}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
 export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
@@ -78,8 +74,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
 }: WorkItemRuntimePanelProps) {
   const { t } = useTranslation();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
-  const timelineLabel = useTimelineLabel();
-  // 轮询只在进行中有意义；终态/未绑定停轮询（与旧 runtime-swr 同一原则）
+  // 执行中 2s 轮询（准直播），终态/未绑定停（#3）
   const {
     data: summary,
     mutate: mutateSummary,
@@ -91,7 +86,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     () => orchestrationService.getWorkItemRuntime(workspaceSlug, projectId, issueId),
     {
       refreshInterval: (latest: OrchestrationWorkItemRuntime | null | undefined) =>
-        latest && !TERMINAL.has(latest.businessStatus) ? 5000 : 0,
+        latest && !TERMINAL.has(latest.businessStatus) ? 2000 : 0,
       shouldRetryOnError: false,
     }
   );
@@ -99,10 +94,59 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   const timeline: OrchestrationTimelineEvent[] = summary?.timeline ?? [];
   const loading = isLoading && !summary;
   const [answering, setAnswering] = useState("");
-  const [timelineOpen, setTimelineOpen] = useState(true);
+  const [textAnswer, setTextAnswer] = useState("");
   const [cancelling, setCancelling] = useState(false);
-  // In-page artifact preview (§12.6) — replaces raw new-tab opens.
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [previewArtifact, setPreviewArtifact] = useState<OrchestrationRuntimeArtifact | null>(null);
+
+  const isActive = !!summary && !TERMINAL.has(summary.businessStatus);
+  // 秒级跳动：执行中每秒刷新一次（呼吸灯耗时的「活」感，#3 准直播）
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isActive) return;
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [isActive]);
+
+  // 叙事流步骤：事件按 nodeKey 归并（approval 事件并入同节点）
+  const steps: StreamStep[] = useMemo(() => {
+    const byNode = new Map<string, StreamStep>();
+    for (const event of summary?.timeline ?? []) {
+      if (event.kind === "execution" || !event.nodeKey) continue;
+      const name = event.nodeName || event.nodeKey;
+      const existing = byNode.get(event.nodeKey);
+      if (!existing) {
+        byNode.set(event.nodeKey, {
+          key: event.nodeKey, name, memberName: event.memberName ?? null,
+          status: event.status, firstAt: event.createdAt, lastAt: event.createdAt, artifact: null,
+        });
+      } else {
+        existing.lastAt = event.createdAt;
+        existing.status = event.status;
+        if (event.memberName) existing.memberName = event.memberName;
+      }
+    }
+    const result = Array.from(byNode.values());
+    // 产出挂到对应步骤（最新版本优先）
+    for (const artifact of summary?.artifacts ?? []) {
+      if (!artifact.nodeKey) continue;
+      const step = byNode.get(artifact.nodeKey);
+      if (step) step.artifact = artifact;
+    }
+    return result;
+  }, [summary]); // timeline/artifacts 均为 summary 派生，锚定整体引用
+
+  const currentStepKey = useMemo(() => {
+    if (summary?.pendingApproval) return summary.pendingApproval.nodeRef;
+    const active = steps.find((step) => STEP_ACTIVE.has(step.status));
+    return active?.key ?? null;
+  }, [steps, summary?.pendingApproval]);
+
+  // 自动滚动到当前步（面板在 peek 内滚动，nearest 不惊动页面）
+  const currentRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    currentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [currentStepKey]);
 
   const refresh = useCallback(async () => {
     await mutateSummary();
@@ -111,13 +155,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   // Runtime progress also lands in NATIVE Plane state and the activity feed —
   // neither refreshes on its own. When the runtime view advances, pull both.
   const { fetchIssue, fetchActivities } = useIssueDetail();
-  const runtimeSignature = [
-    summary?.businessStatus ?? "",
-    summary?.currentMemberName ?? "",
-    summary?.workflowStep ?? "",
-    timeline.length,
-  ].join("|");
-  // signature covers every input（避免 t 每渲染新引用进依赖导致的死循环教训）
+  const runtimeSignature = [summary?.businessStatus ?? "", summary?.currentMemberName ?? "", timeline.length].join("|");
   useEffect(() => {
     if (!summary) return;
     void fetchIssue(workspaceSlug, projectId, issueId);
@@ -126,12 +164,12 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   }, [runtimeSignature]);
 
   const handleAnswer = useCallback(
-    async (decision: "approved" | "rejected") => {
+    async (decision: "approved" | "rejected", reason: string) => {
       const approval = summary?.pendingApproval;
       if (!approval) return;
       setAnswering(decision);
       try {
-        await orchestrationService.answerApproval(workspaceSlug, approval.id, decision);
+        await orchestrationService.answerApproval(workspaceSlug, approval.id, decision, reason || undefined);
         await refresh();
       } catch {
         // Errors surface via the notifications inbox; the panel keeps its state.
@@ -181,7 +219,6 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       await orchestrationService.startExecution(workspaceSlug, projectId, issueId);
       setRetryConfirmOpen(false);
       // 串行有界重拉：终态无轮询可恢复，必须逐次确认（并行无意义）
-      // oxlint-disable-next-line eslint(no-await-in-loop)
       for (let attempt = 0; attempt < 10; attempt += 1) {
         // oxlint-disable-next-line eslint(no-await-in-loop)
         await refresh();
@@ -200,24 +237,100 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
 
   const isTerminal = summary ? TERMINAL.has(summary.businessStatus) : false;
 
+  const toggleStepExpanded = (key: string) => {
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  /** 步骤状态图标：完成✓ / 失败✗ / 跳过− / 当前（等待/执行中）呼吸点 */
+  const renderStepIcon = (step: StreamStep) => {
+    const isCurrent = step.key === currentStepKey;
+    if (step.status === "success") return <Check className="size-3.5 flex-shrink-0 text-green-500" aria-hidden />;
+    if (step.status === "failed") return <X className="size-3.5 flex-shrink-0 text-danger-primary" aria-hidden />;
+    if (step.status === "skipped") return <Minus className="size-3.5 flex-shrink-0 text-placeholder" aria-hidden />;
+    if (isCurrent) {
+      return (
+        <span className="relative grid size-3.5 flex-shrink-0 place-items-center" aria-hidden>
+          <span className="absolute inline-flex size-3.5 animate-ping rounded-full bg-accent-primary opacity-30" />
+          <span className="relative inline-flex size-2 rounded-full bg-accent-primary" />
+        </span>
+      );
+    }
+    return <span className="size-2 flex-shrink-0 rounded-full bg-[var(--text-color-secondary)]" aria-hidden />;
+  };
+
+  const stepDuration = (step: StreamStep): string | null => {
+    const start = new Date(step.firstAt).getTime();
+    if (Number.isNaN(start)) return null;
+    const end = step.key === currentStepKey && isActive ? nowTick : new Date(step.lastAt).getTime();
+    if (Number.isNaN(end) || end <= start) return null;
+    return durationText((end - start) / 1000);
+  };
+
+  const stepStatusText = (step: StreamStep): string => {
+    if (step.key === currentStepKey && summary?.pendingApproval) {
+      const waited = Math.round(((nowTick - new Date(step.firstAt).getTime()) || 0) / 60000);
+      return t("agent_teams_panel_waiting_for", { count: Math.max(waited, 1) });
+    }
+    const statusKey = `agent_teams_status_${step.status}`;
+    const statusText = t(statusKey);
+    return statusText !== statusKey ? statusText : step.status;
+  };
+
+  const renderConclusion = (step: StreamStep) => {
+    const content = step.artifact?.content?.trim();
+    if (!content) return null;
+    const expanded = expandedSteps.has(step.key);
+    const isLong = content.length > 80 || content.split("\n").length > 2;
+    return (
+      <div className="min-w-0">
+        <p
+          className={`whitespace-pre-wrap break-words text-caption-sm-regular text-tertiary ${
+            expanded ? "max-h-44 overflow-y-auto" : "line-clamp-2"
+          }`}
+        >
+          {content}
+        </p>
+        {isLong && (
+          <button
+            type="button"
+            onClick={() => toggleStepExpanded(step.key)}
+            className="mt-0.5 inline-flex items-center gap-0.5 text-caption-sm-medium text-accent-primary hover:text-accent-hover"
+          >
+            <ChevronDown className={`size-3 transition-transform ${expanded ? "-rotate-90" : ""}`} aria-hidden />
+            {expanded ? t("agent_teams_stream_collapse") : t("agent_teams_stream_expand")}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="w-full" data-issue-id={issueId}>
-      {/* Module header — mirrors the native "Properties" section header
-          (mt-5 text-body-xs-medium) so this reads as a sibling block, with
-          the Bot icon marking the agent-runtime domain. Deep-links to the
-          team page when the work item is runtime-managed. */}
+      {/* 区块标题：团队归属一行（链接直达团队页）——当前步骤即状态，
+          不再有独立状态条（#3 终版） */}
       <h5 className="mt-5 flex items-center gap-1.5 text-body-xs-medium text-accent-primary">
         <Bot className="size-3.5 flex-shrink-0" />
         {summary ? (
           <Link href={agentTeamDetailPath(summary.teamId)} className="hover:text-secondary">
-            {t("agent_teams_panel_title")}
+            {summary.teamName}
           </Link>
         ) : (
           t("agent_teams_panel_title")
         )}
+        {summary?.durationSeconds != null && (
+          <span className="ml-auto flex items-center gap-1 text-caption-sm-regular font-normal text-tertiary">
+            <Clock className="size-3" aria-hidden />
+            {durationText(summary.durationSeconds)}
+          </span>
+        )}
       </h5>
 
-      <div className="mt-4 mb-2">
+      <div className="mt-3 mb-2">
         {loading ? (
           <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">{t("agent_teams_inbox_loading")}</div>
         ) : pendingStart ? (
@@ -234,202 +347,115 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
             </button>
           </div>
         ) : !summary ? (
-          // 未绑定（无执行记录）：新域绑定即项目级，无旧链的投影延迟窗口
           <div className="px-0.5 py-1.5 text-body-xs-regular text-placeholder">{t("agent_teams_panel_not_bound")}</div>
         ) : (
           <>
-            {/* Row rhythm mirrors the native block: space-y-2.5, h-7.5 rows,
-                fixed w-30 label column — pixel-aligned with the properties
-                above. */}
-            <div className="space-y-2.5 truncate">
-              <SidebarPropertyListItem icon={Users} label={t("agent_teams_panel_team")} childrenClassName="px-2">
-                <span className="w-full truncate text-body-xs-regular leading-7.5">{summary.teamName}</span>
-              </SidebarPropertyListItem>
-              {summary.artifacts && summary.artifacts.length > 0 && (
-                <SidebarPropertyListItem
-                  icon={FileBox}
-                  label={t("agent_teams_panel_artifacts")}
-                  childrenClassName="px-2"
-                >
-                  <div className="flex w-full flex-col">
-                    {summary.artifacts.map((artifact) => (
-                      <button
-                        key={artifact.id}
-                        type="button"
-                        title={t("agent_teams_panel_artifact_open")}
-                        onClick={() => setPreviewArtifact(artifact)}
-                        className="group flex w-full items-center gap-1.5 rounded px-1 text-left hover:bg-layer-3"
-                      >
-                        <FileBox className="size-3 shrink-0 text-tertiary" aria-hidden />
-                        <span className="w-full truncate text-body-xs-regular leading-7.5">
-                          {artifact.name} · v{artifact.version}
-                        </span>
-                        <ExternalLink
-                          className="size-3 shrink-0 text-tertiary opacity-0 group-hover:text-secondary group-hover:opacity-100"
-                          aria-hidden
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </SidebarPropertyListItem>
-              )}
-            </div>
-
-            {/* Execution progress (design §12.3) — CI-style merged block: the
-                headline is "now" (status + member + step), the timeline below
-                is the explanation of how it got there. */}
-            <div className="relative mt-3 rounded-lg border border-subtle bg-layer-2 px-3.5 py-3">
-              {/* Layer 1 — headline. When a decision waits on THIS user the
-                  headline becomes the call to action: badge, what to decide,
-                  then the commands on their own line with breathing room. */}
-              {summary.pendingApproval ? (
-                <div className="flex flex-col gap-3 pr-6">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="inline-flex w-fit items-center rounded bg-accent-subtle px-2 py-0.5 text-caption-sm-medium text-accent-primary">
-                      {t("agent_teams_panel_approve_now")}
-                    </span>
-                    <span className="truncate text-body-xs-medium text-primary">
-                      {summary.pendingApproval.question || summary.pendingApproval.taskTitle || summary.workflowStep}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={answering !== ""}
-                      onClick={() => void handleAnswer("approved")}
-                      className="rounded-md bg-accent-primary px-3 py-1.5 text-caption-sm-medium text-on-color hover:bg-accent-primary-hover disabled:opacity-60"
-                    >
-                      {t("agent_teams_panel_approve")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={answering !== ""}
-                      onClick={() => void handleAnswer("rejected")}
-                      className="rounded-md bg-danger-primary px-3 py-1.5 text-caption-sm-medium text-on-color hover:bg-danger-primary-hover disabled:opacity-60"
-                    >
-                      {t("agent_teams_panel_reject")}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-6">
-                  {/* 与工作项属性面板同源的状态徽章（名+色）；无状态回退执行态文本 */}
-                  {summary.issueState ? (
-                    <span className="inline-flex items-center gap-1.5 text-caption-sm-medium text-secondary">
-                      <StateGroupIcon
-                        stateGroup={(summary.issueState.group ?? "started") as TStateGroups}
-                        color={summary.issueState.color}
-                        className="size-3.5 flex-shrink-0"
-                      />
-                      {summary.issueState.name}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center rounded bg-layer-3 px-2 py-0.5 text-caption-sm-medium text-secondary">
-                      {t(`agent_teams_status_${summary.businessStatus}`)}
-                    </span>
-                  )}
-                  {summary.currentMemberName && (
-                    <span className="inline-flex items-center gap-1 text-caption-sm-regular text-secondary">
-                      <User className="size-3" aria-hidden />
-                      {summary.currentMemberName}
-                    </span>
-                  )}
-                  {summary.workflowStep && (
-                    <span className="inline-flex items-center gap-1 text-caption-sm-regular text-tertiary">
-                      <GitBranch className="size-3" aria-hidden />
-                      <span className="max-w-[140px] truncate">{summary.workflowStep}</span>
-                    </span>
-                  )}
-                </div>
-              )}
-              {/* Layer 2 — meta strip: elapsed time on the left, the timeline
-                  toggle on the right. */}
-              {(summary.durationSeconds != null || timeline.length > 0) && (
-                <div className="mt-3 flex items-center justify-between border-t border-subtle pt-2.5">
-                  {summary.durationSeconds != null ? (
-                    <span className="flex items-center gap-1 text-caption-sm-regular text-tertiary">
-                      <Clock className="size-3" aria-hidden />
-                      {isTerminal
-                        ? t("agent_teams_panel_minutes", { count: Math.round(summary.durationSeconds / 60) })
-                        : summary.pendingApproval
-                          // 等待审批期间计的是「等待时长」而非执行时长——避免误读为
-                          // 执行一直在跑（人工可等数小时/数天，§2.6 durable wait）
-                          ? t("agent_teams_panel_waiting_for", { count: Math.round(summary.durationSeconds / 60) })
-                          : t("agent_teams_panel_elapsed", { count: Math.round(summary.durationSeconds / 60) })}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
-                  {timeline.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setTimelineOpen((prev) => !prev)}
-                      className="hover:text-secondary-hover flex items-center gap-1 text-caption-sm-medium text-tertiary"
-                    >
-                      <ChevronDown
-                        className={`size-3.5 transition-transform ${timelineOpen ? "" : "-rotate-90"}`}
-                        aria-hidden
-                      />
-                      {t("agent_teams_panel_timeline")}
-                    </button>
-                  )}
-                </div>
-              )}
-              {/* Layer 3 — timeline: past entries dimmed, the latest accented. */}
-              {timelineOpen && timeline.length > 0 && (
-                <div className="mt-2 flex flex-col">
-                  {timeline.map((entry, index) => {
-                    const isLatest = index === timeline.length - 1;
-                    return (
-                      <div key={entry.id} className={`relative py-2 pl-5 ${index === 0 ? "mt-1" : ""}`}>
-                        <div className="absolute top-0 bottom-0 left-[5px] w-px bg-layer-3" aria-hidden />
-                        <span
-                          className={`absolute top-1/2 left-[2.5px] size-1.5 -translate-y-1/2 rounded-full ${
-                            isLatest ? "bg-accent-primary" : "bg-[var(--text-color-secondary)]"
-                          }`}
-                          aria-hidden
-                        />
-                        <span
-                          className={`flex items-baseline justify-between gap-2 text-caption-sm-regular ${isLatest ? "text-secondary" : "text-tertiary"}`}
-                        >
-                          <span className="min-w-0 truncate">{timelineLabel(entry)}</span>
-                          <span
-                            className="shrink-0 text-[10px] text-placeholder tabular-nums"
-                            title={new Date(entry.createdAt).toLocaleString()}
-                          >
-                            {formatEntryTime(entry.createdAt)}
-                          </span>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Cancel — quiet destructive ghost action for non-terminal runs. */}
-            {!isTerminal && (
-              <div className="mt-3 flex items-center justify-end border-t border-subtle pt-2">
-                <button
-                  type="button"
-                  disabled={cancelling}
-                  onClick={() => void handleCancel()}
-                  className="text-caption-sm-regular text-tertiary hover:text-danger-primary disabled:opacity-60"
-                >
-                  {t("agent_teams_panel_cancel")}
-                </button>
+            {/* 终态一句话（成功/失败/取消）——流的收尾，不抢状态字段的活 */}
+            {isTerminal && summary.issueState && (
+              <div className="mb-2 flex items-center gap-1.5 text-caption-sm-medium text-secondary">
+                <StateGroupIcon
+                  stateGroup={(summary.issueState.group ?? "started") as TStateGroups}
+                  color={summary.issueState.color}
+                  className="size-3.5 flex-shrink-0"
+                />
+                {summary.issueState.name}
               </div>
             )}
-            {/* Retry — recovery action for terminal failures (§12.6.4). */}
-            {summary.retryable && isTerminal && (
-              <div className="mt-3 flex items-center justify-end border-t border-subtle pt-2">
-                <button
-                  type="button"
-                  onClick={() => setRetryConfirmOpen(true)}
-                  className="hover:text-accent-hover text-caption-sm-medium text-accent-primary"
-                >
-                  {t("agent_teams_panel_retry")}
-                </button>
+
+            {/* 单列叙事流：步骤 = 节点归并（名称 · 执行者 · 状态 · 耗时 · 结论内联） */}
+            <div className="flex flex-col">
+              {steps.map((step) => {
+                const isCurrent = step.key === currentStepKey;
+                const approval = isCurrent ? summary.pendingApproval : null;
+                const duration = stepDuration(step);
+                return (
+                  <div
+                    key={step.key}
+                    ref={isCurrent ? currentRef : undefined}
+                    className={`relative border-l py-1.5 pl-3 ${isCurrent ? "border-accent-primary" : "border-subtle"}`}
+                  >
+                    <div className="absolute top-[9px] -left-[7px] bg-transparent">{renderStepIcon(step)}</div>
+                    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                      <span className={`text-caption-sm-medium ${isCurrent ? "text-primary" : "text-secondary"}`}>
+                        {step.name}
+                      </span>
+                      {step.memberName && (
+                        <span className="text-caption-sm-regular text-tertiary">· {step.memberName}</span>
+                      )}
+                      <span
+                        className={`text-caption-sm-regular ${isCurrent ? "text-accent-primary" : "text-tertiary"}`}
+                      >
+                        · {stepStatusText(step)}
+                      </span>
+                      {duration && (
+                        <span className="text-[10px] tabular-nums text-placeholder" title={step.firstAt}>
+                          {duration}
+                        </span>
+                      )}
+                      {step.artifact && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewArtifact(step.artifact)}
+                          title={t("agent_teams_panel_artifact_open")}
+                          className="inline-flex items-center gap-0.5 text-caption-sm-medium text-accent-primary hover:text-accent-hover"
+                        >
+                          <FileBox className="size-3" aria-hidden />
+                          {t("agent_teams_stream_view_output")}
+                        </button>
+                      )}
+                    </div>
+                    {/* 每步结论一句内联（超两行截断就地展开，流管叙事详情管全文） */}
+                    {renderConclusion(step)}
+                    {/* 审批操作内嵌等待步骤（freeText/选项/批准-驳回三形态） */}
+                    {approval && (
+                      <div className="mt-1.5 flex flex-col gap-1.5 rounded-md bg-layer-2 px-2.5 py-2">
+                        <p className="line-clamp-3 whitespace-pre-wrap text-caption-sm-regular text-secondary">
+                          {approval.question || approval.taskTitle}
+                        </p>
+                        <ApprovalAnswerArea
+                          approval={{ freeText: approval.freeText, options: approval.options ?? [] }}
+                          answering={answering}
+                          textAnswer={textAnswer}
+                          onTextChange={setTextAnswer}
+                          onAnswer={(decision, reason) => void handleAnswer(decision, reason)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {/* 未来步骤「排队中」（剪枝感知） */}
+              {(summary.upcomingSteps ?? []).map((name) => (
+                <div key={`upcoming-${name}`} className="relative border-l border-dashed border-subtle py-1.5 pl-3">
+                  <span className="absolute top-[11px] -left-[4.5px] size-2 rounded-full border border-placeholder bg-transparent" aria-hidden />
+                  <span className="text-caption-sm-regular text-placeholder">
+                    {name} · {t("agent_teams_stream_queued")}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* 次要操作行：取消（进行中）/ 重试（终态可重试） */}
+            {(!isTerminal || summary.retryable) && (
+              <div className="mt-2 flex items-center justify-end border-t border-subtle pt-2">
+                {!isTerminal ? (
+                  <button
+                    type="button"
+                    disabled={cancelling}
+                    onClick={() => void handleCancel()}
+                    className="text-caption-sm-regular text-tertiary hover:text-danger-primary disabled:opacity-60"
+                  >
+                    {t("agent_teams_panel_cancel")}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setRetryConfirmOpen(true)}
+                    className="hover:text-accent-hover text-caption-sm-medium text-accent-primary"
+                  >
+                    {t("agent_teams_panel_retry")}
+                  </button>
+                )}
               </div>
             )}
           </>
