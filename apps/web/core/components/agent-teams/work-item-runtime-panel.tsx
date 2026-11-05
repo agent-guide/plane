@@ -57,6 +57,8 @@ interface StreamStep {
   lastAt: string;
   /** 节点输出正文（结论行：内联截断 + 就地展开，统一不走弹层）。 */
   output: string | null;
+  /** 审批/求助的答复文本（选项文案或人工补充资料）——状态位后缀呈现。 */
+  answer: string | null;
   artifact: OrchestrationRuntimeArtifact | null;
 }
 
@@ -129,17 +131,21 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           key: event.nodeKey,
           name,
           memberName: event.memberName ?? null,
-          status: event.status,
+          status: event.kind === "node" ? event.status : "pending",
           firstAt: event.createdAt,
           lastAt: event.createdAt,
           output: event.output ?? null,
+          answer: null,
           artifact: null,
         });
       } else {
         existing.lastAt = event.createdAt;
-        existing.status = event.status;
+        // 状态只由节点事件驱动：求助答复后同节点重跑（running）不得被
+        // 审批事件（approved）盖掉——曾致当前步识别丢失（无呼吸灯）
+        if (event.kind === "node") existing.status = event.status;
         if (event.memberName) existing.memberName = event.memberName;
-        if (event.output) existing.output = event.output; // 最新事件优先（成功事件在最后）
+        if (event.kind === "approval" && event.output) existing.answer = event.output;
+        else if (event.output) existing.output = event.output;
       }
     }
     const result = Array.from(byNode.values());
@@ -303,13 +309,12 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       const waited = Math.round((nowTick - new Date(step.firstAt).getTime() || 0) / 60000);
       return t("agent_teams_panel_waiting_for", { count: Math.max(waited, 1) });
     }
-    // 审批已作答：状态位显示所选选项文案（如「退回修改」）而非裸枚举
-    if ((step.status === "approved" || step.status === "rejected") && step.output) {
-      return step.output;
-    }
     const statusKey = `agent_teams_status_${step.status}`;
     const statusText = t(statusKey);
-    return statusText !== statusKey ? statusText : step.status;
+    const base =
+      statusText !== statusKey ? statusText : step.status === "pending" ? t("agent_teams_status_queued") : step.status;
+    // 已答复的审批/求助：答复作后缀（选项文案或人工补充），不顶掉节点状态
+    return step.answer ? `${base} · ${step.answer}` : base;
   };
 
   /** 结论行：所有产出统一内联折叠——超两行截断，就地展开看全文

@@ -400,6 +400,7 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                     agent_definition_id=node["expertId"], prompt=prompt, session_hint=f"{execution.id}:{node_key}")
                 # NEED_INPUT 协议（与条件分支文本匹配同级的轻量 act 约定）：
                 # 行首前缀整行命中才触发求助；匹配不到按普通输出收口（fail-safe）
+                _asked = False
                 if not human_answer and reply.lstrip().startswith("NEED_INPUT:"):
                     question = reply.lstrip()[len("NEED_INPUT:"):].strip() or "请补充资料"
                     _post_internal_event({
@@ -407,44 +408,48 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                         "eventType": "engine.agent_ask",
                         "payload": {"executionId": execution.id, "nodeKey": node_key, "question": question},
                     })
-                    return {"status": "asked", "execution": str(execution.id), "node": node_key}
-                result = {"status": "success", "output": reply[:20000]}
-                if labels:
-                    # 条件判定（等价旧 workflow_branching）：答复→分支名；未选→节点失败
-                    # 而不是猜一条路；选中后把不可达节点标 skipped（DAG observe 剪枝）
-                    chosen = match_branch_label(reply, labels)
-                    if chosen is None:
-                        _internal_node_call("POST", f"/api/internal/workflow-runs/{execution.engine_run_ref or execution.id}"
-                                            f"/nodes/{node_key}/fail/",
-                                            {"result": {"error": f"condition reply matches no branch: {reply[:200]}"}})
-                        raise RuntimeError(f"condition node {node_key} reply matches no branch")
-                    result["chosenBranch"] = chosen
-                    choices = dict(NodeRuntimeRecord.objects.filter(
-                        execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
-                    ).values_list("node_key", "result__chosenBranch"))
-                    choices[node_key] = chosen
-                    NodeRuntimeRecord.objects.filter(
-                        execution=execution, node_key__in=pruned_node_keys(definition, choices),
-                        status=NodeRuntimeRecord.Status.PENDING,
-                    ).update(status=NodeRuntimeRecord.Status.SKIPPED)
-                _internal_node_call("POST", f"/api/internal/workflow-runs/{execution.engine_run_ref or execution.id}"
-                                    f"/nodes/{node_key}/finish/",
-                                    {"result": result})
-                # 成果登记（等价旧 artifacts）：节点产出即成果事实，哈希=内容摘要
-                import hashlib as _hl
-                from .models import WorkItemArtifact
-                _digest = _hl.sha256(reply.encode()).hexdigest()
-                if not WorkItemArtifact.objects.filter(
-                        execution=execution, content_hash=_digest).exists():
-                    _last = WorkItemArtifact.objects.filter(execution=execution).order_by("-version").first()
-                    WorkItemArtifact.objects.create(
-                        execution=execution, issue_id=execution.issue_id, content_hash=_digest,
-                        version=(_last.version + 1) if _last else 1,
-                        storage_ref=f"orchestration://{execution.id}/{node_key}",
-                        source_run_ref=execution.engine_run_ref or execution.id,
-                        produced_by_id=(next((m.get("id") for m in (
-                            execution.frozen_context.get("members") or [])
-                            if m.get("kind") == "agent"), None)))
+                    # 求助即本命令完成：走下方 CONFIRMED 标记（曾误用 return
+                    # 退出整个消费循环——命令反复重投、后续命令饿死）
+                    _asked = True
+                if not _asked:
+                    result = {"status": "success", "output": reply[:20000]}
+                    if labels:
+                        # 条件判定（等价旧 workflow_branching）：答复→分支名；未选→节点失败
+                        # 而不是猜一条路；选中后把不可达节点标 skipped（DAG observe 剪枝）
+                        chosen = match_branch_label(reply, labels)
+                        if chosen is None:
+                            _internal_node_call("POST", f"/api/internal/workflow-runs/{execution.engine_run_ref or execution.id}"
+                                                f"/nodes/{node_key}/fail/",
+                                                {"result": {"error": f"condition reply matches no branch: {reply[:200]}"}})
+                            raise RuntimeError(f"condition node {node_key} reply matches no branch")
+                        result["chosenBranch"] = chosen
+                        choices = dict(NodeRuntimeRecord.objects.filter(
+                            execution=execution, status=NodeRuntimeRecord.Status.SUCCESS,
+                        ).values_list("node_key", "result__chosenBranch"))
+                        choices[node_key] = chosen
+                        NodeRuntimeRecord.objects.filter(
+                            execution=execution, node_key__in=pruned_node_keys(definition, choices),
+                            status=NodeRuntimeRecord.Status.PENDING,
+                        ).update(status=NodeRuntimeRecord.Status.SKIPPED)
+                    _internal_node_call("POST", f"/api/internal/workflow-runs/{execution.engine_run_ref or execution.id}"
+                                        f"/nodes/{node_key}/finish/",
+                                        {"result": result})
+                    # 成果登记（等价旧 artifacts）：节点产出即成果事实，哈希=内容摘要
+                    import hashlib as _hl
+                    from .models import WorkItemArtifact
+                    _digest = _hl.sha256(reply.encode()).hexdigest()
+                    if not WorkItemArtifact.objects.filter(
+                            execution=execution, content_hash=_digest).exists():
+                        _last = WorkItemArtifact.objects.filter(execution=execution).order_by("-version").first()
+                        WorkItemArtifact.objects.create(
+                            execution=execution, issue_id=execution.issue_id, content_hash=_digest,
+                            version=(_last.version + 1) if _last else 1,
+                            storage_ref=f"orchestration://{execution.id}/{node_key}",
+                            source_run_ref=execution.engine_run_ref or execution.id,
+                            produced_by_id=(next((m.get("id") for m in (
+                                execution.frozen_context.get("members") or [])
+                                if m.get("kind") == "agent"), None)))
+
             elif command.command_type == "engine.cancel":
                 # 取消（等价旧取消命令）：Airflow 侧同步终止 run，
                 # 执行终态已在端点置位（引擎 sensor 后续 poke 由终态判定收敛）
