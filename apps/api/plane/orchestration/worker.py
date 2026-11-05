@@ -399,6 +399,12 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                         "必须再次以 NEED_INPUT: <原因与所需内容> 提问，不得直接采纳。")
                 reply = invoke_agent_node(
                     agent_definition_id=node["expertId"], prompt=prompt, session_hint=f"{execution.id}:{node_key}")
+                # 空回复守卫：模型偶发空补全（2026-11-05 WB-2005 录入 720 字节
+                # 无 delta 事件），曾空串当成功收口、链路"假完成"。抛错走
+                # 重试预算阶梯（瞬时类），预算耗尽才终局。
+                if not reply.strip():
+                    raise RuntimeError(
+                        f"agent {node.get('expertId')} returned empty reply for node {node_key}")
                 # NEED_INPUT 协议（与条件分支文本匹配同级的轻量 act 约定）：
                 # 行首前缀整行命中才触发求助；匹配不到按普通输出收口（fail-safe）
                 _asked = False
