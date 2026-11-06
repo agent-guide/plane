@@ -1188,7 +1188,11 @@ class DagNodeStartView(DagNodeRuntimeBase):
         # sensor 超时重试会重打 start——不得把已 SUCCESS 的记录重置 RUNNING
         # （曾致旁路重跑的收口被盖掉、DAG 永久卡死），也不得对同一 attempt
         # 重复入队 agent.invoke（幂等键兜底外的第二道闸）
-        if record.status == NodeRuntimeRecord.Status.SUCCESS:
+        if record.status in (NodeRuntimeRecord.Status.SUCCESS,
+                             NodeRuntimeRecord.Status.FAILED,
+                             NodeRuntimeRecord.Status.CANCELLED):
+            # FAILED/CANCELLED 同样不可复活：执行终局后 Airflow sensor 超时
+            # 重试曾把 FAILED 记录重置 RUNNING（重入队撞死命令 → 永久僵尸）
             return Response({"accepted": True, "status": record.status})
         attempt = int(request.data.get("attempt", 1))
         if OrchestrationOutbox.objects.filter(

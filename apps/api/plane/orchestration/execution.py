@@ -305,6 +305,12 @@ def on_engine_terminal(*, execution_id: str, event_id: str, engine_status: str) 
         raise TeamDomainError(400, "ENGINE_STATUS_UNKNOWN", f"Unknown engine terminal status: {engine_status}")
     ex = _load_active(execution_id)
     settled = transition_execution(execution=ex, target=target, event_id=event_id)
+    # 终局统一收口在跑节点记录（running→cancelled）：Airflow sensor 不会立即
+    # 感知执行已终局，残留 running 会让叙事流显示"执行中"呼吸灯
+    from .node_runtime import NodeRuntimeRecord
+    settled.node_records.filter(
+        status=NodeRuntimeRecord.Status.RUNNING,
+    ).update(status=NodeRuntimeRecord.Status.CANCELLED)
     from .models import BusinessApproval
     from django.utils import timezone as dj_tz
     BusinessApproval.objects.filter(
