@@ -276,6 +276,12 @@ def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> Wor
     # （如 Waiting Confirmation），看板上成为可自由拖动的「假活跃」脏卡
     from .issue_state_sync import sync_issue_state
     sync_issue_state(issue=execution.issue, business_status="cancelled")
+    # 收口在跑节点记录（running→cancelled）：否则叙事流把残留 running
+    # 当「当前步」显示呼吸灯（WB-4003 终止后主管批准仍在"执行中"实证）
+    from .node_runtime import NodeRuntimeRecord
+    execution.node_records.filter(
+        status=NodeRuntimeRecord.Status.RUNNING,
+    ).update(status=NodeRuntimeRecord.Status.CANCELLED)
     # 作废待审批（收件箱不残留已取消执行的待办）
     execution.approvals.filter(result=BusinessApproval.Result.PENDING).update(
         result=BusinessApproval.Result.REJECTED, reason="执行已取消", answered_at=dj_tz.now())

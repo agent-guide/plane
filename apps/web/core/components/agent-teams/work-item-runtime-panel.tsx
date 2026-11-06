@@ -281,6 +281,9 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     if (step.status === "skipped") {
       return <Minus className="size-4 flex-shrink-0 text-placeholder" strokeWidth={2.5} aria-hidden />;
     }
+    if (step.status === "cancelled") {
+      return <X className="size-4 flex-shrink-0 text-placeholder" strokeWidth={2.5} aria-hidden />;
+    }
     if (isCurrent) {
       return (
         <span className="relative grid size-4 flex-shrink-0 place-items-center" aria-hidden>
