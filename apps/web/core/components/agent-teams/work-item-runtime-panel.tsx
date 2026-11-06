@@ -282,7 +282,12 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       return <Minus className="size-4 flex-shrink-0 text-placeholder" strokeWidth={2.5} aria-hidden />;
     }
     if (step.status === "cancelled") {
-      return <X className="size-4 flex-shrink-0 text-placeholder" strokeWidth={2.5} aria-hidden />;
+      // 语义区分：失败执行中的未完成步骤=中止（−）；取消执行=已取消（✗）
+      return summary?.businessStatus === "failed" ? (
+        <Minus className="size-4 flex-shrink-0 text-placeholder" strokeWidth={2.5} aria-hidden />
+      ) : (
+        <X className="size-4 flex-shrink-0 text-placeholder" strokeWidth={2.5} aria-hidden />
+      );
     }
     if (isCurrent) {
       return (
@@ -311,6 +316,9 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     if (step.key === currentStepKey && summary?.pendingApproval) {
       const waited = Math.round((nowTick - new Date(step.firstAt).getTime() || 0) / 60000);
       return t("agent_teams_panel_waiting_for", { count: Math.max(waited, 1) });
+    }
+    if (step.status === "cancelled" && summary?.businessStatus === "failed") {
+      return t("agent_teams_status_aborted");
     }
     const statusKey = `agent_teams_status_${step.status}`;
     const statusText = t(statusKey);

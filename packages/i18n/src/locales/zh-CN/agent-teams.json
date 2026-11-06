@@ -68,6 +68,7 @@
   "agent_teams_status_blocked": "已阻塞",
   "agent_teams_status_failed": "失败",
   "agent_teams_status_completed": "已完成",
+  "agent_teams_status_aborted": "已中止",
   "agent_teams_status_cancelled": "已取消",
   "agent_teams_status_accepted": "已接受",
   "agent_teams_status_timed_out": "已超时",

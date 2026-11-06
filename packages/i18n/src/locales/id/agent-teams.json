@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "Diblokir",
   "agent_teams_status_failed": "Gagal",
   "agent_teams_status_completed": "Selesai",
+  "agent_teams_status_aborted": "Dihentikan",
   "agent_teams_status_cancelled": "Dibatalkan",
   "agent_teams_status_accepted": "Diterima",
   "agent_teams_status_timed_out": "Kedaluwarsa",

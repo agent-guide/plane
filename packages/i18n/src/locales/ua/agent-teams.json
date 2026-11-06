@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "Заблоковано",
   "agent_teams_status_failed": "Помилка",
   "agent_teams_status_completed": "Завершено",
+  "agent_teams_status_aborted": "Перервано",
   "agent_teams_status_cancelled": "Скасовано",
   "agent_teams_status_accepted": "Прийнято",
   "agent_teams_status_timed_out": "Час вичерпано",

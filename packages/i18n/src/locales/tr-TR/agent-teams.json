@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "Engellendi",
   "agent_teams_status_failed": "Başarısız",
   "agent_teams_status_completed": "Tamamlandı",
+  "agent_teams_status_aborted": "Durduruldu",
   "agent_teams_status_cancelled": "İptal edildi",
   "agent_teams_status_accepted": "Kabul edildi",
   "agent_teams_status_timed_out": "Zaman aşımı",

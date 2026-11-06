@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "ブロック中",
   "agent_teams_status_failed": "失敗",
   "agent_teams_status_completed": "完了",
+  "agent_teams_status_aborted": "中断",
   "agent_teams_status_cancelled": "キャンセル済み",
   "agent_teams_status_accepted": "受理済み",
   "agent_teams_status_timed_out": "タイムアウト",

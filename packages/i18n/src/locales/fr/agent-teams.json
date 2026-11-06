@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "Bloqué",
   "agent_teams_status_failed": "Échec",
   "agent_teams_status_completed": "Terminé",
+  "agent_teams_status_aborted": "Interrompu",
   "agent_teams_status_cancelled": "Annulé",
   "agent_teams_status_accepted": "Accepté",
   "agent_teams_status_timed_out": "Expiré",

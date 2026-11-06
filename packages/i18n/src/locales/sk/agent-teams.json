@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "Blokované",
   "agent_teams_status_failed": "Zlyhalo",
   "agent_teams_status_completed": "Dokončené",
+  "agent_teams_status_aborted": "Prerušené",
   "agent_teams_status_cancelled": "Zrušené",
   "agent_teams_status_accepted": "Prijaté",
   "agent_teams_status_timed_out": "Vypršalo",

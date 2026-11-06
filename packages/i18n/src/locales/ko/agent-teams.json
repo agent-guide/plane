@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "차단됨",
   "agent_teams_status_failed": "실패",
   "agent_teams_status_completed": "완료",
+  "agent_teams_status_aborted": "중단됨",
   "agent_teams_status_cancelled": "취소됨",
   "agent_teams_status_accepted": "수락됨",
   "agent_teams_status_timed_out": "시간 초과",

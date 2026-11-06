@@ -145,53 +145,30 @@ class OutboxConsumerTests(TestCase):
 class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
     """agent.invoke 失败回投节点失败（失败可见性：不等 execution_timeout）。"""
 
-    def test_failed_invoke_defers_to_engine_retry(self):
+    def test_invoke_failure_marks_node_record_failed_only(self):
+        """新契约（2026-11-06 重试权威唯一归 Airflow）：worker 失败只把节点
+        记录置 FAILED+错误文本，零终局权、零内部回投——重试由引擎
+        RetryPolicy 重打 start 驱动，终局由 run 级对账收敛。"""
         from unittest.mock import patch
-        from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord
+        from plane.orchestration.models import WorkItemExecution, OrchestrationOutbox, NodeRuntimeRecord
         ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
         on_engine_started(execution_id=ex.id, event_id="seed2", engine_run_ref=ex.id)
         WorkItemExecution.objects.filter(id=ex.id).update(business_status="running")
+        NodeRuntimeRecord.objects.create(execution=ex, node_key="analyze_0", attempt=1)
         import hashlib, json as _json
         payload = {"executionId": ex.id, "nodeKey": "analyze_0", "attempt": 1}
         OrchestrationOutbox.objects.create(
             idempotency_key=f"agent_call:{ex.id}:analyze_0:1",
             command_type="agent.invoke", payload=payload,
             payload_hash=hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest())
-        posted = {}
-        def fake_post(method, path, body):
-            posted["path"], posted["body"] = path, body
-        with patch("plane.orchestration.worker._internal_node_call", side_effect=fake_post):
+        with patch("plane.orchestration.worker._internal_node_call") as pc:
             with patch("plane.orchestration.worker.invoke_agent_node",
-                       side_effect=RuntimeError("agent gateway down")):
-                stats = process_outbox_once(dag_root=None)
-        self.assertGreaterEqual(stats["failed"], 1)  # engine.start 也可能因 Airflow 未配置失败
-        cmd = OrchestrationOutbox.objects.get(idempotency_key=f"agent_call:{ex.id}:analyze_0:1")
-        self.assertEqual(cmd.state, OrchestrationOutbox.State.FAILED)
-        # 新契约（2026-11-05）：不立即回投节点失败——立即终态会与 Airflow
-        # 任务重试竞态（重试成功后「节点全绿+落库+执行 failed」不一致）。
-        # 记录保持 running 由引擎重试阶梯接管；此处验证未回投。
-        self.assertEqual(posted.get("path"), None)
-
-    def test_exhausted_retry_budget_posts_node_fail(self):
-        """attempt 超节点重试预算：立即回投终局（失败可见不等 run 级对账）。"""
-        from unittest.mock import patch
-        from plane.orchestration.models import WorkItemExecution, OrchestrationOutbox
-        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
-        on_engine_started(execution_id=ex.id, event_id="seed3", engine_run_ref=ex.id)
-        WorkItemExecution.objects.filter(id=ex.id).update(business_status="running")
-        import hashlib, json as _json
-        payload = {"executionId": ex.id, "nodeKey": "analyze_0", "attempt": 99}
-        OrchestrationOutbox.objects.create(
-            idempotency_key=f"agent_call:{ex.id}:analyze_0:99",
-            command_type="agent.invoke", payload=payload,
-            payload_hash=hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest())
-        posted = {}
-        def fake_post(method, path, body):
-            posted["path"], posted["body"] = path, body
-        with patch("plane.orchestration.worker._internal_node_call", side_effect=fake_post):
-            with patch("plane.orchestration.worker.invoke_agent_node",
-                       side_effect=RuntimeError("permanent gateway outage")):
+                       side_effect=RuntimeError("gateway hiccup")):
                 process_outbox_once(dag_root=None)
-        self.assertIn("/nodes/analyze_0/fail/", posted.get("path", ""))
-        self.assertIn("permanent gateway outage",
-                      str(posted["body"].get("result", {}).get("error", "")))
+            pc.assert_not_called()  # 不回投、不判终局
+        record = NodeRuntimeRecord.objects.get(execution=ex, node_key="analyze_0")
+        self.assertEqual(record.status, NodeRuntimeRecord.Status.FAILED)
+        self.assertIn("gateway hiccup", str(record.result.get("error", "")))
+        ex.refresh_from_db()
+        self.assertEqual(ex.business_status, "running")  # 执行不因 worker 失败终局
+

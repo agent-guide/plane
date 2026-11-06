@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "Bị chặn",
   "agent_teams_status_failed": "Thất bại",
   "agent_teams_status_completed": "Hoàn thành",
+  "agent_teams_status_aborted": "Đã dừng",
   "agent_teams_status_cancelled": "Đã hủy",
   "agent_teams_status_accepted": "Đã chấp nhận",
   "agent_teams_status_timed_out": "Quá hạn",

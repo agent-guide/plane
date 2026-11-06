@@ -399,9 +399,12 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                         "必须再次以 NEED_INPUT: <原因与所需内容> 提问，不得直接采纳。")
                 reply = invoke_agent_node(
                     agent_definition_id=node["expertId"], prompt=prompt, session_hint=f"{execution.id}:{node_key}")
-                # 空回复守卫：模型偶发空补全（2026-11-05 WB-2005 录入 720 字节
-                # 无 delta 事件），曾空串当成功收口、链路"假完成"。抛错走
-                # 重试预算阶梯（瞬时类），预算耗尽才终局。
+                # 空回复（模型偶发空补全）：就地重试一次（SDK 惯例），仍空
+                # 报失败交引擎重试线——空串当成功曾是"假完成"漏洞
+                if not reply.strip():
+                    reply = invoke_agent_node(
+                        agent_definition_id=node["expertId"], prompt=prompt,
+                        session_hint=f"{execution.id}:{node_key}")
                 if not reply.strip():
                     raise RuntimeError(
                         f"agent {node.get('expertId')} returned empty reply for node {node_key}")
@@ -479,46 +482,27 @@ def process_outbox_once(*, dag_root: Path) -> dict:
             command.attempts += 1
             command.save(update_fields=["state", "attempts", "updated_at"])
             stats["failed"] += 1
-            # agent 调用异常的重试预算感知处置（2026-11-05 定案）：
-            # - attempt 未超节点 retries 预算（网关瞬时错误）：不投节点失败——
-            #   立即终态曾与 Airflow 任务重试竞态，重试成功后出现「节点全绿 +
-            #   tsw 已落库 + 执行 failed」不一致。记录保持 running，重试阶梯：
-            #   sensor 超时→任务重试→start attempt+1→重投。
-            # - attempt 超预算（永久失败）：立即投终局保「失败可见」（D 票
-            #   故障注入桥段依赖分钟级可见，不等 run 级对账）。
+            # 失败处置（2026-11-06 定案：重试权威唯一归 Airflow RetryPolicy）：
+            # worker 零终局权——只把节点记录置 FAILED+错误文本（observe 秒级
+            # 感知 → Airflow 任务失败按其 retries 重试 → start 以记录级单调
+            # attempt 创建新命令 → 耗尽后 run failed 由 reconcile 收终局）。
+            # 曾有预算判定+立即终局投递：与 Airflow 重试线打架，产生节点全绿
+            # 执行 failed / FAILED 记录被 sensor 重试复活等双线竞态，全数移除。
             if command.command_type == "agent.invoke":
                 import logging
-                from .dag_publication import AI_DEFAULT_RETRIES
-                attempt = int(command.payload.get("attempt", 1) or 1)
-                budget = None
+                from .node_runtime import NodeRuntimeRecord
+                logging.getLogger("plane.orchestration").warning(
+                    "agent invoke failed (engine retry ladder takes over): %s:%s err=%s",
+                    command.payload.get("executionId"), command.payload.get("nodeKey"),
+                    str(exc)[:300])
                 try:
-                    _ex = WorkItemExecution.objects.select_related(
-                        "binding__workflow_version").get(id=command.payload["executionId"])
-                    _node = next((n for n in (
-                        _ex.binding.workflow_version.definition or {}).get("nodes") or []
-                        if n.get("key") == command.payload.get("nodeKey")), {})
-                    budget = (int(_node.get("retries")) if _node.get("retries") is not None
-                              else AI_DEFAULT_RETRIES) + 1
+                    NodeRuntimeRecord.objects.filter(
+                        execution_id=command.payload["executionId"],
+                        node_key=command.payload["nodeKey"],
+                    ).update(status=NodeRuntimeRecord.Status.FAILED,
+                             result={"error": str(exc)[:2000], "attempt": command.payload.get("attempt", 1)})
                 except Exception:
-                    pass  # 定义读不到（执行已删等）：走保守立即失败路径
-                if budget and attempt < budget:
-                    logging.getLogger("plane.orchestration").warning(
-                        "agent invoke transient failure (engine retry ladder, attempt %d/%d): %s:%s err=%s",
-                        attempt, budget, command.payload.get("executionId"),
-                        command.payload.get("nodeKey"), str(exc)[:300])
-                else:
-                    try:
-                        _internal_node_call(
-                            "POST",
-                            f"/api/internal/workflow-runs/{command.payload['executionId']}/nodes/"
-                            f"{command.payload['nodeKey']}/fail/",
-                            {"eventId": f"outbox-fail:{command.id}", "eventType": "node.failed",
-                             "attempt": attempt,
-                             "payload": {"nodeKey": command.payload["nodeKey"]},
-                             "result": {"error": str(exc)[:2000]}},
-                        )
-                    except Exception:
-                        pass  # 回投失败不掩盖主错误；节点由引擎超时兜底
+                    pass  # 记录写不进（执行已删等）：节点由引擎超时兜底
     return stats
 
 

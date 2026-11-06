@@ -68,6 +68,7 @@
   "agent_teams_status_blocked": "Blocked",
   "agent_teams_status_failed": "Failed",
   "agent_teams_status_completed": "Completed",
+  "agent_teams_status_aborted": "Aborted",
   "agent_teams_status_cancelled": "Cancelled",
   "agent_teams_status_accepted": "Accepted",
   "agent_teams_status_timed_out": "Timed out",

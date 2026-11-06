@@ -70,6 +70,7 @@
   "agent_teams_status_blocked": "Blocat",
   "agent_teams_status_failed": "Eșuat",
   "agent_teams_status_completed": "Finalizat",
+  "agent_teams_status_aborted": "Întrerupt",
   "agent_teams_status_cancelled": "Anulat",
   "agent_teams_status_accepted": "Acceptat",
   "agent_teams_status_timed_out": "Expirat",

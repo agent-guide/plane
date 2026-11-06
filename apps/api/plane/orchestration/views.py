@@ -1184,31 +1184,25 @@ class DagNodeStartView(DagNodeRuntimeBase):
         if not execution:
             return Response({"error": "run not found"}, status=404)
         record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
-        # start 幂等守卫（2026-11-05 求助竞态）：人工答复等待期 Airflow 任务
-        # sensor 超时重试会重打 start——不得把已 SUCCESS 的记录重置 RUNNING
-        # （曾致旁路重跑的收口被盖掉、DAG 永久卡死），也不得对同一 attempt
-        # 重复入队 agent.invoke（幂等键兜底外的第二道闸）
+        # start 幂等守卫：SUCCESS/CANCELLED 不可复活（终局后 sensor 重试曾把
+        # 记录拉回 RUNNING 造成僵尸）。FAILED 允许重试重驱——Airflow
+        # RetryPolicy 重打 start 即引擎的重试意志；attempt 用记录级单调自增
+        # （不信 Airflow try_number：答复路径旁路重跑与其编号撞车——WB-4004
+        # 双线竞态实证），确保每次入队都是全新 pending 命令
         if record.status in (NodeRuntimeRecord.Status.SUCCESS,
-                             NodeRuntimeRecord.Status.FAILED,
                              NodeRuntimeRecord.Status.CANCELLED):
-            # FAILED/CANCELLED 同样不可复活：执行终局后 Airflow sensor 超时
-            # 重试曾把 FAILED 记录重置 RUNNING（重入队撞死命令 → 永久僵尸）
             return Response({"accepted": True, "status": record.status})
-        attempt = int(request.data.get("attempt", 1))
-        if OrchestrationOutbox.objects.filter(
-            idempotency_key=f"agent_call:{execution.id}:{node_key}:{attempt}"
-        ).exclude(state=OrchestrationOutbox.State.FAILED).exists():
-            record.status = NodeRuntimeRecord.Status.RUNNING
-            record.attempt = attempt
-            record.save(update_fields=["status", "attempt", "updated_at"])
-            return Response({"accepted": True, "status": record.status})
+        _key_exists = OrchestrationOutbox.objects.filter(
+            idempotency_key=f"agent_call:{execution.id}:{node_key}:{record.attempt}"
+        ).exists()
+        if record.status == NodeRuntimeRecord.Status.FAILED or _key_exists:
+            record.attempt = record.attempt + 1
         definition = (execution.binding.workflow_version.definition or {})
         # 剪枝闸门：条件已选别的分支时 start 直接判 skipped（handoff/命令都不发）
         if self._prune_if_unreachable(execution, definition, node_key):
             record.refresh_from_db()
             return Response({"accepted": True, "status": record.status})
         record.status = NodeRuntimeRecord.Status.RUNNING
-        record.attempt = int(request.data.get("attempt", 1))
         record.last_event_id = request.data.get("eventId", "")
         record.save()
         # 按发布版本 definition 的节点类型分派：人工节点 → handoff（waiting_human
