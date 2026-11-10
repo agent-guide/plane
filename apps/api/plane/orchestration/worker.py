@@ -211,15 +211,28 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
     context = call("POST", f"/deployments/{deployment['id']}/invocations", {})
 
     # ③ turn：SSE 聚合（节点超时预算 + 回调余量；builtin 直答通常 <60s）
-    req = urllib.request.Request(
-        f"{base}/invocations/{context['id']}/turn", method="POST",
-        data=json.dumps({"input": prompt, "session_id": session_hint}).encode(),
-        headers=headers)
-    # SSE 信封：event: <type> / data: {json}——delta 事件取 text 聚合；
-    # error 事件显式抛错（不静默空回复）
+    # 会话字段按运行时自适应（2026-11-10 ACP 员工接入实证）：builtin 禁带
+    # thread_id、ACP 必带且禁用未知 session_id——先按 builtin 历史形状发，
+    # 收到「ACP 需要 thread_id」错误后换 ACP 形状重试（不带 session_id，
+    # ACP 的 session 由网关分配，客户端不能自造）。
+    def open_turn(payload: dict):
+        return urllib.request.Request(
+            f"{base}/invocations/{context['id']}/turn", method="POST",
+            data=json.dumps(payload).encode(),
+            headers=headers)
+
     pieces: list[str] = []
     event_type = ""
-    with _local_opener.open(req, timeout=600) as response:
+    try:
+        response_ctx = _local_opener.open(open_turn({"input": prompt, "session_id": session_hint}), timeout=600)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:300]
+        if "thread_id is required for ACP invocation" not in detail:
+            raise
+        response_ctx = _local_opener.open(open_turn({"input": prompt, "thread_id": session_hint}), timeout=600)
+    with response_ctx as response:
+        # SSE 信封：event: <type> / data: {json}——delta 事件取 text 聚合；
+        # error 事件显式抛错（不静默空回复）
         for raw in response:
             line = raw.decode("utf-8", "replace").strip()
             if line.startswith("event: "):
