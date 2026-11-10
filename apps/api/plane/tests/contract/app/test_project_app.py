@@ -129,6 +129,27 @@ class TestProjectAPIPost(TestProjectBase):
         assert ProjectUserProperty.objects.filter(project=project).count() == 2
 
     @pytest.mark.django_db
+    def test_recreate_after_soft_delete_reuses_name_and_identifier(self, session_client, workspace, create_user):
+        """Regression: deletion is soft, but the ProjectIdentifier reservation
+        must be released so the same name/identifier can be reused — past
+        behavior was IntegrityError → 400 "The payload is not valid"."""
+        url = self.get_project_url(workspace.slug)
+        payload = {"name": "Recreate Probe", "identifier": "RCP"}
+
+        # Create then soft-delete.
+        assert session_client.post(url, payload, format="json").status_code == status.HTTP_201_CREATED
+        project = Project.objects.get(name="Recreate Probe")
+        project.delete()  # soft delete (sets deleted_at)
+        assert Project.objects.count() == 0
+
+        # Recreate with the same name and identifier.
+        response = session_client.post(url, payload, format="json")
+        assert response.status_code == status.HTTP_201_CREATED, f"Got {response.status_code}: {response.data!r}"
+        recreated = Project.objects.get(name="Recreate Probe")
+        assert recreated.id != project.id
+        assert ProjectMember.objects.filter(project=recreated, member=create_user, role=20).count() == 1
+
+    @pytest.mark.django_db
     def test_create_project_guest_forbidden(self, session_client, workspace):
         """Test that guests cannot create projects"""
         guest_user = User.objects.create_user(email="guest@example.com", username="guest")

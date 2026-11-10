@@ -20,6 +20,7 @@ from plane.bgtasks.webhook_task import model_activity
 from plane.db.models import (
     DEFAULT_STATES,
     EXTERNAL_STATE_SOURCE,
+    ProjectIdentifier,
     ProjectMember,
     State,
 )
@@ -55,6 +56,20 @@ def create_project_with_defaults(*, serializer, actor, requested_data, origin):
         The saved Project instance.
     """
     with transaction.atomic():
+        # Release the identifier reservation held by soft-deleted projects:
+        # project deletion is soft, but ProjectIdentifier rows survive it
+        # (the FK only cascades on hard delete) and their uniqueness
+        # constraint covers deleted_at IS NULL rows — so recreating a
+        # project with the same identifier would hit IntegrityError even
+        # though no visible project uses it.
+        identifier = serializer.validated_data.get("identifier")
+        if identifier:
+            ProjectIdentifier.objects.filter(
+                workspace_id=serializer.context["workspace_id"],
+                name=identifier,
+                project__deleted_at__isnull=False,
+            ).delete()
+
         serializer.save()
         project = serializer.instance
 
