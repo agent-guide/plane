@@ -25,6 +25,7 @@ from plane.app.serializers import (
 from plane.app.views.base import BaseAPIView, BaseViewSet
 from plane.bgtasks.recent_visited_task import recent_visited_task
 from plane.bgtasks.webhook_task import model_activity, webhook_activity
+from plane.services.project import create_project_with_defaults
 from plane.db.models import (
     UserFavorite,
     DeployBoard,
@@ -34,9 +35,6 @@ from plane.db.models import (
     ProjectMember,
     ProjectNetwork,
     ProjectUserProperty,
-    State,
-    DEFAULT_STATES,
-    EXTERNAL_STATE_SOURCE,
     Workspace,
     WorkspaceMember,
 )
@@ -261,56 +259,17 @@ class ProjectViewSet(BaseViewSet):
 
         serializer = ProjectSerializer(data={**request.data}, context={"workspace_id": workspace.id})
         if serializer.is_valid():
-            serializer.save()
-
-            # Add the user as Administrator to the project
-            _ = ProjectMember.objects.create(
-                project_id=serializer.data["id"],
-                member=request.user,
-                role=ROLE.ADMIN.value,
-            )
-
-            if serializer.data["project_lead"] is not None and str(serializer.data["project_lead"]) != str(
-                request.user.id
-            ):
-                ProjectMember.objects.create(
-                    project_id=serializer.data["id"],
-                    member_id=serializer.data["project_lead"],
-                    role=ROLE.ADMIN.value,
-                )
-
-            State.objects.bulk_create(
-                [
-                    State(
-                        name=state["name"],
-                        color=state["color"],
-                        project=serializer.instance,
-                        sequence=state["sequence"],
-                        workspace=serializer.instance.workspace,
-                        group=state["group"],
-                        default=state.get("default", False),
-                        external_source=(
-                            EXTERNAL_STATE_SOURCE if state.get("external_id") else None
-                        ),
-                        external_id=state.get("external_id"),
-                        created_by=request.user,
-                    )
-                    for state in DEFAULT_STATES
-                ]
-            )
-
-            project = self.get_queryset().filter(pk=serializer.data["id"]).first()
-
-            # Create the model activity
-            model_activity.delay(
-                model_name="project",
-                model_id=str(project.id),
+            # Creation orchestration (transaction, memberships, default
+            # states, deferred activity) lives in the shared service so the
+            # app and public-API surfaces cannot drift apart again.
+            project = create_project_with_defaults(
+                serializer=serializer,
+                actor=request.user,
                 requested_data=request.data,
-                current_instance=None,
-                actor_id=request.user.id,
-                slug=slug,
                 origin=base_host(request=request, is_app=True),
             )
+
+            project = self.get_queryset().filter(pk=project.id).first()
 
             serializer = ProjectListSerializer(project)
             return Response(serializer.data, status=status.HTTP_201_CREATED)

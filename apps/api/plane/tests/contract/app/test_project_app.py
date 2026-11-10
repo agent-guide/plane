@@ -89,12 +89,17 @@ class TestProjectAPIPost(TestProjectBase):
         # Verify ProjectUserProperty was created
         assert ProjectUserProperty.objects.filter(project=project, user=user).exists()
 
-        # Verify default states were created
+        # Verify default states were created (this fork extends DEFAULT_STATES
+        # with orchestration states — assert against the source of truth).
+        from plane.db.models import DEFAULT_STATES
+
         states = State.objects.filter(project=project)
-        assert states.count() == 5
-        expected_states = ["Backlog", "Todo", "In Progress", "Done", "Cancelled"]
+        # The default manager hides the triage state; it exists via triage_objects.
+        assert states.count() == len(DEFAULT_STATES) - 1
+        expected_states = [state["name"] for state in DEFAULT_STATES if state["name"] != "Triage"]
         state_names = list(states.values_list("name", flat=True))
         assert set(state_names) == set(expected_states)
+        assert State.triage_objects.filter(project=project, name="Triage").exists()
 
     @pytest.mark.django_db
     def test_create_project_with_project_lead(self, session_client, workspace, create_user):
@@ -198,6 +203,44 @@ class TestProjectAPIPost(TestProjectBase):
         # Test missing identifier
         response = session_client.post(url, {"name": "Missing Identifier"}, format="json")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.django_db
+    def test_create_project_rolls_back_on_midway_failure(self, session_client, workspace, create_user):
+        """Regression: if anything after the Project row is written fails (e.g.
+        default-state creation), the whole creation must roll back — no
+        Project without a ProjectMember (the "ghost project" bug: invisible in
+        member-filtered lists but still occupying the workspace-unique name).
+        """
+        from unittest import mock
+
+        url = self.get_project_url(workspace.slug)
+        project_data = {
+            "name": "Ghost Probe",
+            "identifier": "GH",
+            "project_lead": str(create_user.id),
+        }
+
+        forced_error = RuntimeError("forced failure for rollback test")
+
+        with (
+            mock.patch(
+                "plane.services.project.State.objects.bulk_create",
+                side_effect=forced_error,
+            ) as mocked_bulk_create,
+            mock.patch("plane.services.project.model_activity") as mocked_activity,
+        ):
+            response = session_client.post(url, project_data, format="json")
+
+        mocked_bulk_create.assert_called_once()
+        # The unhandled error surfaces as a 500 response (exception
+        # middleware), which is acceptable — what matters is atomicity:
+        # nothing persisted, no ghost project, no member, no states.
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert Project.objects.count() == 0
+        assert ProjectMember.objects.count() == 0
+        assert State.objects.count() == 0
+        # Deferred activity task must never fire for a rolled-back creation.
+        mocked_activity.delay.assert_not_called()
 
     @pytest.mark.django_db
     def test_create_project_with_all_optional_fields(self, session_client, workspace, create_user):

@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from rest_framework import status
 
-from plane.db.models import Project, ProjectMember, State, User, WorkspaceMember
+from plane.db.models import DEFAULT_STATES, Project, ProjectMember, State, User, WorkspaceMember
 
 
 @pytest.fixture
@@ -79,7 +79,9 @@ class TestProjectListCreateAPIEndpoint:
         # should not produce a duplicate row).
         assert ProjectMember.objects.filter(project=project, member=create_user, role=20).count() == 1
         # Default workflow states must be created.
-        assert State.objects.filter(project=project).count() == 5
+        assert State.objects.filter(project=project).count() == len(DEFAULT_STATES) - 1
+        # The triage state is hidden by the default manager but must exist.
+        assert State.triage_objects.filter(project=project, name="Triage").exists()
 
     @pytest.mark.django_db
     def test_create_project_with_lead_as_other_user(
@@ -102,7 +104,9 @@ class TestProjectListCreateAPIEndpoint:
         # Both creator and other_workspace_member are admins.
         assert ProjectMember.objects.filter(project=project, member=create_user, role=20).exists()
         assert ProjectMember.objects.filter(project=project, member=other_workspace_member, role=20).exists()
-        assert State.objects.filter(project=project).count() == 5
+        assert State.objects.filter(project=project).count() == len(DEFAULT_STATES) - 1
+        # The triage state is hidden by the default manager but must exist.
+        assert State.triage_objects.filter(project=project, name="Triage").exists()
 
     @pytest.mark.django_db
     def test_create_project_without_lead(self, api_key_client, workspace, create_user):
@@ -119,7 +123,9 @@ class TestProjectListCreateAPIEndpoint:
         assert response.status_code == status.HTTP_201_CREATED, f"Got {response.status_code}: {response.data!r}"
         project = Project.objects.get(id=response.data["id"])
         assert ProjectMember.objects.filter(project=project, member=create_user, role=20).count() == 1
-        assert State.objects.filter(project=project).count() == 5
+        assert State.objects.filter(project=project).count() == len(DEFAULT_STATES) - 1
+        # The triage state is hidden by the default manager but must exist.
+        assert State.triage_objects.filter(project=project, name="Triage").exists()
 
     @pytest.mark.django_db
     def test_create_project_with_lead_not_in_workspace_returns_400(self, api_key_client, workspace, outsider_user):
@@ -164,10 +170,10 @@ class TestProjectListCreateAPIEndpoint:
 
         with (
             mock.patch(
-                "plane.api.views.project.State.objects.bulk_create",
+                "plane.services.project.State.objects.bulk_create",
                 side_effect=forced_error,
             ),
-            mock.patch("plane.api.views.project.model_activity") as mocked_activity,
+            mock.patch("plane.services.project.model_activity") as mocked_activity,
         ):
             response = api_key_client.post(url, payload, format="json")
 
@@ -246,7 +252,7 @@ class TestProjectListCreateAPIEndpoint:
             "project_lead": str(create_user.id),
         }
 
-        with mock.patch("plane.api.views.project.model_activity") as mocked_activity:
+        with mock.patch("plane.services.project.model_activity") as mocked_activity:
             mocked_activity.delay.side_effect = RuntimeError("broker unavailable")
             response = api_key_client.post(url, payload, format="json")
 
@@ -255,7 +261,9 @@ class TestProjectListCreateAPIEndpoint:
         # before the on_commit callback fired).
         project = Project.objects.get(id=response.data["id"])
         assert ProjectMember.objects.filter(project=project).count() == 1
-        assert State.objects.filter(project=project).count() == 5
+        assert State.objects.filter(project=project).count() == len(DEFAULT_STATES) - 1
+        # The triage state is hidden by the default manager but must exist.
+        assert State.triage_objects.filter(project=project, name="Triage").exists()
         # The dispatch was attempted but its failure was swallowed by
         # transaction.on_commit(robust=True).
         mocked_activity.delay.assert_called_once()
