@@ -1,0 +1,13 @@
+[Unit]
+Description=SeaweedFS (S3-compatible object storage, single-node master+volume)
+After=network.target
+[Service]
+User=dongqian
+WorkingDirectory=/opt/projects/ai-platform
+# ⚠️ volume.max 必须 >0（=0 即禁卷创建，S3 写入全坏——11-09 封面上传四层
+# 事故根因）；s3.config 身份注册与端口见 runbook §2（plane/plane12345）
+ExecStart=/opt/projects/ai-platform/deps/weed server -dir=/opt/projects/ai-platform/data/seaweed -volume.max=200 -s3 -s3.config=/opt/projects/ai-platform/data/seaweed/s3-config.json -ip=127.0.0.1 -s3.port=9000 -master.port=9333 -volume.port=8081
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

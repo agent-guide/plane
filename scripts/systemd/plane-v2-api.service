@@ -1,0 +1,11 @@
+[Unit]
+Description=Plane v2 API (orchestration refactor)
+After=network.target
+[Service]
+User=dongqian
+WorkingDirectory=/opt/projects/ai-platform/v2/plane/api
+EnvironmentFile=/opt/projects/ai-platform/v2/env/plane-api.env
+ExecStart=/opt/projects/ai-platform/v2/plane/api/.venv/bin/python manage.py runserver 0.0.0.0:8202
+Restart=always
+[Install]
+WantedBy=multi-user.target

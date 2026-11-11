@@ -1,0 +1,16 @@
+[Unit]
+Description=Plane v2 orchestration worker (outbox + reconcile loops)
+After=plane-v2-api.service
+[Service]
+User=dongqian
+WorkingDirectory=/opt/projects/ai-platform/v2/plane/api
+EnvironmentFile=/opt/projects/ai-platform/v2/env/plane-api.env
+ExecStart=/opt/projects/ai-platform/v2/plane/api/.venv/bin/python worker_loop.py
+# 看门狗（2026-11-11 挂死事故后补）：轮询末尾+SSE 事件级双路喂狗；
+# 300s 无报平安=任意挂死（含未知挂法）→ systemd 强杀重启
+Type=notify
+WatchdogSec=300
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

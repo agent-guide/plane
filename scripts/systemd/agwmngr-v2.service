@@ -1,0 +1,12 @@
+[Unit]
+Description=agwmngr v2 (manager UI)
+After=network.target
+[Service]
+User=dongqian
+WorkingDirectory=/opt/projects/ai-platform/v2/agwmngr
+Environment=PATH=/home/dongqian/.bun/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PORT=4005
+ExecStart=/home/dongqian/.bun/bin/bun run start
+Restart=always
+[Install]
+WantedBy=multi-user.target

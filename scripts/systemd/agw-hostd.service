@@ -1,0 +1,15 @@
+[Unit]
+Description=AGW host daemon (agent workspace files, gateway pairing)
+After=network.target agwmngr-v2.service
+[Service]
+User=dongqian
+WorkingDirectory=/opt/projects/ai-platform/v2/agwmngr
+Environment=PATH=/home/dongqian/.bun/bin:/usr/local/bin:/usr/bin:/bin
+# ⚠️ 禁止 --gateway-workspace-root 指向"不在 hostd objects 仓上的目录"：
+# 该参数只改上报 cwd 不改写文件位置（11-10 实证）；当前部署形态=该参数
+# 指向 acp/workspaces 且该路径整体软链到 hostd objects（存量计划对齐）。
+ExecStart=/home/dongqian/.bun/bin/bun run scripts/agw-hostd.ts --gateway-id agw-main --state-dir /opt/projects/ai-platform/v2/agwmngr-data/hostd --gateway-workspace-root /opt/projects/ai-platform/v2/acp/workspaces
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

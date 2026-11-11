@@ -112,6 +112,9 @@ temp/
 scripts/*
 !scripts/deploy.sh
 !scripts/deploy-v2.sh
+!scripts/deploy-agwmngr-v2.sh
+!scripts/sync-systemd-units.sh
+!scripts/systemd/
 !packages/i18n/scripts/
 
 # i18n auto-generated types (regenerated on every build)
