@@ -20,6 +20,7 @@ import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "plane.settings.production")
 django.setup()
 
+from plane.orchestration.sdnotify import sd_notify  # noqa: E402
 from plane.orchestration.worker import (  # noqa: E402
     process_outbox_once,
     reconcile_publishing_once,
@@ -32,6 +33,8 @@ DAG_ROOT = Path(os.environ.get("ORCHESTRATION_DAG_ROOT", "/tmp/agent-team-dags")
 
 def main() -> None:
     print(f"worker_loop: interval={INTERVAL_SECONDS}s dag_root={DAG_ROOT}", flush=True)
+    sd_notify("READY=1")
+    last_watchdog = 0.0
     while True:
         # 已知遗留：单轮异常静默（发布卡 publishing 时零日志）——改进项见 backlog
         try:
@@ -48,6 +51,12 @@ def main() -> None:
             reconcile_runs_once()
         except Exception as exc:  # noqa: BLE001
             print(f"run reconcile failed: {exc}", flush=True)
+        # 轮询末尾报平安兜底（长 agent turn 期间由 SSE 事件级喂狗，
+        # 见 worker.invoke_agent_node）——两路合力的看门狗语义。
+        now = time.monotonic()
+        if now - last_watchdog >= 20:
+            sd_notify("WATCHDOG=1")
+            last_watchdog = now
         time.sleep(INTERVAL_SECONDS)
 
 

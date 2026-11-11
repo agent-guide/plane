@@ -177,11 +177,20 @@ def _agwmngr_base() -> str:
     return f"{base}/api/platform/v1/tenants/{tenant}"
 
 
-def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: str) -> str:
+def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: str,
+                      idle_timeout: float = 240.0, total_timeout: float = 1800.0) -> str:
     """agent 节点执行：解析部署 → 建调用上下文 → turn（SSE 聚合为完整回复）。
 
     阶段 0/1′ 摸底验证的租户调用链；SSE 形态与旧 llm_gateway 同源
     （data: 文本增量，[DONE] 终止）。
+
+    看门狗（2026-11-11 worker 挂死 62 分钟事故后补，对齐 Temporal 活动
+    超时语义）：
+    - idle_timeout：应用事件级空闲超时——只有收到真实 SSE 事件才重置计时，
+      心跳/keepalive 字节不算"有动静"（套接字超时会被它们不断重置，防不住）
+    - total_timeout：turn 总预算（对齐节点 timeoutSeconds / Airflow 层看门狗）
+    两道任一超时即抛错记失败，交给 Airflow 重试线——绝不为一条死流堵住
+    整个单线程 worker。
     """
     import os
     headers = _agwmngr_headers()
@@ -233,8 +242,26 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
     with response_ctx as response:
         # SSE 信封：event: <type> / data: {json}——delta 事件取 text 聚合；
         # error 事件显式抛错（不静默空回复）
+        # 看门狗计时：仅真实事件行（event:/data:）重置空闲时钟
+        import time as _time
+        from .sdnotify import sd_notify as _sd
+        started = _time.monotonic()
+        last_event = started
         for raw in response:
+            now = _time.monotonic()
+            if now - last_event > idle_timeout:
+                raise RuntimeError(
+                    f"agent turn idle timeout: no SSE event for {idle_timeout:.0f}s")
+            if now - started > total_timeout:
+                raise RuntimeError(
+                    f"agent turn total timeout: exceeded {total_timeout:.0f}s budget")
             line = raw.decode("utf-8", "replace").strip()
+            if not line or line.startswith(":"):
+                # 空行/注释（keepalive）：不重置空闲时钟，继续等真实事件
+                continue
+            last_event = now
+            # 活着就向 systemd 报平安（长任务逐事件喂狗，看门狗可用短周期）
+            _sd("WATCHDOG=1")
             if line.startswith("event: "):
                 event_type = line[len("event: "):].strip()
                 continue
@@ -410,14 +437,24 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                         f"{human_answer}\n\n请基于以上补充资料继续完成任务并输出最终结果。"
                         "若补充资料仍不完整、单位错误或量级明显不合理（例如毛重与货物数量级矛盾），"
                         "必须再次以 NEED_INPUT: <原因与所需内容> 提问，不得直接采纳。")
+                # 线程保鲜（2026-11-11 定案）：每次尝试用全新 ACP 线程——重试
+                # 撞进残留中毒线程状态会让 turn 秒拒/挂死（1109 实证）；本就
+                # 不依赖 agwmngr 会话记忆（无状态全量重传），换线程零语义损失。
+                attempt = command.payload.get("attempt", 1)
+                thread_hint = f"{execution.id}:{node_key}:{attempt}"
+                # 节点级总预算：画布 timeoutSeconds → 默认 1800s（与 DAG 层
+                # 看门狗同源，防止 worker 与 Airflow 双头不一致）
+                from .dag_publication import _effective_timeout
+                node_total = float(_effective_timeout(node))
                 reply = invoke_agent_node(
-                    agent_definition_id=node["expertId"], prompt=prompt, session_hint=f"{execution.id}:{node_key}")
+                    agent_definition_id=node["expertId"], prompt=prompt,
+                    session_hint=thread_hint, total_timeout=node_total)
                 # 空回复（模型偶发空补全）：就地重试一次（SDK 惯例），仍空
                 # 报失败交引擎重试线——空串当成功曾是"假完成"漏洞
                 if not reply.strip():
                     reply = invoke_agent_node(
                         agent_definition_id=node["expertId"], prompt=prompt,
-                        session_hint=f"{execution.id}:{node_key}")
+                        session_hint=f"{thread_hint}:r", total_timeout=node_total)
                 if not reply.strip():
                     raise RuntimeError(
                         f"agent {node.get('expertId')} returned empty reply for node {node_key}")
@@ -473,6 +510,19 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                                 execution.frozen_context.get("members") or [])
                                 if m.get("kind") == "agent"), None)))
 
+            elif command.command_type == "engine.human_resume":
+                # 幂等消费（views 作答内联已推进过一次；此处兜底收命令——
+                # 曾长期无消费分支致命令自 11-03 起永久 pending 堆积空转）
+                from . import execution as execution_svc
+                from .services import TeamDomainError
+                try:
+                    execution_svc.on_human_resume(
+                        execution_id=command.payload["executionId"],
+                        event_id=f"resume:{command.id}")
+                except TeamDomainError as exc:
+                    # 已非 waiting_human（内联已推进/执行已终态）→ 幂等成功
+                    if exc.status != 409:
+                        raise
             elif command.command_type == "engine.cancel":
                 # 取消（等价旧取消命令）：Airflow 侧同步终止 run，
                 # 执行终态已在端点置位（引擎 sensor 后续 poke 由终态判定收敛）
