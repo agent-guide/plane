@@ -19,6 +19,12 @@ DEST="/opt/projects/ai-platform/v2/agwmngr"
 [ -f "$SRC/package.json" ] || { echo "❌ $SRC 不是 agwmngr 仓库"; exit 1; }
 
 echo "==== [1/3] 同步代码与构建产物（保留 env/数据/依赖）===="
+# 先清服务器侧 macOS 元数据垃圾文件（._*）：rsync --exclude '._*' 会连带
+# 阻止 --delete 清理同类旧文件，残留到某目录只剩 ._* 时该目录删不掉
+# （2026-11-11 部署实测 cannot delete non-empty directory），后续 --delete
+# 即可移除已清空的目录。
+ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" \
+  "find \"$DEST\" -name '._*' -delete 2>/dev/null || true"
 # 保留：.env.local*（服务器侧密钥与 DB 路径）、data、node_modules（依赖
 # 无变化时跳过传输；lockfile 变化时先本地 bun install 再来）
 rsync -a --delete \
