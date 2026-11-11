@@ -17,6 +17,11 @@ def build_node_prompt(*, node: dict, issue, prior_outputs: list[dict]) -> str:
         f"指令：{node.get('prompt') or '完成节点目标'}",
         f"任务标题：{getattr(issue, 'name', '') or ''}",
         f"任务描述：{_plain_description(getattr(issue, 'description_html', None))}",
+        # 终止契约（2026-11-11 收工事故后补）：明确"做完即止"，杜绝 agent
+        # 完成后反复输出"已闭环"确认、turn 永不结束的循环（1109 卡 14:57 完成
+        # 却空转 100+ 步、最终被总预算误判失败）。最后一行为 worker 收口信号。
+        "执行纪律：完成本节点全部目标并读回验证后，输出最终结果、在末尾独占一行"
+        "输出【任务完成】，然后立即停止；禁止继续确认、禁止重复输出结果、禁止请求下一步。",
     ]
     for prior in prior_outputs:
         output = prior.get("output") or ""

@@ -177,6 +177,12 @@ def _agwmngr_base() -> str:
     return f"{base}/api/platform/v1/tenants/{tenant}"
 
 
+# 节点"任务完成"终止标记（与 build_node_prompt 的执行纪律对应）：
+# agent 在最终结果末尾独占一行输出它；worker 据此在空闲超时/流未关闭时
+# 按成功收口（2026-11-11 收工事故的客户端兜底）
+FINAL_MARKER = "【任务完成】"
+
+
 def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: str,
                       idle_timeout: float = 240.0, total_timeout: float = 1800.0) -> str:
     """agent 节点执行：解析部署 → 建调用上下文 → turn（SSE 聚合为完整回复）。
@@ -250,6 +256,11 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
         for raw in response:
             now = _time.monotonic()
             if now - last_event > idle_timeout:
+                # 收工兜底（2026-11-11）：若已收到"任务完成"终止信号但模型
+                # 不自行结束 turn，则按成功收口而非报错——防"活干完被记旷工"
+                joined = "".join(pieces)
+                if FINAL_MARKER in joined:
+                    return joined
                 raise RuntimeError(
                     f"agent turn idle timeout: no SSE event for {idle_timeout:.0f}s")
             if now - started > total_timeout:
@@ -278,6 +289,9 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
                 raise RuntimeError(f"agent turn error: {str(envelope)[:200]}")
             if event_type == "delta" and isinstance(envelope.get("text"), str):
                 pieces.append(envelope["text"])
+                if FINAL_MARKER in envelope["text"]:
+                    # 收到终止信号即收口（不等模型自己停、不干等流关闭）
+                    return "".join(pieces)
     return "".join(pieces)
 
 
