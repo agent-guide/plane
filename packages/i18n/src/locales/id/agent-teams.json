@@ -102,6 +102,7 @@
   "agent_teams_comment_attach": "Lampirkan berkas",
   "agent_teams_comment_uploading": "Mengunggah…",
   "agent_teams_comment_hint": "Terlihat oleh agen pada langkah berikutnya",
+  "agent_teams_comment_hint_terminal": "Terlihat oleh agen saat kartu dijalankan ulang",
   "agent_teams_comments_title": "Catatan Anda (terlihat oleh agen pada langkah berikutnya)",
   "agent_teams_comment_select_options": "Pilih opsi pada langkah menunggu di atas",
   "agent_teams_comment_attach_count": " lampiran",

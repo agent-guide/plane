@@ -102,6 +102,7 @@
   "agent_teams_comment_attach": "파일 첨부",
   "agent_teams_comment_uploading": "업로드 중…",
   "agent_teams_comment_hint": "다음 단계 시작 시 에이전트가 볼 수 있습니다",
+  "agent_teams_comment_hint_terminal": "다시 실행하면 에이전트가 볼 수 있습니다",
   "agent_teams_comments_title": "보충 정보(다음 단계에서 에이전트 표시)",
   "agent_teams_comment_select_options": "위의 대기 단계에서 옵션을 선택하세요",
   "agent_teams_comment_attach_count": "개 첨부",

@@ -533,21 +533,35 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                 {(cardComments?.length ?? 0) > 0 && (
                   <div className="mt-2 border-t border-subtle pt-2">
                     <p className="text-caption-sm-medium text-secondary">{t("agent_teams_comments_title")}</p>
-                    <ul className="mt-1 flex flex-col gap-0.5">
+                    <ul className="mt-1 flex flex-col gap-1">
                       {cardComments!
                         .filter((c) => (c.comment_stripped || "").trim().length > 0)
                         .slice(-3)
-                        .reverse()
+                        .toReversed()
                         .map((c: TIssueComment) => (
-                          <li key={c.id} className="truncate text-caption-sm-regular text-tertiary">
-                            <span className="text-secondary">{c.actor_detail?.display_name ?? "?"}</span>
-                            <span className="text-placeholder"> · {c.comment_stripped}</span>
+                          <li key={c.id} className="text-caption-sm-regular text-tertiary">
+                            <div className="truncate">
+                              <span className="text-secondary">{c.actor_detail?.display_name ?? "?"}</span>
+                              <span className="text-placeholder"> · {c.comment_stripped}</span>
+                            </div>
                             {(c.attachments?.length ?? 0) > 0 && (
-                              <span className="text-placeholder">
-                                {" "}
-                                +{c.attachments.length}
-                                {t("agent_teams_comment_attach_count")}
-                              </span>
+                              <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                                {c.attachments.map((url: string) => {
+                                  const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
+                                  return (
+                                    <a
+                                      key={url}
+                                      href={url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-caption-sm-regular text-accent-primary underline-offset-2 hover:underline"
+                                      title={url}
+                                    >
+                                      {name}
+                                    </a>
+                                  );
+                                })}
+                              </div>
                             )}
                           </li>
                         ))}
@@ -558,6 +572,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                   workspaceSlug={workspaceSlug}
                   projectId={projectId}
                   issueId={issueId}
+                  terminal={isTerminal}
                   onPosted={() => void mutateCardComments()}
                 />
               </>

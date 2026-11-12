@@ -102,6 +102,7 @@
   "agent_teams_comment_attach": "Joindre des fichiers",
   "agent_teams_comment_uploading": "Téléversement…",
   "agent_teams_comment_hint": "Visible par l'agent au prochain pas",
+  "agent_teams_comment_hint_terminal": "Visible par l'agent lors de la prochaine exécution",
   "agent_teams_comments_title": "Vos notes (visibles par l'agent au prochain pas)",
   "agent_teams_comment_select_options": "Choisissez une option dans l'étape d'attente ci-dessus",
   "agent_teams_comment_attach_count": " pièces jointes",

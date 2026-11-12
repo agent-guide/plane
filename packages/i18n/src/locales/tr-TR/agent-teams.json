@@ -102,6 +102,7 @@
   "agent_teams_comment_attach": "Dosya ekle",
   "agent_teams_comment_uploading": "Yükleniyor…",
   "agent_teams_comment_hint": "Bir sonraki adımda ajan tarafından görülür",
+  "agent_teams_comment_hint_terminal": "Tekrar çalıştırıldığında ajan tarafından görülür",
   "agent_teams_comments_title": "Notlarınız (bir sonraki adımda ajan tarafından görünür)",
   "agent_teams_comment_select_options": "Yukarıdaki bekleme adımında bir seçenek seçin",
   "agent_teams_comment_attach_count": " ek",

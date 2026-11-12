@@ -100,6 +100,7 @@
   "agent_teams_comment_attach": "添加附件",
   "agent_teams_comment_uploading": "上传中…",
   "agent_teams_comment_hint": "下一步开始时数字员工可见",
+  "agent_teams_comment_hint_terminal": "重新运行后数字员工可见",
   "agent_teams_comments_title": "你的补充（数字员工下一步可见）",
   "agent_teams_comment_select_options": "请在上方的等待步骤中选择选项",
   "agent_teams_comment_attach_count": " 个附件",

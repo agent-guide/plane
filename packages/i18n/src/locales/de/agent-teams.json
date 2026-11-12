@@ -102,6 +102,7 @@
   "agent_teams_comment_attach": "Dateien anhängen",
   "agent_teams_comment_uploading": "Wird hochgeladen…",
   "agent_teams_comment_hint": "Beim nächsten Schritt für den Agent sichtbar",
+  "agent_teams_comment_hint_terminal": "Beim erneuten Ausführen für den Agent sichtbar",
   "agent_teams_comments_title": "Deine Notizen (beim nächsten Schritt für den Agent sichtbar)",
   "agent_teams_comment_select_options": "Wähle oben im Warteschritt eine Option",
   "agent_teams_comment_attach_count": " Anhänge",

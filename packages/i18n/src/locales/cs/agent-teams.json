@@ -102,6 +102,7 @@
   "agent_teams_comment_attach": "Připojit soubory",
   "agent_teams_comment_uploading": "Nahrávání…",
   "agent_teams_comment_hint": "Agent to uvidí v dalším kroku",
+  "agent_teams_comment_hint_terminal": "Agent to uvidí při opětovném spuštění",
   "agent_teams_comments_title": "Vaše poznámky (viditelné pro agenta v dalším kroku)",
   "agent_teams_comment_select_options": "Vyberte možnost v čekajícím kroku výše",
   "agent_teams_comment_attach_count": " příl.",

@@ -28,6 +28,8 @@ type CardCommentInputProps = {
   workspaceSlug: string;
   projectId: string;
   issueId: string;
+  /** 执行已进入终态（补充将在「重新运行」时生效，而非下一节点）。 */
+  terminal?: boolean;
   /** 发送成功后回调（面板刷新评论列表）。 */
   onPosted?: () => void;
 };
@@ -53,7 +55,13 @@ function AttachmentChip({ name, onRemove, disabled }: { name: string; onRemove: 
   );
 }
 
-export function CardCommentInput({ workspaceSlug, projectId, issueId, onPosted }: CardCommentInputProps) {
+export function CardCommentInput({
+  workspaceSlug,
+  projectId,
+  issueId,
+  terminal = false,
+  onPosted,
+}: CardCommentInputProps) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
@@ -102,8 +110,9 @@ export function CardCommentInput({ workspaceSlug, projectId, issueId, onPosted }
     setSending(true);
     try {
       // 评论走既有评论 API：html 为源（后端 save 派生 stripped），附件为
-      // URL 数组；access INTERNAL（团队内可见）
-      const escaped = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      // URL 数组；access INTERNAL（团队内可见）。换行转 <br/> 保留多行
+      //（补料常为多行单据数据，2026-11-12 G2）。
+      const escaped = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
       await issueCommentService.createIssueComment(workspaceSlug, projectId, issueId, {
         comment_html: `<p>${escaped}</p>`,
         attachments: attachments.map((a) => a.url),
@@ -163,7 +172,9 @@ export function CardCommentInput({ workspaceSlug, projectId, issueId, onPosted }
           >
             {uploading ? t("agent_teams_comment_uploading") : t("agent_teams_comment_attach")}
           </button>
-          <span className="text-caption-sm-regular text-placeholder">{t("agent_teams_comment_hint")}</span>
+          <span className="text-caption-sm-regular text-placeholder">
+            {t(terminal ? "agent_teams_comment_hint_terminal" : "agent_teams_comment_hint")}
+          </span>
         </div>
         <Button
           variant="primary"

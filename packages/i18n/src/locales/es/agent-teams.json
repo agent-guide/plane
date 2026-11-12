@@ -102,6 +102,7 @@
   "agent_teams_comment_attach": "Adjuntar archivos",
   "agent_teams_comment_uploading": "Subiendo…",
   "agent_teams_comment_hint": "Visible para el agente en el siguiente paso",
+  "agent_teams_comment_hint_terminal": "Visible para el agente al volver a ejecutar",
   "agent_teams_comments_title": "Tus notas (visibles para el agente en el siguiente paso)",
   "agent_teams_comment_select_options": "Elige una opción en el paso en espera de arriba",
   "agent_teams_comment_attach_count": " adjuntos",

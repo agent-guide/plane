@@ -102,6 +102,7 @@
   "agent_teams_comment_attach": "Allega file",
   "agent_teams_comment_uploading": "Caricamento…",
   "agent_teams_comment_hint": "Visibile all'agente al prossimo passo",
+  "agent_teams_comment_hint_terminal": "Visibile all'agente alla prossima esecuzione",
   "agent_teams_comments_title": "Le tue note (visibili all'agente al prossimo passo)",
   "agent_teams_comment_select_options": "Scegli un'opzione nel passaggio in attesa sopra",
   "agent_teams_comment_attach_count": " allegati",
