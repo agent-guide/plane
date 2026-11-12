@@ -470,6 +470,10 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                     ).exclude(node_key=node_key).order_by("updated_at")
                 ]
                 labels = condition_branch_labels(definition, node_key) if node.get("type") == "condition" else []
+                # G1 消费回执口径：捕获 prompt 组装时刻是否有人的补充——回评只对
+                # 真正被注入的补充负责；执行中才发的补充（单节点无下一边界）不算
+                # 已纳入，避免误导性回评。
+                had_supplements = bool(_card_comment_history(execution.issue))
                 prompt = (build_condition_prompt(node=node, issue=execution.issue, labels=labels) if labels
                           else build_node_prompt(node=node, issue=execution.issue, prior_outputs=prior_outputs))
                 # agent 求助（能力化人工介入）：重跑时注入人工补充资料
@@ -516,11 +520,11 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                     # 退出整个消费循环——命令反复重投、后续命令饿死）
                     _asked = True
                 if not _asked:
-                    # G1 消费回执（2026-11-12）：节点成功收口后，若工作卡有
-                    # 人的补充，则以 agent bot 身份回评一条确认「已看到/已采用」
-                    # ——闭环「用户发了但看不到是否被采用」的体验缺口。bot 回评
-                    # 已从注入侧排除（execution_context 过滤 actor__is_bot）。
-                    if _card_comment_history(execution.issue):
+                    # G1 消费回执（2026-11-12）：节点成功收口后，若 prompt 组装
+                    # 时刻有人的补充，则以 agent bot 身份回评一条确认「已看到/
+                    # 已采用」——闭环「用户发了但看不到是否被采用」。bot 回评已
+                    # 从注入侧排除（execution_context 过滤 actor__is_bot）。
+                    if had_supplements:
                         _post_supplement_ack(execution=execution, node=node)
                     result = {"status": "success", "output": reply[:20000]}
                     if labels:

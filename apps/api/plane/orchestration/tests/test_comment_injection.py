@@ -12,6 +12,7 @@ from plane.db.models.project import Project, ProjectMember
 from plane.db.models.issue import Issue, IssueComment
 from plane.orchestration.execution_context import (
     CARD_COMMENTS_BUDGET, _card_comment_history, build_node_prompt)
+from plane.orchestration.worker import _post_supplement_ack
 
 User = get_user_model()
 
@@ -121,6 +122,17 @@ class CommentInjectionTest(TestCase):
         self.assertNotIn("#00", out)
         # 注入段体量受控（预算 + 头部/标注余量）
         self.assertLess(len(out), CARD_COMMENTS_BUDGET + 200)
+
+    def test_post_supplement_ack_creates_bot_comment(self):
+        """G1 回执：节点成功后以 bot 身份建评论，且不因缺目录名而崩。"""
+        from types import SimpleNamespace
+        execution = SimpleNamespace(issue=self.issue)
+        node = {"expertId": "agent:test:ack", "name": "测试员工"}
+        _post_supplement_ack(execution=execution, node=node)
+        from plane.db.models.issue import IssueComment
+        comment = IssueComment.objects.filter(issue=self.issue, actor__is_bot=True).first()
+        self.assertIsNotNone(comment)
+        self.assertIn("已纳入本次执行", comment.comment_stripped)
 
     def test_stub_issue_without_comments_relation(self):
         """非持久化 issue 替身（无评论关系）：build_node_prompt 不炸、不注入。"""
