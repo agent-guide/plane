@@ -418,9 +418,6 @@ export interface OrchestrationRecentRun {
   taskId: string;
   taskTitle: string;
   status: string;
-  stateName?: string | null;
-  stateColor?: string | null;
-  stateGroup?: string | null;
   startedAt: string;
   finishedAt: string | null;
 }

@@ -66,12 +66,23 @@ type TRecentIssue = TIssue & {
 const issueService = new IssueService();
 
 const RUN_RESULT_PAST: Record<string, string> = {
-  success: "run_completed",
+  completed: "run_completed",
   failed: "run_failed",
   cancelled: "run_cancelled",
   running: "run_running",
   queued: "run_queued",
-  created: "run_queued",
+  waiting_human: "agent_teams_status_waiting_human",
+  blocked: "agent_teams_status_blocked",
+};
+
+const RUN_STATUS_STATE_GROUPS: Record<string, TStateGroups> = {
+  completed: "completed",
+  failed: "cancelled",
+  cancelled: "cancelled",
+  running: "started",
+  waiting_human: "started",
+  queued: "unstarted",
+  blocked: "unstarted",
 };
 
 function relativeTime(value?: string | null, locale = "en") {
@@ -277,20 +288,17 @@ function ProjectOverviewPage() {
     {
       key: "result",
       content: t("agent_teams_panel_status"),
-      tdRender: (run) =>
-        // 与工作项列表同源的状态徽章；无状态回退运行动词文本
-        run.stateName ? (
-          <span className="inline-flex items-center gap-1.5 text-caption-sm-medium text-secondary">
-            <StateGroupIcon
-              stateGroup={(run.stateGroup ?? "started") as TStateGroups}
-              color={run.stateColor ?? undefined}
-              className="size-3.5 flex-shrink-0"
-            />
-            <span className="truncate">{run.stateName}</span>
-          </span>
-        ) : (
-          <span className="text-secondary">{t(RUN_RESULT_PAST[run.status] ?? "run_unknown")}</span>
-        ),
+      tdRender: (run) => (
+        // Recent activity is per-execution history: render business_status, never
+        // the work item's mutable current state.
+        <span className="inline-flex items-center gap-1.5 text-caption-sm-medium text-secondary">
+          <StateGroupIcon
+            stateGroup={RUN_STATUS_STATE_GROUPS[run.status] ?? "started"}
+            className="size-3.5 flex-shrink-0"
+          />
+          <span className="truncate">{t(RUN_RESULT_PAST[run.status] ?? "run_unknown")}</span>
+        </span>
+      ),
     },
     updatedColumn((run) => run.finishedAt ?? run.startedAt),
     // 执行详情外链列已移除（2026-10-22）：admin 端 runs 路由不存在，

@@ -862,14 +862,11 @@ class ProjectRuntimeOverviewEndpoint(BaseAPIView):
             }
         executions = WorkItemExecution.objects.filter(
             binding__project__workspace__slug=slug, binding__project_id=project_id,
-        ).select_related("issue", "issue__state").order_by("-updated_at")
+        ).select_related("issue").order_by("-updated_at")
         active = [e for e in executions if e.business_status not in TERMINAL_STATUSES]
         runs = [{
             "runId": e.id, "taskId": e.issue_id, "taskTitle": e.issue.name,
             "status": e.business_status,
-            "stateName": e.issue.state.name if e.issue.state_id else None,
-            "stateColor": e.issue.state.color if e.issue.state_id else None,
-            "stateGroup": e.issue.state.group if e.issue.state_id else None,
             "startedAt": e.created_at.isoformat(),
             "finishedAt": e.completed_at.isoformat() if e.completed_at else None,
         } for e in executions[:10]]

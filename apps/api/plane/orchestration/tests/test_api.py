@@ -189,6 +189,44 @@ class OrchestrationAPITest(TestCase):
             r = self.client.get("/api/workspaces/aws-orch/agent-teams/agent-catalog/")
         self.assertEqual(r.status_code, 503)
 
+    def test_runtime_overview_uses_execution_status_snapshot(self):
+        """Recent activity reports each execution's business_status, not the issue's mutable state."""
+        from plane.db.models.state import State
+        from plane.orchestration import services
+        from plane.orchestration.models import WorkflowDefinition, WorkflowVersion, ProjectTeamBinding
+        from django.utils import timezone
+
+        team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="动态团队")
+        services.add_member(
+            team=team, user_id=self.owner.id, is_admin=True, kind="human",
+            role="approver", user_ref=self.human.id)
+        services.activate_team(team=team, user_id=self.owner.id, is_admin=True)
+        workflow = WorkflowDefinition.objects.create(project=self.project, name="动态流程", created_by=self.owner)
+        version = WorkflowVersion.objects.create(
+            workflow=workflow, version=1, status=WorkflowVersion.Status.PUBLISHED)
+        ProjectTeamBinding.objects.create(
+            project=self.project, team=team, workflow_version=version,
+            status=ProjectTeamBinding.Status.ACTIVE)
+
+        running_state = State.objects.create(
+            project=self.project, workspace=self.ws, name="运行中", color="#F59E0B", group="started",
+            created_by=self.owner)
+        issue = Issue.objects.create(
+            project=self.project, name="历史执行工作项", created_by=self.owner, state=running_state)
+        execution = WorkItemExecution.objects.get(issue=issue)
+        execution.business_status = "completed"
+        execution.completed_at = timezone.now()
+        execution.save(update_fields=["business_status", "completed_at", "updated_at"])
+
+        response = self.client.get(
+            f"/api/workspaces/aws-orch/projects/{self.project.id}/runtime-overview/")
+        self.assertEqual(response.status_code, 200, response.content)
+        run = response.json()["recentRuns"][0]
+        self.assertEqual(run["status"], "completed")
+        self.assertNotIn("stateName", run)
+        self.assertNotIn("stateColor", run)
+        self.assertNotIn("stateGroup", run)
+
     def test_project_team_panel(self):
         """项目卡徽章：未绑定 null；绑定后团队名+在岗/等待计数。"""
         from plane.orchestration import services
