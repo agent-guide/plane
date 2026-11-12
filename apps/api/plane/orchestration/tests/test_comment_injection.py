@@ -76,6 +76,27 @@ class CommentInjectionTest(TestCase):
         self._comment(text="")
         self.assertIsNone(_card_comment_history(self.issue))
 
+    def test_bot_comment_excluded_from_injection(self):
+        """bot 回评（agent 消费回执）不注入 prompt——防自引用噪音（G1 配套）。"""
+        bot = User.objects.create_user(email="p1-bot@test.io", username="p1-bot")
+        bot.is_bot = True
+        bot.save(update_fields=["is_bot"])
+        IssueComment.objects.create(
+            project=self.project, workspace=self.ws,
+            issue=self.issue, actor=bot,
+            comment_html="<p>已收到工作卡补充，已纳入本次执行</p>",
+            created_by=bot)
+        # 只有 bot 评论 → 不注入
+        self.assertIsNone(_card_comment_history(self.issue))
+        # 混入一条人的评论 → 只注入人的，bot 的排除
+        IssueComment.objects.create(
+            project=self.project, workspace=self.ws,
+            issue=self.issue, actor=self.owner,
+            comment_html="<p>毛重 480</p>", created_by=self.owner)
+        out = _card_comment_history(self.issue)
+        self.assertIn("毛重 480", out)
+        self.assertNotIn("已纳入本次执行", out)
+
     def test_attachments_as_url_text(self):
         """附件以 URL 文本注入。"""
         self._comment(text="补充文件", attachments=["https://x.test/f.pdf"])

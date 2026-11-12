@@ -56,7 +56,10 @@ def _card_comment_history(issue) -> str | None:
     comments_qs = getattr(issue, "issue_comments", None)
     if comments_qs is None:
         return None
-    comments = comments_qs.select_related("actor").order_by("created_at")
+    # 排除 bot 回评（G1 消费回执、bot 供给类系统评论）：只注入人的补充，
+    # 否则 agent 自己/其他 agent 的回评会反复进下一节点 prompt（自引用噪音，
+    # 设计 §2「排除 agent 自己将来的回评」）。
+    comments = comments_qs.exclude(actor__is_bot=True).select_related("actor").order_by("created_at")
     entries = []
     for c in comments:
         text = (c.comment_stripped or _plain_description(c.comment_html)).strip()

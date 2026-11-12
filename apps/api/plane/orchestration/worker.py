@@ -380,6 +380,36 @@ def reconcile_runs_once() -> dict:
     return stats
 
 
+def _post_supplement_ack(*, execution, node: dict) -> None:
+    """G1 消费回执：节点成功收口后，以 agent bot 身份回评一条，确认已看到
+    工作卡补充。失败静默（回执非事实源，不影响节点结果）。"""
+    from .bot_provisioning import ensure_bot_for_agent
+    from plane.db.models.issue import IssueComment
+
+    try:
+        issue = execution.issue
+        if not issue:
+            return
+        bot = ensure_bot_for_agent(
+            agent_definition_id=node.get("expertId", ""),
+            workspace_id=issue.project.workspace_id,
+            display_name=node.get("name"),
+        )
+        if bot is None:
+            return
+        IssueComment.objects.create(
+            project=issue.project,
+            workspace=issue.project.workspace,
+            issue=issue,
+            actor=bot,
+            comment_html="<p>已收到工作卡上的补充信息，已纳入本次执行。</p>",
+            access="INTERNAL",
+            created_by=bot,
+        )
+    except Exception:
+        pass  # 回执非事实源：静默降级，不阻断节点收口
+
+
 def process_outbox_once(*, dag_root: Path) -> dict:
     """消费一批 outbox 命令（幂等键天然防重复执行）。
 
@@ -431,7 +461,7 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                 # 执行输入注入（等价旧 _prompt）：任务标题/描述 + 前置节点输出
                 from .execution_context import (
                     build_node_prompt, build_condition_prompt, condition_branch_labels,
-                    match_branch_label, pruned_node_keys)
+                    match_branch_label, pruned_node_keys, _card_comment_history)
                 from .node_runtime import NodeRuntimeRecord
                 prior_outputs = [
                     {"node_key": r.node_key, "output": (r.result or {}).get("output", "")}
@@ -486,6 +516,12 @@ def process_outbox_once(*, dag_root: Path) -> dict:
                     # 退出整个消费循环——命令反复重投、后续命令饿死）
                     _asked = True
                 if not _asked:
+                    # G1 消费回执（2026-11-12）：节点成功收口后，若工作卡有
+                    # 人的补充，则以 agent bot 身份回评一条确认「已看到/已采用」
+                    # ——闭环「用户发了但看不到是否被采用」的体验缺口。bot 回评
+                    # 已从注入侧排除（execution_context 过滤 actor__is_bot）。
+                    if _card_comment_history(execution.issue):
+                        _post_supplement_ack(execution=execution, node=node)
                     result = {"status": "success", "output": reply[:20000]}
                     if labels:
                         # 条件判定（等价旧 workflow_branching）：答复→分支名；未选→节点失败
