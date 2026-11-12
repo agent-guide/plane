@@ -172,3 +172,46 @@ class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
         ex.refresh_from_db()
         self.assertEqual(ex.business_status, "running")  # 执行不因 worker 失败终局
 
+
+
+class AgentInvokeSuccessAckTests(OutboxConsumerTests):
+    """G1 消费回执集成：agent.invoke 成功收口后，有人的补充才以 bot 身份回评。"""
+
+    def _run_success(self, ex, node_key):
+        import hashlib, json as _json
+        from unittest.mock import patch
+        from plane.orchestration.models import NodeRuntimeRecord, OrchestrationOutbox
+        payload = {"executionId": ex.id, "nodeKey": node_key, "attempt": 1}
+        OrchestrationOutbox.objects.create(
+            idempotency_key=f"agent_call:{ex.id}:{node_key}:1",
+            command_type="agent.invoke", payload=payload,
+            payload_hash=hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest())
+        with patch("plane.orchestration.worker._internal_node_call"):
+            with patch("plane.orchestration.worker.invoke_agent_node",
+                       return_value="录入完成 单据 DEC2026【任务完成】"):
+                process_outbox_once(dag_root=None)
+
+    def _seed_running_execution(self, node_key):
+        from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord
+        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        on_engine_started(execution_id=ex.id, event_id="ack-seed", engine_run_ref=ex.id)
+        WorkItemExecution.objects.filter(id=ex.id).update(business_status="running")
+        NodeRuntimeRecord.objects.create(execution=ex, node_key=node_key, attempt=1)
+        return ex
+
+    def test_ack_posted_when_human_supplement_exists(self):
+        from plane.db.models.issue import IssueComment
+        ex = self._seed_running_execution("analyze_0")
+        IssueComment.objects.create(
+            project=self.project, workspace=self.ws, issue=self.issue, actor=self.owner,
+            comment_html="<p>毛重 480</p>", created_by=self.owner)
+        self._run_success(ex, "analyze_0")
+        ack = IssueComment.objects.filter(issue=self.issue, actor__is_bot=True).first()
+        self.assertIsNotNone(ack)
+        self.assertIn("已纳入本次执行", ack.comment_stripped)
+
+    def test_no_ack_without_supplement(self):
+        from plane.db.models.issue import IssueComment
+        ex = self._seed_running_execution("analyze_0")
+        self._run_success(ex, "analyze_0")
+        self.assertFalse(IssueComment.objects.filter(issue=self.issue, actor__is_bot=True).exists())
