@@ -122,6 +122,16 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     { revalidateOnFocus: false, shouldRetryOnError: false }
   );
 
+  // 最近 3 条人的补充，最新在前。评论接口按 created_at 升序返回，取末尾 3 条
+  // 再倒序；用朴素循环避免 reverse/toReversed/sort（oxlint 会 auto-fix 成 ES2023
+  // 方法，而项目 lib 低于 ES2023 会 tsc 报错）。
+  const recentComments = useMemo(() => {
+    const all = (cardComments ?? []).filter((c) => (c.comment_stripped || "").trim().length > 0);
+    const out: TIssueComment[] = [];
+    for (let i = all.length - 1; i >= Math.max(0, all.length - 3); i--) out.push(all[i]);
+    return out;
+  }, [cardComments]);
+
   const isActive = !!summary && !TERMINAL.has(summary.businessStatus);
   // 秒级跳动：执行中每秒刷新一次（呼吸灯耗时的「活」感，#3 准直播）
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -530,41 +540,37 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               )
             ) : (
               <>
-                {(cardComments?.length ?? 0) > 0 && (
+                {recentComments.length > 0 && (
                   <div className="mt-2 border-t border-subtle pt-2">
                     <p className="text-caption-sm-medium text-secondary">{t("agent_teams_comments_title")}</p>
                     <ul className="mt-1 flex flex-col gap-1">
-                      {cardComments!
-                        .filter((c) => (c.comment_stripped || "").trim().length > 0)
-                        .toSorted((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
-                        .slice(0, 3)
-                        .map((c: TIssueComment) => (
-                          <li key={c.id} className="text-caption-sm-regular text-tertiary">
-                            <div className="truncate">
-                              <span className="text-secondary">{c.actor_detail?.display_name ?? "?"}</span>
-                              <span className="text-placeholder"> · {c.comment_stripped}</span>
+                      {recentComments.map((c) => (
+                        <li key={c.id} className="text-caption-sm-regular text-tertiary">
+                          <div className="truncate">
+                            <span className="text-secondary">{c.actor_detail?.display_name ?? "?"}</span>
+                            <span className="text-placeholder"> · {c.comment_stripped}</span>
+                          </div>
+                          {(c.attachments?.length ?? 0) > 0 && (
+                            <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                              {c.attachments.map((url: string) => {
+                                const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
+                                return (
+                                  <a
+                                    key={url}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-caption-sm-regular text-accent-primary underline-offset-2 hover:underline"
+                                    title={url}
+                                  >
+                                    {name}
+                                  </a>
+                                );
+                              })}
                             </div>
-                            {(c.attachments?.length ?? 0) > 0 && (
-                              <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
-                                {c.attachments.map((url: string) => {
-                                  const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
-                                  return (
-                                    <a
-                                      key={url}
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-caption-sm-regular text-accent-primary underline-offset-2 hover:underline"
-                                      title={url}
-                                    >
-                                      {name}
-                                    </a>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </li>
-                        ))}
+                          )}
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 )}
