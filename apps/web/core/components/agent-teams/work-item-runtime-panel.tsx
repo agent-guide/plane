@@ -25,6 +25,7 @@ import { Check, ChevronDown, Clock, Minus, X } from "lucide-react";
 // components
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { ApprovalAnswerArea } from "@/components/agent-teams/approval-answer";
+import { CardCommentInput } from "@/components/agent-teams/card-comment-input";
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import Link from "next/link";
@@ -35,6 +36,8 @@ import {
   type OrchestrationTimelineEvent,
   type OrchestrationWorkItemRuntime,
 } from "@/services/agent-teams/orchestration.service";
+import { IssueCommentService } from "@/services/issue/issue_comment.service";
+import type { TIssueComment } from "@plane/types";
 
 type WorkItemRuntimePanelProps = {
   issueId: string;
@@ -46,6 +49,7 @@ type WorkItemRuntimePanelProps = {
 
 const TERMINAL = new Set(["completed", "cancelled", "failed"]);
 const STEP_ACTIVE = new Set(["running", "pending", "queued"]);
+const issueCommentService = new IssueCommentService();
 
 /** 步骤（叙事流的行单位）：同一节点的事件归并成一步。 */
 interface StreamStep {
@@ -109,6 +113,14 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   const [textAnswer, setTextAnswer] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+
+  // P1 评论即留言板：面板内展示已有补充（用户看到"员工将看到什么"），
+  // 发送后刷新。低频拉取即可（评论由人在面板里发，无需随执行轮询跳动）。
+  const { data: cardComments, mutate: mutateCardComments } = useSWR(
+    workspaceSlug && projectId && issueId && !!summary ? (["card-comments", projectId, issueId] as const) : null,
+    () => issueCommentService.getIssueComments(workspaceSlug, projectId, issueId),
+    { revalidateOnFocus: false, shouldRetryOnError: false }
+  );
 
   const isActive = !!summary && !TERMINAL.has(summary.businessStatus);
   // 秒级跳动：执行中每秒刷新一次（呼吸灯耗时的「活」感，#3 准直播）
@@ -299,7 +311,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     }
     return (
       <span className="grid size-4 flex-shrink-0 place-items-center" aria-hidden>
-        <span className="size-2 rounded-full border-[1.5px] border-placeholder" />
+        <span className="border-placeholder size-2 rounded-full border-[1.5px]" />
       </span>
     );
   };
@@ -340,10 +352,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
         {/* 展开收起均渲染 markdown：收起态高度截断（两行 40px）+ 底部
             渐隐（line-clamp 对块级内容无效，高度截断是块级内容的标准收敛） */}
         <div className={`relative ${!expanded && isLong ? "max-h-10 overflow-hidden" : ""}`}>
-          <MarkdownPreview
-            content={content}
-            className="text-body-xs-regular leading-5 prose-p:my-1 prose-pre:my-1.5"
-          />
+          <MarkdownPreview content={content} className="prose-p:my-1 prose-pre:my-1.5 text-body-xs-regular leading-5" />
           {!expanded && isLong && (
             <div
               className="pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-[var(--background-color-layer-1)] to-transparent"
@@ -357,10 +366,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
             onClick={() => toggleStepExpanded(step.key)}
             className="hover:text-accent-hover mt-0.5 inline-flex items-center gap-0.5 text-body-xs-medium text-accent-primary"
           >
-            <ChevronDown
-              className={`size-3 transition-transform ${expanded ? "rotate-180" : ""}`}
-              aria-hidden
-            />
+            <ChevronDown className={`size-3 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden />
             {expanded ? t("agent_teams_stream_collapse") : t("agent_teams_stream_expand")}
           </button>
         )}
@@ -376,10 +382,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
         {summary ? (
           <>
             {t("agent_teams_panel_executed_by_prefix")}
-            <Link
-              href={agentTeamDetailPath(summary.teamId)}
-              className="hover:text-accent-hover text-accent-primary"
-            >
+            <Link href={agentTeamDetailPath(summary.teamId)} className="hover:text-accent-hover text-accent-primary">
               {summary.teamName}
             </Link>
             {t("agent_teams_panel_executed_by_suffix")}
@@ -438,56 +441,56 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                     </span>
                     {/* hover 色块为内层包裹条（hug 内容、垂直居中），不承载连线 */}
                     <div className="-mx-1.5 flex gap-2.5 rounded-md px-2 py-1 transition-colors hover:bg-layer-transparent-hover">
-                    {/* 内容列 */}
-                    <div className="min-w-0 flex-1">
-                      {/* 标题行 = 一句话：成员（谁）· 步骤名（做什么）· 状态（怎么样）；
+                      {/* 内容列 */}
+                      <div className="min-w-0 flex-1">
+                        {/* 标题行 = 一句话：成员（谁）· 步骤名（做什么）· 状态（怎么样）；
                           右侧：查看产出（有工件时内联，不单独占行）+ 耗时 */}
-                      <div className="flex h-5 items-center justify-between gap-2">
-                        <span className="truncate text-body-xs-regular">
-                          {step.memberName && (
-                            <span className="text-body-xs-medium text-primary">{step.memberName}</span>
-                          )}
-                          {step.memberName && <span className="text-placeholder"> · </span>}
-                          <span className={isCurrent ? "text-primary" : "text-secondary"}>{step.name}</span>
-                          <span className="text-placeholder"> · </span>
-                          <span
-                            className={
-                              isCurrent
-                                ? "text-accent-primary"
-                                : step.status === "failed"
-                                  ? "text-danger-primary"
-                                  : "text-tertiary"
-                            }
-                          >
-                            {stepStatusText(step)}
-                          </span>
-                        </span>
-                        <span className="flex flex-shrink-0 items-center gap-2">
-                          {duration && (
-                            <span className="text-body-xs-regular text-placeholder" title={step.firstAt}>
-                              {duration}
+                        <div className="flex h-5 items-center justify-between gap-2">
+                          <span className="truncate text-body-xs-regular">
+                            {step.memberName && (
+                              <span className="text-body-xs-medium text-primary">{step.memberName}</span>
+                            )}
+                            {step.memberName && <span className="text-placeholder"> · </span>}
+                            <span className={isCurrent ? "text-primary" : "text-secondary"}>{step.name}</span>
+                            <span className="text-placeholder"> · </span>
+                            <span
+                              className={
+                                isCurrent
+                                  ? "text-accent-primary"
+                                  : step.status === "failed"
+                                    ? "text-danger-primary"
+                                    : "text-tertiary"
+                              }
+                            >
+                              {stepStatusText(step)}
                             </span>
-                          )}
-                        </span>
-                      </div>
-                      {/* 每步产出统一内联折叠（超两行截断就地展开，展开限高滚动） */}
-                      {renderConclusion(step)}
-                      {/* 审批操作内嵌等待步骤：待确认内容（agent 归纳的
+                          </span>
+                          <span className="flex flex-shrink-0 items-center gap-2">
+                            {duration && (
+                              <span className="text-body-xs-regular text-placeholder" title={step.firstAt}>
+                                {duration}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {/* 每步产出统一内联折叠（超两行截断就地展开，展开限高滚动） */}
+                        {renderConclusion(step)}
+                        {/* 审批操作内嵌等待步骤：待确认内容（agent 归纳的
                           markdown，规范渲染）+ 操作区。前几步已在流里逐步
                           呈现，审批卡不重复罗列，只带需要拍板的内容 */}
-                      {approval && (
-                        <div className="mt-2 flex flex-col gap-2 rounded-lg border border-subtle bg-layer-2 px-3 py-2.5">
-                          <MarkdownPreview content={approval.question || approval.taskTitle} />
-                          <ApprovalAnswerArea
-                            approval={{ freeText: approval.freeText, options: approval.options ?? [] }}
-                            answering={answering}
-                            textAnswer={textAnswer}
-                            onTextChange={setTextAnswer}
-                            onAnswer={(decision, reason) => void handleAnswer(decision, reason)}
-                          />
-                        </div>
-                      )}
-                    </div>
+                        {approval && (
+                          <div className="mt-2 flex flex-col gap-2 rounded-lg border border-subtle bg-layer-2 px-3 py-2.5">
+                            <MarkdownPreview content={approval.question || approval.taskTitle} />
+                            <ApprovalAnswerArea
+                              approval={{ freeText: approval.freeText, options: approval.options ?? [] }}
+                              answering={answering}
+                              textAnswer={textAnswer}
+                              onTextChange={setTextAnswer}
+                              onAnswer={(decision, reason) => void handleAnswer(decision, reason)}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -502,7 +505,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                     className="absolute top-[7px] -left-[7px] rounded-full bg-[var(--background-color-layer-1)] p-0.5"
                     aria-hidden
                   >
-                    <span className="block size-2.5 rounded-full border-[1.5px] border-placeholder" />
+                    <span className="border-placeholder block size-2.5 rounded-full border-[1.5px]" />
                   </span>
                   <div className="-mx-1.5 flex gap-2.5 rounded-md px-2 py-1 transition-colors hover:bg-layer-transparent-hover">
                     <div className="flex h-5 min-w-0 flex-1 items-center">
@@ -514,6 +517,51 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                 </div>
               ))}
             </div>
+
+            {/* P1 常驻补料（设计 §4）：评论即留言板，任一时刻只有一个输入入口。
+                - 自由文本审批挂起 → 底部不出输入（上方内嵌作答区是唯一答复入口）
+                - 选项审批挂起 → 提示去上方等待步骤选选项
+                - 无挂起 → 已有补充列表 + 常驻输入框（下一个节点开工时注入） */}
+            {summary?.pendingApproval ? (
+              !summary.pendingApproval.freeText && (
+                <p className="mt-2 border-t border-subtle pt-2 text-caption-sm-regular text-placeholder">
+                  {t("agent_teams_comment_select_options")}
+                </p>
+              )
+            ) : (
+              <>
+                {(cardComments?.length ?? 0) > 0 && (
+                  <div className="mt-2 border-t border-subtle pt-2">
+                    <p className="text-caption-sm-medium text-secondary">{t("agent_teams_comments_title")}</p>
+                    <ul className="mt-1 flex flex-col gap-0.5">
+                      {cardComments!
+                        .filter((c) => (c.comment_stripped || "").trim().length > 0)
+                        .slice(-3)
+                        .reverse()
+                        .map((c: TIssueComment) => (
+                          <li key={c.id} className="truncate text-caption-sm-regular text-tertiary">
+                            <span className="text-secondary">{c.actor_detail?.display_name ?? "?"}</span>
+                            <span className="text-placeholder"> · {c.comment_stripped}</span>
+                            {(c.attachments?.length ?? 0) > 0 && (
+                              <span className="text-placeholder">
+                                {" "}
+                                +{c.attachments.length}
+                                {t("agent_teams_comment_attach_count")}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
+                <CardCommentInput
+                  workspaceSlug={workspaceSlug}
+                  projectId={projectId}
+                  issueId={issueId}
+                  onPosted={() => void mutateCardComments()}
+                />
+              </>
+            )}
 
             {/* 次要操作行：取消（进行中）/ 重试（终态可重试） */}
             {(!isTerminal || summary.retryable) && (
@@ -569,7 +617,6 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
         </div>,
         document.body
       )}
-
     </div>
   );
 });
