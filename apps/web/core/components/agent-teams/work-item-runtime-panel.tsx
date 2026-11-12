@@ -25,7 +25,6 @@ import { Check, ChevronDown, Clock, Minus, X } from "lucide-react";
 // components
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { ApprovalAnswerArea } from "@/components/agent-teams/approval-answer";
-import { CardCommentInput } from "@/components/agent-teams/card-comment-input";
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import Link from "next/link";
@@ -204,6 +203,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     if (!summary) return;
     void fetchIssue(workspaceSlug, projectId, issueId);
     void fetchActivities(workspaceSlug, projectId, issueId);
+    void mutateCardComments();
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- 报告锚点在依赖数组行
   }, [runtimeSignature]);
 
@@ -528,61 +528,47 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               ))}
             </div>
 
-            {/* P1 常驻补料（设计 §4）：评论即留言板，任一时刻只有一个输入入口。
-                - 自由文本审批挂起 → 底部不出输入（上方内嵌作答区是唯一答复入口）
-                - 选项审批挂起 → 提示去上方等待步骤选选项
-                - 无挂起 → 已有补充列表 + 常驻输入框（下一个节点开工时注入） */}
-            {summary?.pendingApproval ? (
-              !summary.pendingApproval.freeText && (
-                <p className="mt-2 border-t border-subtle pt-2 text-caption-sm-regular text-placeholder">
-                  {t("agent_teams_comment_select_options")}
-                </p>
-              )
-            ) : (
-              <>
-                {recentComments.length > 0 && (
-                  <div className="mt-2 border-t border-subtle pt-2">
-                    <p className="text-caption-sm-medium text-secondary">{t("agent_teams_comments_title")}</p>
-                    <ul className="mt-1 flex flex-col gap-1">
-                      {recentComments.map((c) => (
-                        <li key={c.id} className="text-caption-sm-regular text-tertiary">
-                          <div className="truncate">
-                            <span className="text-secondary">{c.actor_detail?.display_name ?? "?"}</span>
-                            <span className="text-placeholder"> · {c.comment_stripped}</span>
+            {/* P1 补料（业界形态：评论区即通道，GitHub/Linear 同构）：
+                只读展示员工将看到的补充 + 指向卡片评论区补充。答复框内嵌等待
+                步骤（LangGraph interrupt / Dify Human Input 同构），与补料是
+                两回事，不合并在一个入口。 */}
+            <div className="mt-2 border-t border-subtle pt-2">
+              {recentComments.length > 0 && (
+                <>
+                  <p className="text-caption-sm-medium text-secondary">{t("agent_teams_comments_title")}</p>
+                  <ul className="mt-1 flex flex-col gap-1">
+                    {recentComments.map((c) => (
+                      <li key={c.id} className="text-caption-sm-regular text-tertiary">
+                        <div className="truncate">
+                          <span className="text-secondary">{c.actor_detail?.display_name ?? "?"}</span>
+                          <span className="text-placeholder"> · {c.comment_stripped}</span>
+                        </div>
+                        {(c.attachments?.length ?? 0) > 0 && (
+                          <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                            {c.attachments.map((url: string) => {
+                              const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
+                              return (
+                                <a
+                                  key={url}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-caption-sm-regular text-accent-primary underline-offset-2 hover:underline"
+                                  title={url}
+                                >
+                                  {name}
+                                </a>
+                              );
+                            })}
                           </div>
-                          {(c.attachments?.length ?? 0) > 0 && (
-                            <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
-                              {c.attachments.map((url: string) => {
-                                const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
-                                return (
-                                  <a
-                                    key={url}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-caption-sm-regular text-accent-primary underline-offset-2 hover:underline"
-                                    title={url}
-                                  >
-                                    {name}
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <CardCommentInput
-                  workspaceSlug={workspaceSlug}
-                  projectId={projectId}
-                  issueId={issueId}
-                  terminal={isTerminal}
-                  onPosted={() => void mutateCardComments()}
-                />
-              </>
-            )}
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <p className="mt-1 text-caption-sm-regular text-placeholder">{t("agent_teams_comment_where")}</p>
+            </div>
 
             {/* 次要操作行：取消（进行中）/ 重试（终态可重试） */}
             {(!isTerminal || summary.retryable) && (
