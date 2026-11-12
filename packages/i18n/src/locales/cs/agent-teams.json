@@ -96,8 +96,6 @@
   "agent_teams_inbox_filter_this_project": "Pouze tento projekt",
   "agent_teams_panel_timeline": "Časová osa běhu",
   "agent_teams_panel_cancel": "Zrušit běh",
-  "agent_teams_comments_title": "Vaše poznámky (viditelné pro agenta v dalším kroku)",
-  "agent_teams_comment_where": "Doplňky pište do sekce komentářů karty — agent je přečte v dalším kroku",
   "agent_teams_panel_view_full_run": "Zobrazit celý běh",
   "agent_teams_chat_title": "Konverzace",
   "agent_teams_chat_new_session": "Nová konverzace",

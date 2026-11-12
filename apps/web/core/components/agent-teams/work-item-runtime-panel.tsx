@@ -35,8 +35,6 @@ import {
   type OrchestrationTimelineEvent,
   type OrchestrationWorkItemRuntime,
 } from "@/services/agent-teams/orchestration.service";
-import { IssueCommentService } from "@/services/issue/issue_comment.service";
-import type { TIssueComment } from "@plane/types";
 
 type WorkItemRuntimePanelProps = {
   issueId: string;
@@ -48,7 +46,6 @@ type WorkItemRuntimePanelProps = {
 
 const TERMINAL = new Set(["completed", "cancelled", "failed"]);
 const STEP_ACTIVE = new Set(["running", "pending", "queued"]);
-const issueCommentService = new IssueCommentService();
 
 /** 步骤（叙事流的行单位）：同一节点的事件归并成一步。 */
 interface StreamStep {
@@ -112,24 +109,6 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   const [textAnswer, setTextAnswer] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
-
-  // P1 评论即留言板：面板内展示已有补充（用户看到"员工将看到什么"），
-  // 发送后刷新。低频拉取即可（评论由人在面板里发，无需随执行轮询跳动）。
-  const { data: cardComments, mutate: mutateCardComments } = useSWR(
-    workspaceSlug && projectId && issueId && !!summary ? (["card-comments", projectId, issueId] as const) : null,
-    () => issueCommentService.getIssueComments(workspaceSlug, projectId, issueId),
-    { revalidateOnFocus: false, shouldRetryOnError: false }
-  );
-
-  // 最近 3 条人的补充，最新在前。评论接口按 created_at 升序返回，取末尾 3 条
-  // 再倒序；用朴素循环避免 reverse/toReversed/sort（oxlint 会 auto-fix 成 ES2023
-  // 方法，而项目 lib 低于 ES2023 会 tsc 报错）。
-  const recentComments = useMemo(() => {
-    const all = (cardComments ?? []).filter((c) => (c.comment_stripped || "").trim().length > 0);
-    const out: TIssueComment[] = [];
-    for (let i = all.length - 1; i >= Math.max(0, all.length - 3); i--) out.push(all[i]);
-    return out;
-  }, [cardComments]);
 
   const isActive = !!summary && !TERMINAL.has(summary.businessStatus);
   // 秒级跳动：执行中每秒刷新一次（呼吸灯耗时的「活」感，#3 准直播）
@@ -203,7 +182,6 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     if (!summary) return;
     void fetchIssue(workspaceSlug, projectId, issueId);
     void fetchActivities(workspaceSlug, projectId, issueId);
-    void mutateCardComments();
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- 报告锚点在依赖数组行
   }, [runtimeSignature]);
 
@@ -526,48 +504,6 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                   </div>
                 </div>
               ))}
-            </div>
-
-            {/* P1 补料（业界形态：评论区即通道，GitHub/Linear 同构）：
-                只读展示员工将看到的补充 + 指向卡片评论区补充。答复框内嵌等待
-                步骤（LangGraph interrupt / Dify Human Input 同构），与补料是
-                两回事，不合并在一个入口。 */}
-            <div className="mt-2 border-t border-subtle pt-2">
-              {recentComments.length > 0 && (
-                <>
-                  <p className="text-caption-sm-medium text-secondary">{t("agent_teams_comments_title")}</p>
-                  <ul className="mt-1 flex flex-col gap-1">
-                    {recentComments.map((c) => (
-                      <li key={c.id} className="text-caption-sm-regular text-tertiary">
-                        <div className="truncate">
-                          <span className="text-secondary">{c.actor_detail?.display_name ?? "?"}</span>
-                          <span className="text-placeholder"> · {c.comment_stripped}</span>
-                        </div>
-                        {(c.attachments?.length ?? 0) > 0 && (
-                          <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
-                            {c.attachments.map((url: string) => {
-                              const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
-                              return (
-                                <a
-                                  key={url}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-caption-sm-regular text-accent-primary underline-offset-2 hover:underline"
-                                  title={url}
-                                >
-                                  {name}
-                                </a>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              <p className="mt-1 text-caption-sm-regular text-placeholder">{t("agent_teams_comment_where")}</p>
             </div>
 
             {/* 次要操作行：取消（进行中）/ 重试（终态可重试） */}

@@ -96,8 +96,6 @@
   "agent_teams_inbox_filter_this_project": "Тільки цей проєкт",
   "agent_teams_panel_timeline": "Хронологія виконання",
   "agent_teams_panel_cancel": "Скасувати запуск",
-  "agent_teams_comments_title": "Ваші нотатки (видні агенту на наступному кроці)",
-  "agent_teams_comment_where": "Доповнення додавайте в розділі коментарів картки — агент прочитає їх на наступному кроці",
   "agent_teams_panel_view_full_run": "Переглянути запуск повністю",
   "agent_teams_chat_title": "Розмови",
   "agent_teams_chat_new_session": "Новий діалог",

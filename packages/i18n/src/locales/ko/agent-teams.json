@@ -96,8 +96,6 @@
   "agent_teams_inbox_filter_this_project": "이 프로젝트만",
   "agent_teams_panel_timeline": "실행 타임라인",
   "agent_teams_panel_cancel": "실행 취소",
-  "agent_teams_comments_title": "보충 정보(다음 단계에서 에이전트 표시)",
-  "agent_teams_comment_where": "보충 정보는 카드 댓글란에 작성하세요(다음 단계에서 에이전트가 참조)",
   "agent_teams_panel_view_full_run": "전체 실행 보기",
   "agent_teams_chat_title": "대화",
   "agent_teams_chat_new_session": "새 대화",

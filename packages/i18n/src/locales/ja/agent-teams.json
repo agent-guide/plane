@@ -96,8 +96,6 @@
   "agent_teams_inbox_filter_this_project": "このプロジェクトのみ",
   "agent_teams_panel_timeline": "実行タイムライン",
   "agent_teams_panel_cancel": "実行をキャンセル",
-  "agent_teams_comments_title": "あなたの補足（次ステップでエージェントに表示）",
-  "agent_teams_comment_where": "補足情報はカードのコメント欄に記入してください（次のステップでエージェントが参照）",
   "agent_teams_panel_view_full_run": "実行全体を表示",
   "agent_teams_chat_title": "会話",
   "agent_teams_chat_new_session": "新しい会話",

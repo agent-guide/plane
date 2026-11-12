@@ -96,8 +96,6 @@
   "agent_teams_inbox_filter_this_project": "Ce projet uniquement",
   "agent_teams_panel_timeline": "Chronologie d'exécution",
   "agent_teams_panel_cancel": "Annuler l'exécution",
-  "agent_teams_comments_title": "Vos notes (visibles par l'agent au prochain pas)",
-  "agent_teams_comment_where": "Ajoutez les compléments dans la section commentaires de la carte — l'agent les lit à l'étape suivante",
   "agent_teams_panel_view_full_run": "Voir l'exécution complète",
   "agent_teams_chat_title": "Conversations",
   "agent_teams_chat_new_session": "Nouvelle conversation",

@@ -96,8 +96,6 @@
   "agent_teams_inbox_filter_this_project": "Tylko ten projekt",
   "agent_teams_panel_timeline": "Oś czasu wykonania",
   "agent_teams_panel_cancel": "Anuluj uruchomienie",
-  "agent_teams_comments_title": "Twoje notatki (widoczne dla agenta w następnym kroku)",
-  "agent_teams_comment_where": "Uzupełnienia dodawaj w sekcji komentarzy karty — agent przeczyta je w następnym kroku",
   "agent_teams_panel_view_full_run": "Zobacz pełne uruchomienie",
   "agent_teams_chat_title": "Rozmowy",
   "agent_teams_chat_new_session": "Nowa rozmowa",

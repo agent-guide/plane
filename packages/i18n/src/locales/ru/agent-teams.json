@@ -96,8 +96,6 @@
   "agent_teams_inbox_filter_this_project": "Только этот проект",
   "agent_teams_panel_timeline": "Хронология выполнения",
   "agent_teams_panel_cancel": "Отменить запуск",
-  "agent_teams_comments_title": "Ваши заметки (видны агенту на следующем шаге)",
-  "agent_teams_comment_where": "Дополнения добавляйте в разделе комментариев карточки — агент прочитает их на следующем шаге",
   "agent_teams_panel_view_full_run": "Показать запуск целиком",
   "agent_teams_chat_title": "Диалоги",
   "agent_teams_chat_new_session": "Новый диалог",

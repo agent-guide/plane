@@ -94,8 +94,6 @@
   "agent_teams_inbox_filter_this_project": "This project only",
   "agent_teams_panel_timeline": "Execution timeline",
   "agent_teams_panel_cancel": "Cancel run",
-  "agent_teams_comments_title": "Your notes (visible to the agent at the next step)",
-  "agent_teams_comment_where": "Add notes in the card's comment section — the agent reads them at the next step",
   "agent_teams_panel_view_full_run": "View full run",
   "agent_teams_chat_title": "Conversations",
   "agent_teams_chat_new_session": "New conversation",
