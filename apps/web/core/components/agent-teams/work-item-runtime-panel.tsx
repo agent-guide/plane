@@ -536,8 +536,8 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                     <ul className="mt-1 flex flex-col gap-1">
                       {cardComments!
                         .filter((c) => (c.comment_stripped || "").trim().length > 0)
-                        .slice(-3)
-                        .toReversed()
+                        .toSorted((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
+                        .slice(0, 3)
                         .map((c: TIssueComment) => (
                           <li key={c.id} className="text-caption-sm-regular text-tertiary">
                             <div className="truncate">
