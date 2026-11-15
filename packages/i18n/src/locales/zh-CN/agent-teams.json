@@ -369,5 +369,11 @@
   "agent_teams_inbox_answer_attach": "上传附件",
   "agent_teams_inbox_uploading": "上传中…",
   "agent_teams_inbox_upload_failed": "附件上传失败，请重试",
-  "agent_teams_inbox_attachment_remove": "移除附件"
+  "agent_teams_inbox_attachment_remove": "移除附件",
+  "agent_teams_inbox_answer_result_done": "已提交",
+  "agent_teams_inbox_answer_result_partial": "已提交，部分附件需注意",
+  "agent_teams_inbox_answer_result_ok": "{count} 个附件团队助手可直接读取",
+  "agent_teams_inbox_answer_result_scan": "《{name}》是扫描件或空内容，需要时团队助手会请你查看原文",
+  "agent_teams_inbox_answer_result_not_uploaded": "《{name}》未上传完成，本次没有带上",
+  "agent_teams_inbox_answer_result_unreadable": "《{name}》内容无法提取，团队助手会请你查看原文"
 }

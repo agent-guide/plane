@@ -546,13 +546,19 @@ export async function listMyApprovals(workspace: string): Promise<OrchestrationA
   return request(`${WS(workspace)}/agent-teams/approvals/`);
 }
 
+export type TAnswerAttachmentResult = {
+  id: string;
+  name: string;
+  status: "ok" | "not_uploaded" | "read_failed" | "parse_failed" | "scan_or_empty";
+};
+
 export async function answerApproval(
   workspace: string,
   approvalId: string,
   decision: "approved" | "rejected",
   reason?: string,
   attachmentIds?: string[]
-): Promise<{ id: string; result: string }> {
+): Promise<{ id: string; result: string; attachmentResults?: TAnswerAttachmentResult[] }> {
   return request(`${WS(workspace)}/agent-teams/approvals/${approvalId}/`, {
     method: "POST",
     body: JSON.stringify({ decision, reason, attachment_ids: attachmentIds }),

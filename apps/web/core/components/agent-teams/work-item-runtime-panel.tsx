@@ -193,13 +193,32 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       if (!approval) return;
       setAnswering(decision);
       try {
-        await orchestrationService.answerApproval(
+        const resp = await orchestrationService.answerApproval(
           workspaceSlug,
           approval.id,
           decision,
           reason || undefined,
           attachmentIds.length ? attachmentIds : undefined
         );
+        // C4：附件解析结果汇总回告（提交了附件才提示，避免无附件时噪音）
+        const results = resp?.attachmentResults;
+        if (results?.length) {
+          const lines: string[] = [];
+          const okCount = results.filter((r) => r.status === "ok").length;
+          if (okCount > 0) lines.push(t("agent_teams_inbox_answer_result_ok", { count: okCount }));
+          for (const r of results.filter((x) => x.status !== "ok")) {
+            if (r.status === "scan_or_empty") lines.push(t("agent_teams_inbox_answer_result_scan", { name: r.name }));
+            else if (r.status === "not_uploaded")
+              lines.push(t("agent_teams_inbox_answer_result_not_uploaded", { name: r.name }));
+            else lines.push(t("agent_teams_inbox_answer_result_unreadable", { name: r.name }));
+          }
+          const allOk = okCount === results.length;
+          setToast({
+            type: allOk ? TOAST_TYPE.SUCCESS : TOAST_TYPE.ALERT,
+            title: allOk ? t("agent_teams_inbox_answer_result_done") : t("agent_teams_inbox_answer_result_partial"),
+            message: lines.join("\n"),
+          });
+        }
         await refresh();
       } catch {
         // Errors surface via the notifications inbox; the panel keeps its state.
@@ -207,7 +226,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
         setAnswering("");
       }
     },
-    [summary, refresh, workspaceSlug]
+    [summary, refresh, workspaceSlug, t]
   );
 
   // 手动启动兜底（pendingStart 态）：同受控启动链

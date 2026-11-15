@@ -369,5 +369,11 @@
   "agent_teams_inbox_answer_attach": "Anexar arquivos",
   "agent_teams_inbox_uploading": "Enviando…",
   "agent_teams_inbox_upload_failed": "Falha ao enviar o anexo, tente novamente",
-  "agent_teams_inbox_attachment_remove": "Remover anexo"
+  "agent_teams_inbox_attachment_remove": "Remover anexo",
+  "agent_teams_inbox_answer_result_done": "Submitted",
+  "agent_teams_inbox_answer_result_partial": "Submitted, with attachment notes",
+  "agent_teams_inbox_answer_result_ok": "{count} attachments are ready for the team assistant to read",
+  "agent_teams_inbox_answer_result_scan": "{name} is a scan or empty file — the team assistant may ask you for the original",
+  "agent_teams_inbox_answer_result_not_uploaded": "{name} was not fully uploaded and was not included",
+  "agent_teams_inbox_answer_result_unreadable": "{name} could not be read — the team assistant may ask you for the original"
 }

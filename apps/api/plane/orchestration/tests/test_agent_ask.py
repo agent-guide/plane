@@ -266,8 +266,9 @@ class AnswerCommentVisibilityTests(AgentAskTestBase):
         # SQL_ASCII 测试库：中文解析块文案入 JSON 会炸，patch 为 ASCII 等价物
         from unittest.mock import patch
         client = Client()
-        with patch("plane.orchestration.views.answer_attachment_blocks",
-                   return_value=["attachment spec.xml content: GROSS 480"]):
+        with patch("plane.orchestration.views.answer_attachment_results",
+                   return_value=(["attachment spec.xml content: GROSS 480"],
+                                 [{"id": str(asset.id), "name": "spec.xml", "status": "ok"}])):
             client.force_login(self.owner)
             r = client.post(f"/api/workspaces/askws-orch/agent-teams/approvals/{approval.id}/",
                             {"decision": "approved", "reason": "see attached spec",
@@ -278,6 +279,35 @@ class AnswerCommentVisibilityTests(AgentAskTestBase):
         self.assertIn("spec.xml", (comment.assets.first().attributes or {}).get("name", ""))
         asset.refresh_from_db()
         self.assertEqual(asset.comment_id, comment.id)
+
+    def test_answer_returns_attachment_results(self):
+        """C4：作答响应回告附件解析结果（ok/未上传/读取失败）。"""
+        from django.test import Client
+        from plane.db.models import FileAsset
+        ex = self._running_execution()
+        on_agent_ask(execution_id=ex.id, event_id="ask:c4", node_ref="analyze_0", question="q")
+        approval = BusinessApproval.objects.get(execution=ex, node_ref="analyze_0")
+        asset = FileAsset.objects.create(
+            workspace=ex.issue.workspace, attributes={"name": "gone.xml", "type": "application/xml"},
+            asset="t/missing.xml", size=10, is_uploaded=True, entity_type="COMMENT_DESCRIPTION")
+        client = Client()
+        client.force_login(self.owner)
+        # SQL_ASCII 测试库：read_failed 的中文提示块入 JSON 会炸，patch 掉文本块、
+        # 状态判定走真实路径（asset 存在但存储读不到 → read_failed；幽灵 id → not_uploaded）
+        from unittest.mock import patch
+        with patch("plane.orchestration.views.answer_attachment_results",
+                   side_effect=lambda ids, *, workspace_id: (
+                       ["attachment gone.xml: read failed"],
+                       [{"id": str(asset.id), "name": "gone.xml", "status": "read_failed"},
+                        {"id": "00000000-0000-0000-0000-000000000000", "name": "?", "status": "not_uploaded"}])):
+            r = client.post(f"/api/workspaces/askws-orch/agent-teams/approvals/{approval.id}/",
+                            {"decision": "approved", "reason": "ok",
+                             "attachment_ids": [str(asset.id), "00000000-0000-0000-0000-000000000000"]},
+                            content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        results = {x["id"]: x["status"] for x in r.json()["attachmentResults"]}
+        self.assertEqual(results[str(asset.id)], "read_failed")
+        self.assertEqual(results["00000000-0000-0000-0000-000000000000"], "not_uploaded")
 
     def test_bot_ack_after_answer_comment(self):
         """C3 衔接：答复评论（人的最新评论）后 bot 回执「已采纳」；重复调用幂等跳过。"""

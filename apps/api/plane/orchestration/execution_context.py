@@ -167,41 +167,61 @@ def _attachment_texts(comment, *, budget: int = ATTACHMENT_CONTENT_BUDGET) -> li
     return blocks
 
 
-def answer_attachment_blocks(asset_ids: list[str], *, workspace_id) -> list[str]:
-    """审批答复附件 → 文本块（答复面板「要文档」能力补齐，2026-11-14）。
+def answer_attachment_results(asset_ids: list[str], *, workspace_id) -> tuple[list[str], list[dict]]:
+    """审批答复附件 → （注入文本块, 结构化结果）。
 
     与评论附件同源管线（_read_asset_bytes + parse_attachment_url，fail-soft）；
-    校验：资产必须属于该 workspace 且已上传完成，未匹配到的静默跳过
-    （前端撤销/未传完不应阻断作答）。
+    校验：资产必须属于该 workspace 且已上传完成，未匹配到的记入结果
+    （前端撤销/未传完不应阻断作答，但要让作答人知道没带上——C4）。
+
+    结果条目：{"id", "name", "status"}，status ∈
+    ok / not_uploaded（未匹配到）/ read_failed / parse_failed / scan_or_empty。
     """
     from plane.db.models import FileAsset
     from .attachment_parse import parse_attachment_url
     blocks: list[str] = []
+    results: list[dict] = []
     if not asset_ids:
-        return blocks
-    assets = FileAsset.objects.filter(
-        id__in=asset_ids, workspace_id=workspace_id, is_uploaded=True)
-    for asset in assets:
+        return blocks, results
+    assets = {
+        str(a.id): a for a in FileAsset.objects.filter(
+            id__in=asset_ids, workspace_id=workspace_id, is_uploaded=True)
+    }
+    for asset_id in asset_ids:
+        asset = assets.get(asset_id)
+        if asset is None:
+            results.append({"id": asset_id, "name": asset_id, "status": "not_uploaded"})
+            continue
         name = (asset.attributes or {}).get("name") or asset.asset.name.rsplit("/", 1)[-1]
         try:
             data = _read_asset_bytes(asset)
         except Exception:
             blocks.append(f"（附件 {name}：内容读取失败，需人工查看原文）")
+            results.append({"id": asset_id, "name": name, "status": "read_failed"})
             continue
         try:
             text, truncated = parse_attachment_url(name, data, max_chars=ATTACHMENT_CONTENT_BUDGET)
         except ValueError as exc:
             blocks.append(f"（附件 {name}：{exc}，需人工查看原文）")
+            results.append({"id": asset_id, "name": name, "status": "parse_failed"})
             continue
         except Exception:
             blocks.append(f"（附件 {name}：解析失败，需人工查看原文）")
+            results.append({"id": asset_id, "name": name, "status": "parse_failed"})
             continue
         if not text.strip():
             blocks.append(f"（附件 {name}：扫描件或空内容，需人工查看原文）")
+            results.append({"id": asset_id, "name": name, "status": "scan_or_empty"})
             continue
         tail = "（内容过长已截断）" if truncated else ""
         blocks.append(f"附件《{name}》内容：\n{text}{tail}")
-    return blocks
+        results.append({"id": asset_id, "name": name, "status": "ok"})
+    return blocks, results
+
+
+def answer_attachment_blocks(asset_ids: list[str], *, workspace_id) -> list[str]:
+    """兼容封装：仅取注入文本块（结果回告走 answer_attachment_results）。"""
+    return answer_attachment_results(asset_ids, workspace_id=workspace_id)[0]
 
 
 def build_condition_prompt(*, node: dict, issue, labels: list[str]) -> str:

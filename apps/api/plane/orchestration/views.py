@@ -19,7 +19,7 @@ from plane.db.models.workspace import Workspace
 from rest_framework.response import Response
 
 from . import services, workflows
-from .execution_context import answer_attachment_blocks
+from .execution_context import answer_attachment_results
 from .models import (
     AgentTeam, AgentTeamMember, BusinessApproval, ProjectTeamBinding,
     WorkItemExecution, WorkflowDefinition, WorkflowVersion,
@@ -701,7 +701,7 @@ class ApprovalsEndpoint(BaseAPIView):
             # 答复附件（2026-11-14）：agent 问「要文档」而文本框答不了——答复面板
             # 可传附件，服务端用评论附件同源管线解析成文本并入重跑 prompt。
             # approval.reason 保持纯手输文本（展示面不掺解析内容）。
-            _attachment_blocks = answer_attachment_blocks(
+            _attachment_blocks, _attachment_results = answer_attachment_results(
                 [str(a) for a in (request.data.get("attachment_ids") or [])],
                 workspace_id=approval.execution.binding.project.workspace_id)
             if _attachment_blocks:
@@ -749,7 +749,10 @@ class ApprovalsEndpoint(BaseAPIView):
                         ).update(comment_id=_comment.id)
                 except Exception:
                     pass
-            return Response({"id": str(approval.id), "result": decision})
+            # C4：附件解析结果随作答响应回告（前端汇总提示「哪些能读/哪些要人工看/
+            # 哪些没带上」），作答人不再对解析失败无感知。
+            return Response({"id": str(approval.id), "result": decision,
+                             "attachmentResults": _attachment_results})
         if decision == BusinessApproval.Result.REJECTED:
             # 驳回/终止选项（等价旧链 reject terminal 语义）：答复即取消执行，
             # 不恢复流程——作废其余待审批并转投引擎取消
