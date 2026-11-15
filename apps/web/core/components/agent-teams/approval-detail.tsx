@@ -10,6 +10,7 @@
  * the shared pending list and releases the selection.
  */
 import { useEffect, useState } from "react";
+import { useSWRConfig } from "swr";
 import { observer } from "mobx-react";
 import Link from "next/link";
 // i18n
@@ -36,6 +37,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
   workspaceSlug: string;
 }) {
   const { t } = useTranslation();
+  const { mutate } = useSWRConfig();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
   const { selected, setSelected } = useAgentApprovalsSelection();
   const { mutate: mutateApprovals } = usePendingApprovals(workspaceSlug);
@@ -74,6 +76,8 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
       setTextAnswer("");
       setAttachments([]);
       await mutateApprovals();
+      // C9：作答后失效工作卡执行面板缓存（两入口作答态互通）
+      mutate((k) => Array.isArray(k) && k[0] === "orchestration" && k[1] === "work-item-runtime");
     } catch {
       setErrorKey("answer");
     } finally {

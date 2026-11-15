@@ -101,19 +101,37 @@ export function ApprovalAnswerArea({
   }
 
   if (options.length > 0) {
+    // C6：选项式提问同样可补文字/附件（组合自由——只点选项、只传附件、
+    // 或选项+补充说明均可；提交把文字与附件随选项一并带上）
     return (
-      <div className="flex flex-wrap gap-2">
-        {options.map((option) => (
-          <Button
-            key={option.value}
-            variant={option.terminal ? "secondary" : "primary"}
-            size="sm"
-            disabled={answering !== ""}
-            onClick={() => onAnswer(option.terminal ? "rejected" : "approved", option.label, option.value)}
-          >
-            {answering === option.value ? "…" : option.label}
-          </Button>
-        ))}
+      <div className="flex flex-col gap-2">
+        <TextArea
+          value={textAnswer}
+          onChange={(e) => onTextChange(e.target.value)}
+          placeholder={t("agent_teams_inbox_answer_placeholder")}
+          className="w-full"
+        />
+        {attachmentSlot}
+        <div className="flex flex-wrap gap-2">
+          {options.map((option) => (
+            <Button
+              key={option.value}
+              variant={option.terminal ? "secondary" : "primary"}
+              size="sm"
+              disabled={answering !== ""}
+              onClick={() =>
+                onAnswer(
+                  option.terminal ? "rejected" : "approved",
+                  textAnswer.trim(),
+                  option.value,
+                  attachmentIds ?? []
+                )
+              }
+            >
+              {answering === option.value ? "…" : option.label}
+            </Button>
+          ))}
+        </div>
       </div>
     );
   }

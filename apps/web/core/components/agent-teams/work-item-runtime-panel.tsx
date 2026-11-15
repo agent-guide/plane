@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { observer } from "mobx-react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 // i18n
 import { useTranslation } from "@plane/i18n";
 // plane imports
@@ -76,6 +76,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   projectId,
 }: WorkItemRuntimePanelProps) {
   const { t } = useTranslation();
+  const { mutate } = useSWRConfig();
   const { agentTeamDetailPath } = useAgentTeamsLinks();
   // 轮询间隔回调必须 useCallback 稳定引用：SWR 的轮询 effect 以
   // [refreshInterval, ...] 为依赖，内联箭头函数每次渲染都是新引用——
@@ -226,13 +227,15 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           });
         }
         await refresh();
+        // C9：作答后失效收件箱缓存（两入口作答态互通——徽标/列表即时收敛）
+        mutate((key) => Array.isArray(key) && key[0] === "agent-teams");
       } catch {
         // Errors surface via the notifications inbox; the panel keeps its state.
       } finally {
         setAnswering("");
       }
     },
-    [summary, refresh, workspaceSlug, t]
+    [summary, refresh, workspaceSlug, t, mutate]
   );
 
   // 手动启动兜底（pendingStart 态）：同受控启动链
