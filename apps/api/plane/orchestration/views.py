@@ -764,10 +764,13 @@ class ApprovalsEndpoint(BaseAPIView):
                         issue=_issue, actor=request.user, created_by=request.user,
                         comment_html=f"<p>{escape(_reason_text) or '（附件补充）'}</p>")
                     if _answer_asset_ids:
+                        # 挂评论必须同时写 entity_identifier=评论id：UI 按该字段
+                        # 渲染评论附件（仅 comment FK 不显示，C2 上线即缺，11-15 补）
                         FileAsset.objects.filter(
                             id__in=_answer_asset_ids,
                             workspace_id=_issue.workspace_id, is_uploaded=True, comment__isnull=True,
-                        ).update(comment_id=_comment.id)
+                        ).update(comment_id=_comment.id, entity_identifier=str(_comment.id),
+                                 entity_type="COMMENT_DESCRIPTION")
                 except Exception:
                     pass
             # C7：作答后回收未认领附件——挂载过但没进本次评论的直接删除
