@@ -9,7 +9,7 @@
  * 文本按「终止与否」映射两端结果、所选文案入 reason。Answering refreshes
  * the shared pending list and releases the selection.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 // i18n
@@ -44,6 +44,13 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
   const [attachments, setAttachments] = useState<AnswerAttachment[]>([]);
   const [errorKey, setErrorKey] = useState<"answer" | "">("");
   const [previewArtifact, setPreviewArtifact] = useState<OrchestrationRuntimeArtifact | null>(null);
+
+  // C7：选中审批时从服务端挂载恢复附件列表（刷新/重进不丢）
+  // 仅按审批 id 变化重置；依赖 attachments 会让本地增删被轮询刷新覆盖
+  useEffect(() => {
+    setAttachments((selected?.attachments ?? []).map((a) => ({ id: a.id, name: a.name })));
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- 报告锚点在依赖数组行
+  }, [selected?.id]);
 
   if (!selected) return null;
 
@@ -160,6 +167,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
           attachmentSlot={
             <ApprovalAttachmentUpload
               workspaceSlug={workspaceSlug}
+              approvalId={selected.id}
               attachments={attachments}
               onAttachmentsChange={setAttachments}
               disabled={answering !== ""}

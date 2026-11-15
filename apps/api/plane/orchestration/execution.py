@@ -299,9 +299,14 @@ def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> Wor
     execution.node_records.filter(
         status=NodeRuntimeRecord.Status.RUNNING,
     ).update(status=NodeRuntimeRecord.Status.CANCELLED)
-    # 作废待审批（收件箱不残留已取消执行的待办）
-    execution.approvals.filter(result=BusinessApproval.Result.PENDING).update(
-        result=BusinessApproval.Result.REJECTED, reason="执行已取消", answered_at=dj_tz.now())
+    # 作废待审批（收件箱不残留已取消执行的待办）+ 回收未认领挂载附件（C7）
+    for stale in execution.approvals.filter(result=BusinessApproval.Result.PENDING):
+        stale.result = BusinessApproval.Result.REJECTED
+        stale.reason = "执行已取消"
+        stale.answered_at = dj_tz.now()
+        stale.save(update_fields=["result", "reason", "answered_at"])
+        from .execution_context import reclaim_approval_assets
+        reclaim_approval_assets(stale)
     payload = {"executionId": execution.id}
     OrchestrationOutbox.objects.get_or_create(
         idempotency_key=f"cancel:{execution.id}",
@@ -330,10 +335,15 @@ def on_engine_terminal(*, execution_id: str, event_id: str, engine_status: str) 
     ).update(status=NodeRuntimeRecord.Status.CANCELLED)
     from .models import BusinessApproval
     from django.utils import timezone as dj_tz
-    BusinessApproval.objects.filter(
-        execution=settled, result=BusinessApproval.Result.PENDING,
-    ).update(result=BusinessApproval.Result.REJECTED, reason="执行已终结",
-             answered_at=dj_tz.now())
+    # 作废待审批 + 回收其未认领挂载附件（C7：执行终结 ⇔ 无 pending 审批 ⇔ 无残留附件）
+    for stale in BusinessApproval.objects.filter(
+            execution=settled, result=BusinessApproval.Result.PENDING):
+        stale.result = BusinessApproval.Result.REJECTED
+        stale.reason = "执行已终结"
+        stale.answered_at = dj_tz.now()
+        stale.save(update_fields=["result", "reason", "answered_at"])
+        from .execution_context import reclaim_approval_assets
+        reclaim_approval_assets(stale)
     return settled
 
 

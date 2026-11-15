@@ -13,6 +13,7 @@ import { useTranslation } from "@plane/i18n";
 import { EFileAssetType, type TFileSignedURLResponse } from "@plane/types";
 // services
 import { FileService } from "@/services/file.service";
+import { registerApprovalAttachment, unregisterApprovalAttachment } from "@/services/agent-teams/orchestration.service";
 
 export interface AnswerAttachment {
   id: string;
@@ -23,11 +24,13 @@ const fileService = new FileService();
 
 export function ApprovalAttachmentUpload({
   workspaceSlug,
+  approvalId,
   attachments,
   onAttachmentsChange,
   disabled,
 }: {
   workspaceSlug: string;
+  approvalId?: string;
   attachments: AnswerAttachment[];
   onAttachmentsChange: (next: AnswerAttachment[]) => void;
   disabled?: boolean;
@@ -42,13 +45,21 @@ export function ApprovalAttachmentUpload({
     setUploadError(false);
     setUploadingCount((n) => n + files.length);
     const uploaded: AnswerAttachment[] = [];
+    // 逐个串行上传有意为之（进度可控、避免并发占满带宽）
     for (const file of Array.from(files)) {
       try {
-        const res: TFileSignedURLResponse = await fileService.uploadWorkspaceAsset(workspaceSlug, {
-          entity_identifier: "",
-          entity_type: EFileAssetType.COMMENT_DESCRIPTION,
-        }, file);
+        // oxlint-disable-next-line no-await-in-loop
+        const res: TFileSignedURLResponse = await fileService.uploadWorkspaceAsset(
+          workspaceSlug,
+          {
+            entity_identifier: "",
+            entity_type: EFileAssetType.COMMENT_DESCRIPTION,
+          },
+          file
+        );
         uploaded.push({ id: res.asset_id, name: file.name });
+        // C7：上传即挂载到审批——刷新/换人不丢（失败静默，见 service 注释）
+        if (approvalId) void registerApprovalAttachment(workspaceSlug, approvalId, res.asset_id);
       } catch {
         setUploadError(true);
       } finally {
@@ -57,6 +68,11 @@ export function ApprovalAttachmentUpload({
     }
     if (uploaded.length) onAttachmentsChange([...attachments, ...uploaded]);
     if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const handleRemove = (attachment: AnswerAttachment) => {
+    if (approvalId) void unregisterApprovalAttachment(workspaceSlug, approvalId, attachment.id);
+    onAttachmentsChange(attachments.filter((a) => a.id !== attachment.id));
   };
 
   return (
@@ -87,7 +103,7 @@ export function ApprovalAttachmentUpload({
               aria-label={t("agent_teams_inbox_attachment_remove")}
               className="text-placeholder hover:text-danger-primary"
               disabled={disabled}
-              onClick={() => onAttachmentsChange(attachments.filter((a) => a.id !== attachment.id))}
+              onClick={() => handleRemove(attachment)}
             >
               ×
             </button>
@@ -97,13 +113,7 @@ export function ApprovalAttachmentUpload({
       {uploadError && (
         <span className="text-caption-sm-regular text-danger-primary">{t("agent_teams_inbox_upload_failed")}</span>
       )}
-      <input
-        ref={inputRef}
-        type="file"
-        multiple
-        hidden
-        onChange={(e) => void handleFiles(e.target.files)}
-      />
+      <input ref={inputRef} type="file" multiple hidden onChange={(e) => void handleFiles(e.target.files)} />
     </div>
   );
 }

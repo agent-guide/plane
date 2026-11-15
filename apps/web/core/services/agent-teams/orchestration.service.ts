@@ -532,6 +532,8 @@ export interface OrchestrationApproval {
   reason: string;
   answeredAt: string | null;
   createdAt: string;
+  /** 已挂载答复附件（C7）：刷新后面板按此恢复附件列表。 */
+  attachments?: { id: string; name: string }[];
   // 消费面上下文（卡片列表/详情头）
   teamId: string;
   teamName: string;
@@ -551,6 +553,38 @@ export type TAnswerAttachmentResult = {
   name: string;
   status: "ok" | "not_uploaded" | "read_failed" | "parse_failed" | "scan_or_empty";
 };
+
+/** 审批附件挂载（C7）：作答前随传随挂——刷新不丢；失败静默（仅影响刷新恢复）。 */
+export async function registerApprovalAttachment(
+  workspace: string,
+  approvalId: string,
+  assetId: string
+): Promise<void> {
+  try {
+    await request(`${WS(workspace)}/agent-teams/approvals/${approvalId}/attachments/`, {
+      method: "POST",
+      body: JSON.stringify({ asset_id: assetId }),
+      headers: csrfHeaders(),
+    });
+  } catch {
+    // 挂载失败不阻断上传/作答——本次会话内列表仍有效，仅刷新后不恢复
+  }
+}
+
+export async function unregisterApprovalAttachment(
+  workspace: string,
+  approvalId: string,
+  assetId: string
+): Promise<void> {
+  try {
+    await request(`${WS(workspace)}/agent-teams/approvals/${approvalId}/attachments/?asset_id=${assetId}`, {
+      method: "DELETE",
+      headers: csrfHeaders(),
+    });
+  } catch {
+    // 同上：静默降级（残留挂载由作答/终态回收兜底）
+  }
+}
 
 export async function answerApproval(
   workspace: string,
@@ -601,4 +635,6 @@ export const orchestrationService = {
   cancelWorkItemExecution,
   listMyApprovals,
   answerApproval,
+  registerApprovalAttachment,
+  unregisterApprovalAttachment,
 };

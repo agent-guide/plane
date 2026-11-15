@@ -109,6 +109,12 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   const [answering, setAnswering] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
   const [answerAttachments, setAnswerAttachments] = useState<AnswerAttachment[]>([]);
+  // C7：待答审批变化时从服务端挂载恢复附件列表（刷新不丢）
+  // 仅按审批 id 变化重置；依赖 attachments 会让本地增删被轮询刷新覆盖
+  useEffect(() => {
+    setAnswerAttachments((summary?.pendingApproval?.attachments ?? []).map((a) => ({ id: a.id, name: a.name })));
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- 报告锚点在依赖数组行
+  }, [summary?.pendingApproval?.id]);
   const [cancelling, setCancelling] = useState(false);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
@@ -505,6 +511,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                               attachmentSlot={
                                 <ApprovalAttachmentUpload
                                   workspaceSlug={workspaceSlug}
+                                  approvalId={summary?.pendingApproval?.id}
                                   attachments={answerAttachments}
                                   onAttachmentsChange={setAnswerAttachments}
                                   disabled={answering !== ""}

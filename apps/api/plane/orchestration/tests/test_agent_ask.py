@@ -280,6 +280,80 @@ class AnswerCommentVisibilityTests(AgentAskTestBase):
         asset.refresh_from_db()
         self.assertEqual(asset.comment_id, comment.id)
 
+    def _pending_approval_with_asset(self, event_id):
+        from plane.db.models import FileAsset
+        ex = self._running_execution()
+        on_agent_ask(execution_id=ex.id, event_id=event_id, node_ref="analyze_0", question="q")
+        approval = BusinessApproval.objects.get(execution=ex, node_ref="analyze_0")
+        asset = FileAsset.objects.create(
+            workspace=ex.issue.workspace, attributes={"name": "keep.txt", "type": "text/plain"},
+            asset="t/keep.txt", size=5, is_uploaded=True, entity_type="COMMENT_DESCRIPTION")
+        return approval, asset
+
+    def test_attachment_mount_roundtrip(self):
+        """C7：附件挂载/卸载端点 + 序列化带出（刷新恢复的数据源）。"""
+        from django.test import Client
+        approval, asset = self._pending_approval_with_asset("ask:c7a")
+        client = Client()
+        client.force_login(self.owner)
+        r = client.post(f"/api/workspaces/askws-orch/agent-teams/approvals/{approval.id}/attachments/",
+                        {"asset_id": str(asset.id)}, content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        approval.refresh_from_db()
+        self.assertEqual(approval.attachment_ids, [str(asset.id)])
+        # 序列化带出
+        r2 = client.get("/api/workspaces/askws-orch/agent-teams/approvals/")
+        mounted = [a for a in r2.json() if a["id"] == str(approval.id)][0]["attachments"]
+        self.assertEqual(mounted[0]["name"], "keep.txt")
+        # 重复挂载幂等
+        client.post(f"/api/workspaces/askws-orch/agent-teams/approvals/{approval.id}/attachments/",
+                    {"asset_id": str(asset.id)}, content_type="application/json")
+        approval.refresh_from_db()
+        self.assertEqual(len(approval.attachment_ids), 1)
+        # 卸载
+        r3 = client.delete(
+            f"/api/workspaces/askws-orch/agent-teams/approvals/{approval.id}/attachments/?asset_id={asset.id}")
+        self.assertEqual(r3.status_code, 200, r3.content)
+        approval.refresh_from_db()
+        self.assertEqual(approval.attachment_ids, [])
+
+    def test_answer_merges_mounted_attachments(self):
+        """C7：作答请求不带附件时，挂载值兜底合并——刷新前挂的不会漏带。"""
+        from django.test import Client
+        from unittest.mock import patch
+        approval, claimed = self._pending_approval_with_asset("ask:c7b")
+        client = Client()
+        client.force_login(self.owner)
+        client.post(f"/api/workspaces/askws-orch/agent-teams/approvals/{approval.id}/attachments/",
+                    {"asset_id": str(claimed.id)}, content_type="application/json")
+        with patch("plane.orchestration.views.answer_attachment_results",
+                   side_effect=lambda ids, *, workspace_id: (
+                       [f"attachment {i} content" for i in ids],
+                       [{"id": i, "name": "x", "status": "ok"} for i in ids])):
+            r = client.post(f"/api/workspaces/askws-orch/agent-teams/approvals/{approval.id}/",
+                            {"decision": "approved", "reason": "go"}, content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(len(r.json()["attachmentResults"]), 1)  # 请求没带，挂载值带上了
+        claimed.refresh_from_db()
+        self.assertIsNotNone(claimed.comment_id)  # 合并后挂到作答评论（认领）
+        # 未认领回收路径由终态用例覆盖（作答合并语义=挂载即认领）
+
+    def test_terminal_reclaims_unclaimed_mounted_assets(self):
+        """C7：执行取消作废待审批时，未认领挂载附件被删除（凭据=attachment_ids）。"""
+        from django.test import Client
+        from plane.db.models import FileAsset
+        from plane.orchestration.execution import cancel_execution
+        approval, asset = self._pending_approval_with_asset("ask:c7c")
+        client = Client()
+        client.force_login(self.owner)
+        client.post(f"/api/workspaces/askws-orch/agent-teams/approvals/{approval.id}/attachments/",
+                    {"asset_id": str(asset.id)}, content_type="application/json")
+        cancel_execution(execution=approval.execution, event_id="cancel-c7")
+        self.assertFalse(FileAsset.objects.filter(id=asset.id).exists())
+        approval.refresh_from_db()
+        self.assertEqual(approval.attachment_ids, [])
+        self.assertEqual(approval.result, BusinessApproval.Result.REJECTED)
+
     def test_answer_returns_attachment_results(self):
         """C4：作答响应回告附件解析结果（ok/未上传/读取失败）。"""
         from django.test import Client

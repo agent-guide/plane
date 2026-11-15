@@ -167,6 +167,31 @@ def _attachment_texts(comment, *, budget: int = ATTACHMENT_CONTENT_BUDGET) -> li
     return blocks
 
 
+def reclaim_approval_assets(approval, *, keep_asset_ids=()):
+    """回收未认领的挂载答复附件（C7）：没进作答评论/仍挂审批但执行已终结的资产删除。
+
+    凭据 = approval.attachment_ids——只删本审批挂载过的，不会误伤评论附件。
+    删除失败静默（残留最坏占存储）；issue 挂载的（历史链路）不动。
+    """
+    from plane.db.models import FileAsset
+    doomed = [i for i in (approval.attachment_ids or []) if str(i) not in set(map(str, keep_asset_ids))]
+    if not doomed:
+        return
+    for asset in FileAsset.objects.filter(id__in=doomed, comment__isnull=True, issue__isnull=True):
+        try:
+            storage_path = asset.asset.name
+            asset.delete()
+            from django.core.files.storage import default_storage
+            s3 = getattr(default_storage, "s3_client", None)
+            if s3 is not None and storage_path:
+                bucket = getattr(default_storage, "aws_storage_bucket_name", None) or "uploads"
+                s3.delete_object(Bucket=bucket, Key=storage_path)
+        except Exception:
+            continue
+    approval.attachment_ids = list(keep_asset_ids)
+    approval.save(update_fields=["attachment_ids", "updated_at"])
+
+
 def answer_attachment_results(asset_ids: list[str], *, workspace_id) -> tuple[list[str], list[dict]]:
     """审批答复附件 → （注入文本块, 结构化结果）。
 

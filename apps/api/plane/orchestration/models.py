@@ -205,6 +205,9 @@ class BusinessApproval(OrchestrationBaseModel):
     result = models.CharField(max_length=16, choices=Result.choices, default=Result.PENDING)
     reason = models.TextField(blank=True, default="")
     answered_at = models.DateTimeField(null=True, blank=True)
+    # 答复附件挂载（C7，2026-11-15）：作答前随传随挂到审批——刷新不丢，
+    # 作答时与请求附件合并；未认领（没挂上评论）的由作答/终态路径回收。
+    attachment_ids = models.JSONField(default=list, blank=True)
 
 
 class AgentPermissionRequest(OrchestrationBaseModel):

@@ -115,6 +115,21 @@ def wait_until_ready(client: AirflowClient, *, dag_id: str, definition_hash: str
         time.sleep(0.5)
 
 
+def _open_internal(req, *, timeout: float = 30):
+    """内部端点统一开口：HTTPError 带响应体抛 RuntimeError（排障刚需——
+    只留状态码短语曾让 agentask/finish 的 400 真因不可见）。"""
+    try:
+        with _local_opener.open(req, timeout=timeout) as response:
+            body = response.read() or b"{}"
+            return json.loads(body) if body.strip().startswith((b"{", b"[")) else {}
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = exc.read().decode(errors="replace")[:300]
+        except OSError:
+            detail = ""
+        raise RuntimeError(f"internal {req.full_url} rejected: HTTP {exc.code} {detail}") from exc
+
+
 def _post_internal_event(event: dict) -> dict:
     """向 Plane 引擎事件端点投递（X-Orchestration-Token 服务鉴权）。"""
     import os
@@ -126,8 +141,7 @@ def _post_internal_event(event: dict) -> dict:
         headers={"Content-Type": "application/json", "X-Orchestration-Token": token})
     # 必须走 _local_opener（禁系统代理）：Clash 等本机代理会缓冲 POST 响应，
     # 导致 API 已成功处理而 worker 侧超时误判（曾引发 waiting_human 被覆盖为 failed）。
-    with _local_opener.open(req, timeout=30) as response:
-        return json.loads(response.read() or b"{}")
+    return _open_internal(req)
 
 
 def publish_workflow(*, workflow_id: str, version_number: int, definition: dict, definition_hash: str,
@@ -162,8 +176,7 @@ def _internal_node_call(method: str, path: str, payload: dict) -> dict:
         f"{base}{path}", method=method,
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json", "X-Orchestration-Token": token})
-    with _local_opener.open(req, timeout=30) as response:
-        return json.loads(response.read() or b"{}")
+    return _open_internal(req)
 
 
 def _agwmngr_headers() -> dict:
@@ -280,8 +293,20 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
             body = response.read() or b"{}"
             return json.loads(body) if body.strip().startswith((b"{", b"[")) else body.decode()
 
+    def call_checked(method: str, path: str, payload: dict | None = None, timeout: float = 30):
+        # 排障刚需：agwmngr 4xx/5xx 的响应体带真因（如 key 绑定失效 409），
+        # 不能只留 urllib 的状态码短语
+        try:
+            return call(method, path, payload, timeout)
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = exc.read().decode(errors="replace")[:300]
+            except OSError:
+                detail = ""
+            raise RuntimeError(f"agwmngr {method} {path} rejected: HTTP {exc.code} {detail}") from exc
+
     # ① 解析部署：agent 定义 → 最新 active 部署
-    deployments = call("GET", "/deployments")
+    deployments = call_checked("GET", "/deployments")
     items = deployments.get("items") if isinstance(deployments, dict) else deployments
     # 部署字段：definitionId / lifecycleState（active=可调用）
     candidates = [d for d in (items or [])
@@ -295,10 +320,10 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
     # snapshot.runtime.type 是「部署那一刻」的权威值（发布快照不可变，员工
     # 改稿不漂移）；按 (deployment, appliedReleaseId) 进程内缓存（release
     # 不可变，缓存无失效问题）。取不到/未知值 fail-loud，不猜测。
-    runtime_type = _resolve_runtime_type(call, agent_definition_id, deployment)
+    runtime_type = _resolve_runtime_type(call_checked, agent_definition_id, deployment)
 
     # ③ 调用上下文（15 分钟有效；key 解析交平台默认）
-    context = call("POST", f"/deployments/{deployment['id']}/invocations", {})
+    context = call_checked("POST", f"/deployments/{deployment['id']}/invocations", {})
 
     # ④ turn：SSE 聚合（节点超时预算 + 回调余量；builtin 直答通常 <60s）
     # 会话字段按运行时显式构造（替代旧「先 builtin 后按报错文案换 ACP」的
@@ -313,8 +338,16 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
 
     pieces: list[str] = []
     event_type = ""
-    response_ctx = _local_opener.open(
-        open_turn({"input": prompt, session_field: session_hint}), timeout=600)
+    try:
+        response_ctx = _local_opener.open(
+            open_turn({"input": prompt, session_field: session_hint}), timeout=600)
+    except urllib.error.HTTPError as exc:
+        # 排障刚需：agwmngr/网关侧 4xx/5xx 的响应体带真因，不能只留状态码
+        try:
+            detail = exc.read().decode(errors="replace")[:500]
+        except OSError:
+            detail = ""
+        raise RuntimeError(f"agent turn rejected: HTTP {exc.code} {detail}") from exc
     with response_ctx as response:
         # SSE 信封：event: <type> / data: {json}——delta 事件取 text 聚合；
         # error 事件显式抛错（不静默空回复）

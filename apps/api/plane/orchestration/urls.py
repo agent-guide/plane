@@ -6,7 +6,7 @@ from django.urls import path
 
 from .views import (
     ConnectionsEndpoint, ConnectionDetailEndpoint, ConnectionTestEndpoint, ConnectionResolveEndpoint,
-    ApprovalsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
+    ApprovalsEndpoint, ApprovalAttachmentsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
     EngineEventEndpoint, ProjectBindingsEndpoint, ProjectExecutionsEndpoint,
     StartExecutionEndpoint, TeamQuotaEndpoint, TeamProjectsEndpoint, TeamActiveTasksEndpoint,
     TeamAgentCatalogEndpoint, ProjectTeamPanelEndpoint, WorkItemRuntimeEndpoint,
@@ -21,6 +21,7 @@ urlpatterns = [
     path("workspaces/<str:slug>/agent-teams/", TeamsEndpoint.as_view(), name="orchestration-teams"),
     path("workspaces/<str:slug>/agent-teams/approvals/", ApprovalsEndpoint.as_view(), name="orchestration-approvals"),
     path("workspaces/<str:slug>/agent-teams/approvals/<str:approval_id>/", ApprovalsEndpoint.as_view(http_method_names=["post"]), name="orchestration-approval-answer"),
+    path("workspaces/<str:slug>/agent-teams/approvals/<str:approval_id>/attachments/", ApprovalAttachmentsEndpoint.as_view(), name="orchestration-approval-attachments"),
     # quota / agent-catalog 必须排在 <team_id> 通配之前，否则会被当成 team_id
     path("workspaces/<str:slug>/agent-teams/agent-catalog/", TeamAgentCatalogEndpoint.as_view(), name="orchestration-agent-catalog"),
     path("workspaces/<str:slug>/agent-teams/quota/", TeamQuotaEndpoint.as_view(), name="orchestration-team-quota"),

@@ -148,18 +148,34 @@ def _artifacts_json(execution):
 def _approval_json(a: BusinessApproval):
     """审批列表/详情一体（旧收件箱列表+详情两次取数，新域一次给全）。"""
     e = a.execution
+    # 已挂载答复附件（C7）：刷新后面板按此恢复附件列表
+    from plane.db.models import FileAsset
+    attachments = []
+    if a.attachment_ids:
+        for asset in FileAsset.objects.filter(id__in=a.attachment_ids):
+            attachments.append({
+                "id": str(asset.id),
+                "name": (asset.attributes or {}).get("name") or asset.asset.name.rsplit("/", 1)[-1],
+            })
     return {
         "id": a.id, "executionId": a.execution_id, "nodeRef": a.node_ref,
         "question": a.question, "options": a.options, "freeText": a.free_text,
         "result": a.result, "reason": a.reason,
         "answeredAt": a.answered_at.isoformat() if a.answered_at else None,
         "createdAt": a.created_at.isoformat(),
+        "attachments": attachments,
         # 消费面（卡片列表/详情头）：团队与工作项上下文
         "teamId": e.binding.team_id, "teamName": e.binding.team.name,
         "projectId": str(e.issue.project_id), "issueId": e.issue_id, "taskTitle": e.issue.name,
         # 审批依据：执行已产出工件（引用式上下文，问句保持简明）
         "contextArtifacts": _artifacts_json(e),
     }
+
+
+def _reclaim_approval_assets(approval, *, keep_asset_ids=()):
+    """回收未认领的挂载附件（C7）——实现见 execution_context（execution.py 复用）。"""
+    from .execution_context import reclaim_approval_assets
+    reclaim_approval_assets(approval, keep_asset_ids=keep_asset_ids)
 
 
 def _upcoming_steps(execution: WorkItemExecution) -> list[str]:
@@ -701,8 +717,13 @@ class ApprovalsEndpoint(BaseAPIView):
             # 答复附件（2026-11-14）：agent 问「要文档」而文本框答不了——答复面板
             # 可传附件，服务端用评论附件同源管线解析成文本并入重跑 prompt。
             # approval.reason 保持纯手输文本（展示面不掺解析内容）。
+            # C7：请求附件 ∪ 审批挂载附件（刷新后面板从挂载恢复）去重合并——
+            # 挂载过又没随本次提交的也不会漏带。
+            _merged_asset_ids = list(dict.fromkeys(
+                [str(a) for a in (request.data.get("attachment_ids") or [])]
+                + [str(a) for a in (approval.attachment_ids or [])]))
             _attachment_blocks, _attachment_results = answer_attachment_results(
-                [str(a) for a in (request.data.get("attachment_ids") or [])],
+                _merged_asset_ids,
                 workspace_id=approval.execution.binding.project.workspace_id)
             if _attachment_blocks:
                 human_answer = human_answer + "\n\n" + "\n".join(_attachment_blocks)
@@ -732,7 +753,7 @@ class ApprovalsEndpoint(BaseAPIView):
             # 后续 prompt 组装经评论附件管线同样可见）。失败不阻断作答
             #（回写非事实源，重跑注入以 humanAnswer 为权威通道）。
             _reason_text = (approval.reason or "").strip()
-            _answer_asset_ids = [str(a) for a in (request.data.get("attachment_ids") or [])]
+            _answer_asset_ids = _merged_asset_ids
             if _reason_text or _answer_asset_ids:
                 try:
                     from django.utils.html import escape
@@ -749,6 +770,12 @@ class ApprovalsEndpoint(BaseAPIView):
                         ).update(comment_id=_comment.id)
                 except Exception:
                     pass
+            # C7：作答后回收未认领附件——挂载过但没进本次评论的直接删除
+            #（评论认领的即归评论，从挂载列表摘除）。
+            _claimed = set(FileAsset.objects.filter(
+                id__in=_answer_asset_ids, comment__isnull=False
+            ).values_list("id", flat=True)) if _answer_asset_ids else set()
+            _reclaim_approval_assets(approval, keep_asset_ids={str(i) for i in _claimed})
             # C4：附件解析结果随作答响应回告（前端汇总提示「哪些能读/哪些要人工看/
             # 哪些没带上」），作答人不再对解析失败无感知。
             return Response({"id": str(approval.id), "result": decision,
@@ -780,6 +807,56 @@ class ApprovalsEndpoint(BaseAPIView):
             except Exception:
                 pass  # 执行未在等待态（终态/冲突）时审批仍成立
         return Response({"id": approval.id, "result": approval.result})
+
+
+class ApprovalAttachmentsEndpoint(BaseAPIView):
+    """审批答复附件挂载（C7）：作答前随传随挂——刷新/换人不丢，作答时与请求合并。
+
+    POST {asset_id} 幂等挂载；DELETE ?asset_id= 卸载。可见性/可答范围与作答端点一致
+    （指定审批人或团队 human 成员）；仅 PENDING 期可改。
+    """
+
+    def _load(self, request, slug, approval_id):
+        from django.db.models import Q
+        approval = BusinessApproval.objects.filter(
+            execution__binding__project__workspace__slug=slug, id=approval_id,
+        ).filter(Q(assignee=request.user) | Q(assignee__isnull=True)).select_related(
+            "execution", "execution__binding__team").first()
+        if approval and approval.assignee_id is None and not ApprovalsEndpoint._user_in_execution_team(
+                request.user.id, approval):
+            return None
+        return approval
+
+    def post(self, request, slug, approval_id):
+        from plane.db.models import FileAsset
+        approval = self._load(request, slug, approval_id)
+        if not approval:
+            return Response({"error": "not found"}, status=404)
+        if approval.result != BusinessApproval.Result.PENDING:
+            return Response({"error": "already answered"}, status=409)
+        asset_id = str(request.data.get("asset_id") or "")
+        if not FileAsset.objects.filter(
+                id=asset_id, workspace_id=approval.execution.binding.project.workspace_id,
+                is_uploaded=True).exists():
+            return Response({"error": "asset not found in workspace"}, status=400)
+        ids = list(approval.attachment_ids or [])
+        if asset_id not in ids:
+            ids.append(asset_id)
+            approval.attachment_ids = ids
+            approval.save(update_fields=["attachment_ids", "updated_at"])
+        return Response({"attachments": ids})
+
+    def delete(self, request, slug, approval_id):
+        approval = self._load(request, slug, approval_id)
+        if not approval:
+            return Response({"error": "not found"}, status=404)
+        if approval.result != BusinessApproval.Result.PENDING:
+            return Response({"error": "already answered"}, status=409)
+        asset_id = str(request.query_params.get("asset_id") or "")
+        ids = [i for i in (approval.attachment_ids or []) if str(i) != asset_id]
+        approval.attachment_ids = ids
+        approval.save(update_fields=["attachment_ids", "updated_at"])
+        return Response({"attachments": ids})
 
 
 class ConnectionsEndpoint(BaseAPIView):
