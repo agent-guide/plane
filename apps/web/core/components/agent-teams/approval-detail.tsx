@@ -163,7 +163,12 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
         {/* answer actions — 共享作答区（freeText/选项/批准-驳回三形态，
             与工作卡执行面板同源，2026-11-04 #1） */}
         <ApprovalAnswerArea
-          approval={{ freeText: selected.freeText, options }}
+          approval={{
+            freeText: selected.freeText,
+            options,
+            humanNode: selected.humanNode,
+            customOptions: selected.customOptions,
+          }}
           answering={answering}
           textAnswer={textAnswer}
           onTextChange={setTextAnswer}

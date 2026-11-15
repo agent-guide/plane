@@ -98,6 +98,20 @@ def on_engine_started(*, execution_id: str, event_id: str, engine_run_ref: str) 
     return transition_execution(execution=ex, target="running", event_id=event_id)
 
 
+# 人工确认默认动作（v2 定案 2026-11-15）：通过 / 驳回——驳回=退回上游
+# 重做（非终止；终止走卡片面板「取消执行」）。标签保持 ASCII 语义值，
+# 用户文案由前端按 value 用 i18n 映射（DB 内中文标签在 SQL_ASCII 环境
+# 会 UntranslatableCharacter）。
+DEFAULT_HUMAN_OPTIONS = [
+    {"label": "Approve", "value": "approve", "terminal": False},
+    {"label": "Reject", "value": "reject", "terminal": True},
+]
+
+# 驳回重做反馈前缀：worker 注入端据此识别重做语境（追加「直接输出修订后
+# 终稿」纪律）。模块级常量便于测试替换（SQL_ASCII 测试库不接受中文进 JSON）。
+REDO_FEEDBACK_PREFIX = "【驳回修改要求】"
+
+
 def on_human_handoff(*, execution_id: str, event_id: str, member, node_ref: str = "human") -> WorkItemExecution:
     """调用点 3：引擎人工节点 → running→waiting_human + 设人工成员 + 建待审批。
 
@@ -157,10 +171,7 @@ def _ensure_pending_approval(execution, member, node_ref: str = "human", *, defa
         node = None
     # 默认选项英文文案（本地测试库 SQL_ASCII 不收非 ASCII JSON；label 由
     # 画布 definition 提供，缺省时前端有 approve/reject 既有文案兜底）
-    options = (node or {}).get("options") or [
-        {"label": "Approve", "value": "approve", "terminal": False},
-        {"label": "Reject", "value": "reject", "terminal": True},
-    ]
+    options = (node or {}).get("options") or DEFAULT_HUMAN_OPTIONS
     # 键名规范化（2026-11-05）：画布序列化历史写 terminate、审批消费端读
     # terminal——键名分叉使所有选项终止性丢失（点「终止」也会继续执行）。
     # 双键兼容读取，落库一律 terminal。
@@ -213,10 +224,78 @@ def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
     from .node_runtime import NodeRuntimeRecord
     definition = (ex.binding.workflow_version.definition or {})
     human_keys = {n.get("key") for n in (definition.get("nodes") or []) if n.get("type") == "human_approval"}
-    NodeRuntimeRecord.objects.filter(
-        execution=ex, node_key__in=human_keys, status=NodeRuntimeRecord.Status.RUNNING,
-    ).update(status=NodeRuntimeRecord.Status.SUCCESS, result={"resumedBy": event_id})
+    # 保留已有 result（通过路径先落的拍板备注/附件 output——下游 prior_outputs
+    # 携带），resumedBy 仅补充不覆盖
+    for rec in NodeRuntimeRecord.objects.filter(
+            execution=ex, node_key__in=human_keys, status=NodeRuntimeRecord.Status.RUNNING):
+        rec.status = NodeRuntimeRecord.Status.SUCCESS
+        rec.result = {**(rec.result or {}), "resumedBy": event_id}
+        rec.save(update_fields=["status", "result"])
     return resumed
+
+
+def on_human_redo(*, execution_id: str, node_ref: str, feedback: str, event_id: str) -> tuple:
+    """人工确认「驳回=重做」（v2 定案 2026-11-15）：修改要求注入上游最近
+    AI/条件节点重跑，跑完经 sensor start 重入确认节点（新一轮审批）。
+
+    - 反馈文本（驳回理由 + 附件内容块）落上游节点 human_answer，随
+      agent.invoke 幂等命令重派（attempt 单调自增，B1 预算不占）。
+      文本带【驳回修改要求】前缀：worker 注入端据此追加「直接输出修订后
+      终稿、不复述修改过程」纪律（确认人看到的就是干净新版）。
+    - 确认节点记录回 PENDING：sensor 观察到后 POST start 重建审批；
+      start 侧有「上游在跑不 handoff」守卫，确保新审批带的是改后产出。
+    - 上游无 AI/条件节点（纯人工流程）不可重做——调用方按此先验隐藏按钮。
+    - 返回 (execution, target_node_def)：target 供调用方按上游节点 expertId
+      解析真正负责重做的员工（回执署名）。
+    """
+    import hashlib, json as _json
+    from .models import NodeRuntimeRecord, OrchestrationOutbox
+    ex = _load_active(execution_id)
+    definition = (ex.binding.workflow_version.definition or {})
+    nodes = definition.get("nodes") or []
+    edges = definition.get("edges") or []
+    # node_ref 的全部上游（传递闭包，edges 方向 source→target）
+    ancestors, frontier = set(), {node_ref}
+    while frontier:
+        frontier = {e.get("source") for e in edges if e.get("target") in frontier}
+        ancestors |= frontier
+    # 定义序中最近的 AI/条件上游
+    target_def = next((n for n in reversed(nodes)
+                       if n.get("key") in ancestors and n.get("type") in ("ai", "condition")), None)
+    if target_def is None:
+        raise TeamDomainError(409, "REDO_NO_UPSTREAM", "No upstream AI node to redo from")
+    target = target_def["key"]
+    if not feedback.startswith(REDO_FEEDBACK_PREFIX):
+        feedback = f"{REDO_FEEDBACK_PREFIX}{feedback}"
+    upstream, _ = NodeRuntimeRecord.objects.get_or_create(execution=ex, node_key=target)
+    attempt = (upstream.attempt or 0) + 1
+    NodeRuntimeRecord.objects.filter(id=upstream.id).update(
+        status=NodeRuntimeRecord.Status.RUNNING, attempt=attempt,
+        failure_retries=0, human_answer=feedback,
+        result={})  # 清旧产出：重跑前 prior 查询不得读到旧版
+    # 确认节点回 PENDING（sensor 下一 poke 重建审批）
+    NodeRuntimeRecord.objects.filter(execution=ex, node_key=node_ref).exclude(
+        status=NodeRuntimeRecord.Status.PENDING
+    ).update(status=NodeRuntimeRecord.Status.PENDING)
+    payload = {
+        "executionId": ex.id, "nodeKey": target,
+        "attempt": attempt,
+        "humanAnswer": feedback,
+    }
+    OrchestrationOutbox.objects.get_or_create(
+        idempotency_key=f"agent_call:{ex.id}:{target}:{attempt}",
+        defaults={
+            "command_type": "agent.invoke", "payload": payload,
+            "payload_hash": hashlib.sha256(
+                _json.dumps(payload, sort_keys=True).encode()).hexdigest(),
+        },
+    )
+    # 执行回 running（waiting_human → running；已 running 幂等跳过）
+    if ex.business_status == "waiting_human":
+        transition_execution(execution=ex, target="running", event_id=event_id)
+    else:
+        ex.refresh_from_db()
+    return ex, target_def
 
 
 def on_agent_ask(*, execution_id: str, event_id: str, node_ref: str, question: str,

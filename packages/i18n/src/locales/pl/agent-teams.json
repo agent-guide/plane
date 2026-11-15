@@ -375,5 +375,8 @@
   "agent_teams_inbox_answer_result_ok": "{count} attachments are ready for the team assistant to read",
   "agent_teams_inbox_answer_result_scan": "{name} is a scan or empty file — the team assistant may ask you for the original",
   "agent_teams_inbox_answer_result_not_uploaded": "{name} was not fully uploaded and was not included",
-  "agent_teams_inbox_answer_result_unreadable": "{name} could not be read — the team assistant may ask you for the original"
+  "agent_teams_inbox_answer_result_unreadable": "{name} could not be read — the team assistant may ask you for the original",
+  "agent_teams_inbox_confirm_note_placeholder": "Note (optional — when rejecting, describe what needs to change)",
+  "agent_teams_inbox_confirm_reject_hint": "Reject: send it back to the previous step with your notes for revision",
+  "agent_teams_inbox_confirm_reject": "Reject"
 }

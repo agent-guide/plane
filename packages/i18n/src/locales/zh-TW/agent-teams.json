@@ -375,5 +375,8 @@
   "agent_teams_inbox_answer_result_ok": "{count} 個附件團隊助手可直接讀取",
   "agent_teams_inbox_answer_result_scan": "《{name}》是掃描件或空內容，需要時團隊助手會請你查看原文",
   "agent_teams_inbox_answer_result_not_uploaded": "《{name}》未上傳完成，本次沒有帶上",
-  "agent_teams_inbox_answer_result_unreadable": "《{name}》內容無法擷取，團隊助手會請你查看原文"
+  "agent_teams_inbox_answer_result_unreadable": "《{name}》內容無法擷取，團隊助手會請你查看原文",
+  "agent_teams_inbox_confirm_note_placeholder": "備註（選填；駁回時請寫明需要修改的問題）",
+  "agent_teams_inbox_confirm_reject_hint": "駁回：附上問題說明，交回上一步修改後重新提交",
+  "agent_teams_inbox_confirm_reject": "駁回"
 }

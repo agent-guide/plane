@@ -534,6 +534,10 @@ export interface OrchestrationApproval {
   createdAt: string;
   /** 已挂载答复附件（C7）：刷新后面板按此恢复附件列表。 */
   attachments?: { id: string; name: string }[];
+  /** 人工审批节点（通过/驳回）：默认形态驳回=重做（带修改要求），可附备注/附件。 */
+  humanNode?: boolean;
+  /** 画布自定义选项的人工节点：驳回维持「终止」语义。 */
+  customOptions?: boolean;
   // 消费面上下文（卡片列表/详情头）
   teamId: string;
   teamName: string;

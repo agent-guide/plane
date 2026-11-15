@@ -164,6 +164,18 @@ def _approval_json(a: BusinessApproval):
         "answeredAt": a.answered_at.isoformat() if a.answered_at else None,
         "createdAt": a.created_at.isoformat(),
         "attachments": attachments,
+        # 作答形态依据：人工审批节点纯按钮（通过/驳回无下游资料消费），
+        # agent 问询节点允许文字/附件组合补充（C6 边界，11-15 修正）
+        "humanNode": a.node_ref in {
+            n.get("key") for n in (
+                (e.binding.workflow_version.definition or {}).get("nodes") or [])
+            if n.get("type") == "human_approval"},
+        # 画布自定义选项的人工节点：驳回维持「终止」语义（v2 定案）；
+        # 默认形态驳回=重做。前端据此区分按钮形态
+        "customOptions": bool(next(
+            (n.get("options") for n in (
+                (e.binding.workflow_version.definition or {}).get("nodes") or [])
+            if n.get("key") == a.node_ref and n.get("type") == "human_approval"), None)),
         # 消费面（卡片列表/详情头）：团队与工作项上下文
         "teamId": e.binding.team_id, "teamName": e.binding.team.name,
         "projectId": str(e.issue.project_id), "issueId": e.issue_id, "taskTitle": e.issue.name,
@@ -176,6 +188,42 @@ def _reclaim_approval_assets(approval, *, keep_asset_ids=()):
     """回收未认领的挂载附件（C7）——实现见 execution_context（execution.py 复用）。"""
     from .execution_context import reclaim_approval_assets
     reclaim_approval_assets(approval, keep_asset_ids=keep_asset_ids)
+
+
+def _reclaim_unlinked(approval, merged_ids):
+    """作答后回收未认领挂载附件：没挂上评论的直接删（评论认领的从挂载列表摘除）。"""
+    from plane.db.models import FileAsset
+    claimed = set(FileAsset.objects.filter(
+        id__in=merged_ids, comment__isnull=False).values_list("id", flat=True)) if merged_ids else set()
+    _reclaim_approval_assets(approval, keep_asset_ids={str(i) for i in claimed})
+
+
+def _write_answer_comment(approval, user, asset_ids, blocks):
+    """作答内容以答者身份回写卡片评论（文字 + 附件节点 + 附件挂载）。投影非事实源。"""
+    try:
+        from django.utils.html import escape
+        from plane.db.models import IssueComment, FileAsset
+        issue = approval.execution.issue
+        rows = FileAsset.objects.filter(
+            id__in=asset_ids, workspace_id=issue.workspace_id, is_uploaded=True) if asset_ids else []
+        nodes = "".join(
+            f'<attachment-component id="{a.id}" '
+            f'name="{escape((a.attributes or {}).get("name") or a.asset.name.rsplit("/", 1)[-1])}" '
+            f'url="{a.id}" status="uploaded"></attachment-component>'
+            for a in rows)
+        text = (approval.reason or "").strip() or ("（附件补充）" if rows else "")
+        comment = IssueComment.objects.create(
+            workspace_id=issue.workspace_id, project_id=issue.project_id,
+            issue=issue, actor=user, created_by=user,
+            comment_html=f"<p>{escape(text)}</p>{nodes}")
+        if asset_ids:
+            FileAsset.objects.filter(
+                id__in=asset_ids, workspace_id=issue.workspace_id,
+                is_uploaded=True, comment__isnull=True,
+            ).update(comment_id=comment.id, entity_identifier=str(comment.id),
+                     entity_type="COMMENT_DESCRIPTION")
+    except Exception:
+        pass
 
 
 def _upcoming_steps(execution: WorkItemExecution) -> list[str]:
@@ -794,14 +842,77 @@ class ApprovalsEndpoint(BaseAPIView):
             return Response({"id": str(approval.id), "result": decision,
                              "attachmentResults": _attachment_results})
         if decision == BusinessApproval.Result.REJECTED:
-            # 驳回/终止选项（等价旧链 reject terminal 语义）：答复即取消执行，
-            # 不恢复流程——作废其余待审批并转投引擎取消
+            _node_def = next((n for n in (_definition.get("nodes") or [])
+                              if n.get("key") == approval.node_ref), {})
+            if _node_def.get("options"):
+                # 画布自定义选项：维持「终止」语义（v2 定案——自定义流程不被动改）
+                try:
+                    execution_svc.cancel_execution(
+                        execution=approval.execution, event_id=f"approval:{approval.id}")
+                except Exception:
+                    pass  # 执行已终态/冲突时审批记录仍成立
+                return Response({"id": str(approval.id), "result": decision})
+            # 默认形态驳回 = 重做（v2 定案 2026-11-15）：意见+附件作为修改
+            # 要求注入上游最近 AI 节点重跑，跑完自动重新进入确认
+            _merged = list(dict.fromkeys(
+                [str(a) for a in (request.data.get("attachment_ids") or [])]
+                + [str(a) for a in (approval.attachment_ids or [])]))
+            _blocks, _results = answer_attachment_results(
+                _merged, workspace_id=approval.execution.binding.project.workspace_id)
+            _feedback = (approval.reason or "").strip() or "请重新核对并修正。"
+            if _blocks:
+                _feedback = _feedback + "\n\n" + "\n".join(_blocks)
             try:
-                execution_svc.cancel_execution(
-                    execution=approval.execution, event_id=f"approval:{approval.id}")
+                _, _target_def = execution_svc.on_human_redo(
+                    execution_id=approval.execution_id, node_ref=approval.node_ref,
+                    feedback=_feedback, event_id=f"approval:{approval.id}")
+                # 用户回执（投影非事实源）：驳回去向一目了然——署名按上游
+                # AI 节点 expertId 对应的负责员工（非在牌/首个成员）
+                try:
+                    from django.utils.html import escape
+                    from plane.db.models import IssueComment
+                    from .bot_provisioning import ensure_bot_for_agent
+                    from .models import AgentTeamMember
+                    issue = approval.execution.issue
+                    member = AgentTeamMember.objects.filter(
+                        team=approval.execution.binding.team, kind="agent", enabled=True,
+                        agent_definition_id=_target_def.get("expertId")).first()
+                    if member is None:
+                        member = AgentTeamMember.objects.filter(
+                            team=approval.execution.binding.team, kind="agent", enabled=True).first()
+                    if member:
+                        bot = ensure_bot_for_agent(
+                            agent_definition_id=member.agent_definition_id,
+                            workspace_id=str(issue.workspace_id))
+                        if bot:
+                            IssueComment.objects.create(
+                                project=issue.project, workspace=issue.project.workspace,
+                                issue=issue, actor=bot, created_by=bot, access="INTERNAL",
+                                comment_html=f"<p>已驳回，{escape(bot.display_name)}将按修改要求重新处理："
+                                             f"{escape((approval.reason or '').strip())}</p>")
+                except Exception:
+                    pass
             except Exception:
-                pass  # 执行已终态/冲突时审批记录仍成立
+                pass  # 无上游 AI 节点等异常：审批记录仍成立，前端按钮已按先验隐藏
+            _reclaim_unlinked(approval, _merged)
+            return Response({"id": str(approval.id), "result": decision,
+                             "attachmentResults": _results})
         else:
+            # 人工节点通过（v2）：拍板备注 + 附件内容落节点 output——下游节点
+            # prompt 经 prior_outputs 携带（确认人说的「按 480 确认」下一段可见）
+            _merged = list(dict.fromkeys(
+                [str(a) for a in (request.data.get("attachment_ids") or [])]
+                + [str(a) for a in (approval.attachment_ids or [])]))
+            _blocks, _results = answer_attachment_results(
+                _merged, workspace_id=approval.execution.binding.project.workspace_id)
+            from .node_runtime import NodeRuntimeRecord
+            NodeRuntimeRecord.objects.filter(
+                execution=approval.execution, node_key=approval.node_ref
+            ).update(result={"output": ((approval.reason or "").strip()
+                                        + ("\n" + "\n".join(_blocks) if _blocks else "")),
+                             "choice": decision})
+            _write_answer_comment(approval, request.user, _merged, _blocks)
+            _reclaim_unlinked(approval, _merged)
             # 人工恢复事件入 outbox（worker 转投引擎；本地无 worker 时由
             # 过渡内联处理执行状态）
             from .models import OrchestrationOutbox
@@ -1350,6 +1461,20 @@ class DagNodeStartView(DagNodeRuntimeBase):
                      if n.get("key") == node_key), {})
         node_type = node.get("type")
         if node_type == "human_approval":
+            # 驳回重做期间（上游 AI 节点在跑）不重建审批——否则新审批的
+            # 确认内容是旧产出；等上游完成后的下一 poke 再 handoff
+            from .node_runtime import NodeRuntimeRecord as _NRR
+            _anc, _frontier = set(), {node_key}
+            while _frontier:
+                _frontier = {e.get("source") for e in (definition.get("edges") or [])
+                             if e.get("target") in _frontier}
+                _anc |= _frontier
+            if _NRR.objects.filter(execution=execution, node_key__in=_anc,
+                                   status=_NRR.Status.RUNNING).exists():
+                # 回 PENDING：上游完成后 sensor 下一 poke 会重新 POST start
+                record.status = NodeRuntimeRecord.Status.PENDING
+                record.save(update_fields=["status", "updated_at"])
+                return Response({"accepted": True, "status": "pending"})
             from . import execution as execution_svc
             execution_svc.on_human_handoff(
                 execution_id=execution.id,

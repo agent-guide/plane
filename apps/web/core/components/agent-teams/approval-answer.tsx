@@ -15,6 +15,8 @@ import { cn } from "@plane/utils";
 export interface ApprovalAnswerPayload {
   freeText: boolean;
   options: { label: string; value: string; terminal?: boolean }[];
+  /** 人工审批节点（通过/驳回）：纯按钮，文字/附件无下游消费不加输入区 */
+  humanNode?: boolean;
 }
 
 export function ApprovalAnswerArea({
@@ -101,36 +103,58 @@ export function ApprovalAnswerArea({
   }
 
   if (options.length > 0) {
-    // C6：选项式提问同样可补文字/附件（组合自由——只点选项、只传附件、
-    // 或选项+补充说明均可；提交把文字与附件随选项一并带上）
+    // agent 的选项式问询可补文字/附件（组合自由——只点选项、只传附件、
+    // 或选项+补充说明均可；提交把文字与附件随选项一并带上）。
+    // 人工审批节点（humanNode）：默认形态=通过/驳回两键+备注/附件
+    //（驳回即退回上游重做）；画布自定义选项（customOptions）按画布渲染、
+    // 驳回=终止。
     return (
       <div className="flex flex-col gap-2">
         <TextArea
           value={textAnswer}
           onChange={(e) => onTextChange(e.target.value)}
-          placeholder={t("agent_teams_inbox_answer_placeholder")}
+          placeholder={t(
+            approval.humanNode ? "agent_teams_inbox_confirm_note_placeholder" : "agent_teams_inbox_answer_placeholder"
+          )}
           className="w-full"
         />
         {attachmentSlot}
         <div className="flex flex-wrap gap-2">
-          {options.map((option) => (
-            <Button
-              key={option.value}
-              variant={option.terminal ? "secondary" : "primary"}
-              size="sm"
-              disabled={answering !== ""}
-              onClick={() =>
-                onAnswer(
-                  option.terminal ? "rejected" : "approved",
-                  textAnswer.trim(),
-                  option.value,
-                  attachmentIds ?? []
-                )
-              }
-            >
-              {answering === option.value ? "…" : option.label}
-            </Button>
-          ))}
+          {options.map((option) => {
+            // 人工节点默认动作：后端存 ASCII 语义标签，用户文案按 value 走 i18n
+            const isDefaultHumanAction =
+              approval.humanNode &&
+              !approval.customOptions &&
+              (option.value === "approve" || option.value === "reject");
+            const label = isDefaultHumanAction
+              ? option.value === "approve"
+                ? t("agent_teams_panel_approve")
+                : t("agent_teams_inbox_confirm_reject")
+              : option.label;
+            return (
+              <Button
+                key={option.value}
+                variant={option.terminal ? "secondary" : "primary"}
+                size="sm"
+                disabled={answering !== ""}
+                title={
+                  approval.humanNode && option.terminal && !approval.customOptions
+                    ? t("agent_teams_inbox_confirm_reject_hint")
+                    : undefined
+                }
+                onClick={() =>
+                  onAnswer(
+                    option.terminal ? "rejected" : "approved",
+                    textAnswer.trim(),
+                    option.value,
+                    attachmentIds ?? []
+                  )
+                }
+              >
+                {answering === option.value ? "…" : label}
+              </Button>
+            );
+          })}
         </div>
       </div>
     );

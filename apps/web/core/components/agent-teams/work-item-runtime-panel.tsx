@@ -110,10 +110,12 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   const [answering, setAnswering] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
   const [answerAttachments, setAnswerAttachments] = useState<AnswerAttachment[]>([]);
-  // C7：待答审批变化时从服务端挂载恢复附件列表（刷新不丢）
+  // C7：待答审批变化时从服务端挂载恢复附件列表（刷新不丢）；
+  // 同时清空上一轮作答残留的文字（新一轮问题不该带出旧输入）
   // 仅按审批 id 变化重置；依赖 attachments 会让本地增删被轮询刷新覆盖
   useEffect(() => {
     setAnswerAttachments((summary?.pendingApproval?.attachments ?? []).map((a) => ({ id: a.id, name: a.name })));
+    setTextAnswer("");
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- 报告锚点在依赖数组行
   }, [summary?.pendingApproval?.id]);
   const [cancelling, setCancelling] = useState(false);
@@ -506,7 +508,12 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                           <div className="mt-2 flex flex-col gap-2 rounded-lg border border-subtle bg-layer-2 px-3 py-2.5">
                             <MarkdownPreview content={approval.question || approval.taskTitle} />
                             <ApprovalAnswerArea
-                              approval={{ freeText: approval.freeText, options: approval.options ?? [] }}
+                              approval={{
+                                freeText: approval.freeText,
+                                options: approval.options ?? [],
+                                humanNode: approval.humanNode,
+                                customOptions: approval.customOptions,
+                              }}
                               answering={answering}
                               textAnswer={textAnswer}
                               onTextChange={setTextAnswer}
