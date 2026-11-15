@@ -33,9 +33,6 @@ _TEMPLATE = '''from __future__ import annotations
 
 from datetime import datetime, timedelta
 import os
-import time
-
-from uuid import uuid4
 
 import requests
 from airflow.exceptions import AirflowSkipException
@@ -60,23 +57,34 @@ def _internal_request(method: str, path: str, timeout_seconds: int = 15, **kwarg
     return response.json()
 
 
-def observe_human_node(node: dict) -> PokeReturnValue:
-    """Start once and reschedule durable observations without occupying a worker slot."""
+def observe_node(node: dict) -> PokeReturnValue:
+    """通用节点观察 sensor（人工审批与 AI/条件节点共用，reschedule 不占 worker 槽）。
+
+    状态语义：
+    - pending/queued → POST /start 启动（AI 节点建 agent.invoke，人工节点建审批）
+    - running / waiting_human → 继续等（不超时、不忙轮询、不占槽）
+    - failed → AI/条件节点重新 POST /start 重试（重试上限由后端 /start 判定，
+      耗尽返回 failed 则 raise）；人工节点直接 raise
+    - success → 完成；cancelled → raise
+
+    这取代旧的 execute_node 忙轮询（@task + execution_timeout）——「等人工」是
+    sensor 语义，不是「有限时间跑完」的 task 语义（NEED_INPUT 暂停等人工可跨
+    数小时/天，忙轮询 + timeout 会误判重试、占 worker 槽、与 engine.terminal
+    抢状态机）。
+    """
     context = get_current_context()
     run_id = context["dag_run"].conf["backendRunId"]
     path = f"/api/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/"
-    # Human approval can wait for hours; the backend restarting or a network
-    # blip during that window must NOT fail the run (design §2.6 durable
-    # wait). Transient probe errors keep the sensor waiting; only an explicit
-    # failed/cancelled status from the backend fails it.
+    # 等人工可跨数小时；后端重启/网络抖动不能误判 run 失败（设计 §2.6 durable
+    # wait）。瞬时探测错误保持等待；只有后端显式 failed/cancelled 才失败。
     try:
         result = _internal_request("GET", path)
     except requests.RequestException:
         return PokeReturnValue(is_done=False, xcom_value=None)
     status = result.get("status")
-    if status in {{"pending", "queued"}}:
+    if status in {{"pending", "queued"}} or (status == "failed" and node["type"] in ("ai", "condition")):
         try:
-            _internal_request(
+            start_resp = _internal_request(
                 "POST",
                 f"{{path}}start/",
                 json={{
@@ -88,68 +96,15 @@ def observe_human_node(node: dict) -> PokeReturnValue:
             )
         except requests.RequestException:
             return PokeReturnValue(is_done=False, xcom_value=None)
-        result = _internal_request("GET", path)
-        status = result.get("status")
+        # 重试耗尽时后端 /start 返回 status=failed → 让 DAG run 失败（不再无限重试）
+        if start_resp.get("status") == "failed":
+            raise RuntimeError(start_resp.get("error") or "node failed after retries exhausted")
+        return PokeReturnValue(is_done=False, xcom_value=None)
     if status == "skipped":
         raise AirflowSkipException(f"node {{node['key']}} was pruned by a condition")
     if status in {{"failed", "cancelled"}}:
-        raise RuntimeError(result.get("error") or "human node failed")
+        raise RuntimeError(result.get("error") or "node failed")
     return PokeReturnValue(is_done=status == "success", xcom_value=result)
-
-
-def execute_node(node: dict) -> dict:
-    context = get_current_context()
-    run_id = context["dag_run"].conf["backendRunId"]
-    event = {{
-        "eventId": f"{{run_id}}:{{node['key']}}:{{uuid4()}}",
-        "eventType": "node.started",
-        "attempt": int(context["ti"].try_number),
-        "payload": {{"nodeKey": node["key"]}},
-    }}
-    # AI start is a synchronous gateway dispatch in the backend. The HTTP budget must
-    # cover the node timeout plus callback overhead; otherwise Airflow retries a node
-    # that is still running. Approval starts return immediately and keep short timeout.
-    start_timeout = int(node.get("effectiveTimeoutSeconds") or 900) + 30
-    _internal_request(
-        "POST",
-        f"/api/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/start/",
-        json=event,
-        timeout_seconds=start_timeout,
-    )
-    try:
-        while True:
-            result = _internal_request(
-                "GET",
-                f"/api/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/",
-            )
-            status = result.get("status")
-            # A condition node upstream chose another branch, so the backend pruned this node.
-            # Surfacing it as a skip (rather than a success or a failure) lets Airflow propagate
-            # the skip down the dead branch while a join with none_failed_min_one_success still
-            # runs. Reachability stays a backend decision; Airflow only mirrors it.
-            if status == "skipped":
-                raise AirflowSkipException(f"node {{node['key']}} was pruned by a condition")
-            if status in {{"success", "failed", "cancelled"}}:
-                if status != "success":
-                    raise RuntimeError(result.get("error") or "node failed")
-                return result
-            time.sleep(2)
-    except AirflowSkipException:
-        # Not a failure: reporting it would mark the run failed and trip the compensation loop.
-        raise
-    except Exception as exc:
-        _internal_request(
-            "POST",
-            f"/api/internal/workflow-runs/{{run_id}}/nodes/{{node['key']}}/fail/",
-            json={{
-                "eventId": f"{{run_id}}:{{node['key']}}:{{uuid4()}}:failure",
-                "eventType": "node.failed",
-                "attempt": int(context["ti"].try_number),
-                "payload": {{"nodeKey": node["key"]}},
-                "result": {{"error": str(exc)}},
-            }},
-        )
-        raise
 
 
 @dag(
@@ -184,33 +139,30 @@ def render_dag(*, workflow_id: str, version: int, definition_hash: str, definiti
     for index, node in enumerate(nodes):
         effective_timeout = _effective_timeout(node)
         effective_retries = _effective_retries(node)
-        # 审批 deadline 只驱动后端提醒/升级，不能作为 Airflow execution_timeout
-        # （等待人工会被引擎自动失败）。
-        timeout = (
-            f", execution_timeout=timedelta(seconds={effective_timeout})"
-            if node["type"] != HUMAN_NODE_TYPE
-            else ""
-        )
-        retries = f", retries={effective_retries}, retry_delay=timedelta(seconds=30)"
+        # 人工审批与 AI/条件节点都用 sensor（reschedule）：等待人工可跨数小时/天，
+        # sensor 不占 worker 槽、无 execution_timeout。AI 节点的 NEED_INPUT 暂停
+        # 等人工不再被 execution_timeout 误判重试（WB-4005 双线竞态）；agent 自身
+        # total_timeout（invoke_agent_node 用 _effective_timeout）仍兜底「agent 卡死」。
         # 汇合节点放宽 trigger_rule：条件分支 skip 不再无声中断（与旧实现统一施加）。
         trigger = (
             ', trigger_rule="none_failed_min_one_success"'
             if upstream[node["key"]] > 1
             else ""
         )
+        sensor_timeout = APPROVAL_MAX_TIMEOUT_SECONDS
         if node["type"] == HUMAN_NODE_TYPE:
-            sensor_timeout = APPROVAL_MAX_TIMEOUT_SECONDS
             tasks.append(
                 f'    @task.sensor(task_id="{node["key"]}", mode="reschedule", '
                 f"poke_interval=15, retries=3, retry_delay=30, timeout={sensor_timeout}{trigger})\n"
                 f"    def task_{index}_{node['key']}(node: dict) -> PokeReturnValue:\n"
-                f"        return observe_human_node(node)\n"
+                f"        return observe_node(node)\n"
             )
         else:
             tasks.append(
-                f'    @task(task_id="{node["key"]}"{timeout}{retries}{trigger})\n'
-                f"    def task_{index}_{node['key']}(node: dict) -> dict:\n"
-                f"        return execute_node(node)\n"
+                f'    @task.sensor(task_id="{node["key"]}", mode="reschedule", '
+                f"poke_interval=15, retries={effective_retries}, retry_delay=30, timeout={sensor_timeout}{trigger})\n"
+                f"    def task_{index}_{node['key']}(node: dict) -> PokeReturnValue:\n"
+                f"        return observe_node(node)\n"
             )
         calls.append(f"    step_{index} = task_{index}_{node['key']}(NODES[{index}])")
         nodes_payload.append(

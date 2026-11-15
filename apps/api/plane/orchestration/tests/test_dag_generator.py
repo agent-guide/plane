@@ -50,7 +50,7 @@ class RenderEquivalenceTests(SimpleTestCase):
         self.assertIn("from airflow.sdk import PokeReturnValue, dag, get_current_context, task", out)
         self.assertIn("WORKFLOW_ID = 'wfv_3c3962568a684ec5a6cf80a01430b427'", out)
         self.assertIn("'effectiveTimeoutSeconds': 1800", out)  # 平台默认 30min
-        self.assertIn("@task(task_id=\"agent_1_0\", execution_timeout=timedelta(seconds=1800), retries=1, retry_delay=timedelta(seconds=30))", out)
+        self.assertIn('@task.sensor(task_id="agent_1_0", mode="reschedule", poke_interval=15, retries=1, retry_delay=30, timeout=604800)', out)
         self.assertIn("step_0 = task_0_agent_1_0(NODES[0])", out)
         self.assertIn("dag_id='wf_01430b427_v1'", out)  # 取 id 末 9 位
         self.assertIn('tags=["workflow_version", \'22e8460a', out)
@@ -65,7 +65,7 @@ class RenderEquivalenceTests(SimpleTestCase):
         self.assertNotIn('task_id="approve", execution_timeout', out)
         self.assertIn(f"timeout={7 * 24 * 60 * 60}", out)  # sensor 上限 7 天
         # 汇合节点：none_failed_min_one_success（条件分支 skip 不中断）
-        self.assertIn('@task(task_id="join", execution_timeout=timedelta(seconds=1800), retries=1, retry_delay=timedelta(seconds=30), trigger_rule="none_failed_min_one_success")', out)
+        self.assertIn('@task.sensor(task_id="join", mode="reschedule", poke_interval=15, retries=1, retry_delay=30, timeout=604800, trigger_rule="none_failed_min_one_success")', out)
         # 依赖渲染（含显式边）
         self.assertIn("    step_0 >> step_1", out)
         self.assertIn("    step_2 >> step_4", out)

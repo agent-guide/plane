@@ -219,14 +219,18 @@ def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
     return resumed
 
 
-def on_agent_ask(*, execution_id: str, event_id: str, node_ref: str, question: str) -> WorkItemExecution:
-    """agent 能力化求助（2026-11-05 定案）：AI 节点执行中发现缺数据 →
-    running→waiting_human + 建自由文本审批单（问题=agent 提问）。
+def on_agent_ask(*, execution_id: str, event_id: str, node_ref: str, question: str,
+                 options: list | None = None, free_text: bool = True) -> WorkItemExecution:
+    """agent 能力化求助（2026-11-05 定案）：AI 节点执行中发现缺数据/有矛盾 →
+    running→waiting_human + 建审批单（问题=agent 提问）。
 
     与 human_handoff 的区别：节点不结束（保持 RUNNING），答复后同节点
     重跑（attempt+1，prompt 注入人工补充）——图上无人工节点、无分支，
     人工介入完全由 agent 运行时发起。幂等同 handoff：已等待时仅保证
     待审批存在。
+
+    options/free_text 为结构化求助（2026-11-13）：模型可给出「通过/驳回」或
+    选项按钮（confirm/choice），缺省仍是自由文本（text）。
     """
     ex = _load_active(execution_id)
     if ex.business_status == "waiting_human":
@@ -239,11 +243,24 @@ def on_agent_ask(*, execution_id: str, event_id: str, node_ref: str, question: s
     if not BusinessApproval.objects.filter(
             execution=execution, node_ref=node_ref,
             result=BusinessApproval.Result.PENDING).exists():
+        # 键名规范化与 human_handoff 同：落库一律 terminal；非法项剔除
+        opts = [{
+            "label": o.get("label", ""),
+            "value": o.get("value"),
+            "terminal": bool(o.get("terminal", False)),
+        } for o in (options or []) if isinstance(o, dict) and o.get("label")]
         BusinessApproval.objects.create(
             execution=execution, node_ref=node_ref,
             question=question[:2000] or "请补充资料",
-            options=[], free_text=True, assignee_id=None,
+            options=opts, free_text=bool(free_text), assignee_id=None,
         )
+    # 节点级状态同步（2026-11-14）：agent 求助 → 节点置 waiting_human，使
+    # Airflow 观察循环把「暂停等人工」与「卡死 running」区分开，避免被
+    # execution_timeout 误判重试（WB-4005 双线竞态实证）。
+    from .node_runtime import NodeRuntimeRecord
+    NodeRuntimeRecord.objects.filter(
+        execution=execution, node_key=node_ref,
+    ).update(status=NodeRuntimeRecord.Status.WAITING_HUMAN)
     return execution
 
 
@@ -354,9 +371,9 @@ def process_event(*, external_event_id: str, event_type: str, payload: dict) -> 
         execution_id = payload.get("executionId") or payload.get("execution_id", "")
         event_id = external_event_id  # last_event_id 幂等锚 = 外部事件 id
         kwargs = {"execution_id": execution_id, "event_id": event_id}
-        for k in ("engine_run_ref", "member", "engine_status", "question"):
+        for k in ("engine_run_ref", "member", "engine_status", "question", "options", "freeText"):
             if k in payload:
-                kwargs[k] = payload[k]
+                kwargs["free_text" if k == "freeText" else k] = payload[k]
         # 人工交接事件带节点 key（缺省 "human"）
         if "nodeKey" in payload:
             kwargs["node_ref"] = payload["nodeKey"]
