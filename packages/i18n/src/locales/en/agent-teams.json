@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "State is maintained by the team workflow",
   "agent_teams_state_locked_message": "This work item is being executed by a team workflow; its state is maintained automatically. Cancel the execution from the work item panel first if you need to change it manually.",
   "agent_teams_draft_convert_auto_exec": "After conversion, this will be executed automatically by the \"{team}\" team workflow",
-  "agent_teams_draft_convert_no_workflow": "This project has a team bound but no workflow configured yet. Configure the workflow before converting."
+  "agent_teams_draft_convert_no_workflow": "This project has a team bound but no workflow configured yet. Configure the workflow before converting.",
+  "agent_teams_inbox_answer_attach": "Attach files",
+  "agent_teams_inbox_uploading": "Uploading…",
+  "agent_teams_inbox_upload_failed": "Attachment upload failed, please retry",
+  "agent_teams_inbox_attachment_remove": "Remove attachment"
 }

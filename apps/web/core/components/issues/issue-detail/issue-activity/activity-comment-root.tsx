@@ -12,7 +12,7 @@ import type { TCommentsOperations } from "@plane/types";
 // components
 import { CommentCard } from "@/components/comments/card/root";
 // agent teams extension (design §12.5-4 activity renderer)
-import { AgentRunSummaryCard } from "@/components/agent-teams/agent-run-summary-card";
+import { AgentRunSummaryCard, isRunSummaryComment } from "@/components/agent-teams/agent-run-summary-card";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 // local imports
@@ -63,7 +63,7 @@ export const IssueActivityCommentRoot = observer(function IssueActivityCommentRo
         const comment = getCommentById(activityComment.id);
         const ends = index === 0 ? "top" : index === filteredActivityAndComments.length - 1 ? "bottom" : undefined;
         return activityComment.activity_type === "COMMENT" ? (
-          comment?.actor_detail?.is_bot ? (
+          comment?.actor_detail?.is_bot && isRunSummaryComment(comment) ? (
             <AgentRunSummaryCard
               key={activityComment.id}
               comment={comment}

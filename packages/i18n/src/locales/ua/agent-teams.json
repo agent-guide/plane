@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "Станом керує робочий процес команди",
   "agent_teams_state_locked_message": "Це завдання виконується робочим процесом команди; стан оновлюється автоматично. Щоб змінити його вручну, спочатку скасуйте виконання на панелі картки.",
   "agent_teams_draft_convert_auto_exec": "Після перетворення завдання буде автоматично виконане процесом команди «{team}»",
-  "agent_teams_draft_convert_no_workflow": "До проєкту прив'язана команда, але процес ще не налаштовано. Налаштуйте процес перед перетворенням."
+  "agent_teams_draft_convert_no_workflow": "До проєкту прив'язана команда, але процес ще не налаштовано. Налаштуйте процес перед перетворенням.",
+  "agent_teams_inbox_answer_attach": "Прикріпити файли",
+  "agent_teams_inbox_uploading": "Завантаження…",
+  "agent_teams_inbox_upload_failed": "Не вдалося завантажити вкладення, спробуйте ще раз",
+  "agent_teams_inbox_attachment_remove": "Видалити вкладення"
 }

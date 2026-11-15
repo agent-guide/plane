@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "Starea este gestionată de fluxul echipei",
   "agent_teams_state_locked_message": "Acest element de lucru este executat de un flux al echipei; starea este gestionată automat. Pentru a-l modifica manual, anulează mai întâi execuția din panoul cardului.",
   "agent_teams_draft_convert_auto_exec": "După conversie, va fi executat automat de fluxul echipei „{team}”",
-  "agent_teams_draft_convert_no_workflow": "Proiectul are o echipă asociată, dar nu are încă un flux configurat. Configurați fluxul înainte de conversie."
+  "agent_teams_draft_convert_no_workflow": "Proiectul are o echipă asociată, dar nu are încă un flux configurat. Configurați fluxul înainte de conversie.",
+  "agent_teams_inbox_answer_attach": "Atașează fișiere",
+  "agent_teams_inbox_uploading": "Se încarcă…",
+  "agent_teams_inbox_upload_failed": "Încărcarea atașamentului a eșuat, încercați din nou",
+  "agent_teams_inbox_attachment_remove": "Elimină atașamentul"
 }

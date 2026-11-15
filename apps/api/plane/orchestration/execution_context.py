@@ -23,12 +23,30 @@ def build_node_prompt(*, node: dict, issue, prior_outputs: list[dict]) -> str:
     comment_history = _card_comment_history(issue)
     if comment_history:
         lines.append(comment_history)
+        # 采纳说明（G1 消费回执的实质化）：让员工说明从补充里采纳了什么、
+        # 以及任何需要用户确认的矛盾/存疑点，回执不再是无内容的「已收到」。
+        lines.append(
+            "若上方【用户对话记录】里有用户补充的信息、且你采纳了其中内容，请在末尾"
+            "【任务完成】之前独占一行输出【采纳说明】，用一句话概括你采纳了哪些关键"
+            "信息；若存在「不阻断执行」的存疑点（你按合理默认继续了）也一并注明你的"
+            "假设。没有采纳任何补充信息则无需输出。真正阻断执行的矛盾请用 NEED_INPUT"
+            "停下提问，不要写在这里。"
+        )
     lines.append(
         # 终止契约（2026-11-11 收工事故后补）：明确"做完即止"，杜绝 agent
         # 完成后反复输出"已闭环"确认、turn 永不结束的循环（1109 卡 14:57 完成
         # 却空转 100+ 步、最终被总预算误判失败）。最后一行为 worker 收口信号。
         "执行纪律：完成本节点全部目标并读回验证后，输出最终结果、在末尾独占一行"
-        "输出【任务完成】，然后立即停止；禁止继续确认、禁止重复输出结果、禁止请求下一步。"
+        "输出【任务完成】，然后立即停止；禁止继续确认、禁止重复输出结果。"
+    )
+    lines.append(
+        # 阻塞性求助（NEED_INPUT 结构化协议，2026-11-13）：缺少必要数据或
+        # 遇到「不确认就无法继续」的矛盾时，不要擅自假设——停下提问等人工。
+        "遇到「缺少必要数据」或「必须用户拍板的矛盾」（不确认就会做错）时，不要"
+        "擅自假设，在末尾独占一行输出 NEED_INPUT 提问后立即停止："
+        "确认类用 NEED_INPUT: {\"type\":\"confirm\",\"question\":\"你的问题\"}；"
+        "选值类用 NEED_INPUT: {\"type\":\"choice\",\"question\":\"你的问题\","
+        "\"options\":[\"选项1\",\"选项2\"]}；开放类直接 NEED_INPUT: 你的问题。"
     )
     for prior in prior_outputs:
         output = prior.get("output") or ""
@@ -63,17 +81,23 @@ def _card_comment_history(issue) -> str | None:
     entries = []
     for c in comments:
         text = (c.comment_stripped or _plain_description(c.comment_html)).strip()
-        if not text:
-            continue
         actor = c.actor
         name = (getattr(actor, "display_name", None)
                 or (actor.get_full_name() if actor else "")
                 or (getattr(actor, "email", None) or "?"))
         when = timezone.localtime(c.created_at).strftime("%m-%d %H:%M")
-        line = f"[{name} {when}] {text}"
-        if c.attachments:
-            line += " 附件：" + "、".join(c.attachments)
-        entries.append(line)
+        # 附件内容（P3 一期：文档类解析成文本注入）。数据源是评论关联的
+        # FileAsset（comment 外键），不是遗留的 IssueComment.attachments
+        # 数组——该字段无任何代码写入、恒空（2026-11-12 实证），故不再读它。
+        attachment_blocks = _attachment_texts(c)
+        if not text:
+            if not attachment_blocks:
+                continue
+            entries.append(f"[{name} {when}]（补充了附件）")
+            entries.extend(attachment_blocks)
+            continue
+        entries.append(f"[{name} {when}] {text}")
+        entries.extend(attachment_blocks)
     if not entries:
         return None
 
@@ -90,6 +114,94 @@ def _card_comment_history(issue) -> str | None:
     if dropped:
         header += f"\n（较早的 {dropped} 条对话已省略）"
     return header + "\n" + "\n".join(kept)
+
+
+ATTACHMENT_CONTENT_BUDGET = 4000  # 单附件解析文本字符上限（约 1k token，避免单文件撑爆 prompt）
+
+
+def _read_asset_bytes(asset) -> bytes:
+    """读 FileAsset 的原始字节（S3/minio 走 s3_client，其余回退 FileField.open）。
+
+    本地原生栈存储后端是 S3Storage（其 __init__ 未调 super()，FileField.open
+    会因缺 location 抛 AttributeError），故必须走 s3_client.get_object——已实证。
+    """
+    from django.core.files.storage import default_storage
+    s3 = getattr(default_storage, "s3_client", None)
+    if s3 is not None:
+        bucket = getattr(default_storage, "aws_storage_bucket_name", None) or "uploads"
+        return s3.get_object(Bucket=bucket, Key=asset.asset.name)["Body"].read()
+    with asset.asset.open("rb") as f:
+        return f.read()
+
+
+def _attachment_texts(comment, *, budget: int = ATTACHMENT_CONTENT_BUDGET) -> list[str]:
+    """工作卡评论的文档附件内容（P3 一期「文档类」：平台侧解析成文本注入）。
+
+    - 只解析文档类；图片/扫描件提不出文本 → 标注「需人工查看原文」（一期不假装看懂）
+    - fail-soft：读取/解析任一失败只降级为提示行，绝不影响节点开工
+    - 数据源 = FileAsset（comment 外键），非遗留 attachments 数组（恒空）
+    """
+    from .attachment_parse import parse_attachment_url
+
+    blocks: list[str] = []
+    for asset in comment.assets.filter(is_uploaded=True):
+        name = (asset.attributes or {}).get("name") or asset.asset.name.rsplit("/", 1)[-1]
+        try:
+            data = _read_asset_bytes(asset)
+        except Exception:
+            blocks.append(f"（附件 {name}：内容读取失败，需人工查看原文）")
+            continue
+        try:
+            text, truncated = parse_attachment_url(name, data, max_chars=budget)
+        except ValueError as exc:
+            blocks.append(f"（附件 {name}：{exc}，需人工查看原文）")
+            continue
+        except Exception:
+            blocks.append(f"（附件 {name}：解析失败，需人工查看原文）")
+            continue
+        if not text.strip():
+            blocks.append(f"（附件 {name}：扫描件或空内容，需人工查看原文）")
+            continue
+        tail = "（内容过长已截断）" if truncated else ""
+        blocks.append(f"附件《{name}》内容：\n{text}{tail}")
+    return blocks
+
+
+def answer_attachment_blocks(asset_ids: list[str], *, workspace_id) -> list[str]:
+    """审批答复附件 → 文本块（答复面板「要文档」能力补齐，2026-11-14）。
+
+    与评论附件同源管线（_read_asset_bytes + parse_attachment_url，fail-soft）；
+    校验：资产必须属于该 workspace 且已上传完成，未匹配到的静默跳过
+    （前端撤销/未传完不应阻断作答）。
+    """
+    from plane.db.models import FileAsset
+    from .attachment_parse import parse_attachment_url
+    blocks: list[str] = []
+    if not asset_ids:
+        return blocks
+    assets = FileAsset.objects.filter(
+        id__in=asset_ids, workspace_id=workspace_id, is_uploaded=True)
+    for asset in assets:
+        name = (asset.attributes or {}).get("name") or asset.asset.name.rsplit("/", 1)[-1]
+        try:
+            data = _read_asset_bytes(asset)
+        except Exception:
+            blocks.append(f"（附件 {name}：内容读取失败，需人工查看原文）")
+            continue
+        try:
+            text, truncated = parse_attachment_url(name, data, max_chars=ATTACHMENT_CONTENT_BUDGET)
+        except ValueError as exc:
+            blocks.append(f"（附件 {name}：{exc}，需人工查看原文）")
+            continue
+        except Exception:
+            blocks.append(f"（附件 {name}：解析失败，需人工查看原文）")
+            continue
+        if not text.strip():
+            blocks.append(f"（附件 {name}：扫描件或空内容，需人工查看原文）")
+            continue
+        tail = "（内容过长已截断）" if truncated else ""
+        blocks.append(f"附件《{name}》内容：\n{text}{tail}")
+    return blocks
 
 
 def build_condition_prompt(*, node: dict, issue, labels: list[str]) -> str:

@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "Lo stato è gestito dal flusso del team",
   "agent_teams_state_locked_message": "Questo elemento di lavoro è in esecuzione tramite un flusso del team; lo stato è gestito automaticamente. Per modificarlo manualmente, annulla prima l'esecuzione dal pannello della scheda.",
   "agent_teams_draft_convert_auto_exec": "Dopo la conversione, verrà eseguito automaticamente dal flusso del team \"{team}\"",
-  "agent_teams_draft_convert_no_workflow": "Questo progetto ha un team collegato ma nessun flusso configurato. Configura il flusso prima di convertire."
+  "agent_teams_draft_convert_no_workflow": "Questo progetto ha un team collegato ma nessun flusso configurato. Configura il flusso prima di convertire.",
+  "agent_teams_inbox_answer_attach": "Allega file",
+  "agent_teams_inbox_uploading": "Caricamento…",
+  "agent_teams_inbox_upload_failed": "Caricamento allegato non riuscito, riprova",
+  "agent_teams_inbox_attachment_remove": "Rimuovi allegato"
 }

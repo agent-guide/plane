@@ -12,7 +12,7 @@ from plane.db.models.project import Project, ProjectMember
 from plane.db.models.issue import Issue, IssueComment
 from plane.orchestration.execution_context import (
     CARD_COMMENTS_BUDGET, _card_comment_history, build_node_prompt)
-from plane.orchestration.worker import _post_supplement_ack
+from plane.orchestration.worker import _post_supplement_ack, _extract_ack, _parse_need_input
 
 User = get_user_model()
 
@@ -98,11 +98,88 @@ class CommentInjectionTest(TestCase):
         self.assertIn("毛重 480", out)
         self.assertNotIn("已纳入本次执行", out)
 
-    def test_attachments_as_url_text(self):
-        """附件以 URL 文本注入。"""
-        self._comment(text="补充文件", attachments=["https://x.test/f.pdf"])
-        out = _card_comment_history(self.issue)
-        self.assertIn("附件：https://x.test/f.pdf", out)
+    def test_attachment_content_injected_from_file_asset(self):
+        """文档附件内容（P3 一期）：读 FileAsset 字节 → 解析成文本注入（mock 存储读取）。
+
+        非遗留 attachments 数组（该字段恒空、无代码写入，2026-11-12 实证）。
+        """
+        from unittest.mock import patch
+        from plane.db.models.asset import FileAsset
+        comment = self._comment(text="补充了数据文件")
+        # 文件名用 ASCII：本地测试库是 SQL_ASCII，JSONField 存非 ASCII 会因
+        # E''\u 转义翻译失败（生产库 plane_utf8 为 UTF8 不受影响，2026-11-12 实证）。
+        FileAsset.objects.create(
+            workspace=self.ws, project=self.project, comment=comment,
+            entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            asset="p1/abc-maozhong.xlsx", attributes={"name": "maozhong.xlsx"},
+            is_uploaded=True, size=10, created_by=self.owner)
+        xlsx_bytes = self._xlsx_bytes()
+        with patch("plane.orchestration.execution_context._read_asset_bytes", return_value=xlsx_bytes):
+            out = _card_comment_history(self.issue)
+        self.assertIn("附件《maozhong.xlsx》内容：", out)
+        self.assertIn("列A | 列B", out)
+
+    def test_image_attachment_flagged_manual(self):
+        """图片附件：解析抛错 → 注入「需人工查看原文」，不假装看懂。"""
+        from unittest.mock import patch
+        from plane.db.models.asset import FileAsset
+        comment = self._comment(text="见扫描件")
+        FileAsset.objects.create(
+            workspace=self.ws, project=self.project, comment=comment,
+            entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            asset="p1/abc-scan.png", attributes={"name": "scan.png"},
+            is_uploaded=True, size=10, created_by=self.owner)
+        with patch("plane.orchestration.execution_context._read_asset_bytes",
+                   side_effect=ValueError("unsupported attachment type: png")):
+            out = _card_comment_history(self.issue)
+        self.assertIn("scan.png", out)
+        self.assertIn("需人工查看", out)
+        self.assertNotIn("附件《scan.png》内容：", out)
+
+    def test_attachment_read_failure_flagged(self):
+        """附件读取失败（S3 不可达等）→ 注入「读取失败需人工」，不炸节点。"""
+        from unittest.mock import patch
+        from plane.db.models.asset import FileAsset
+        comment = self._comment(text="见文件")
+        FileAsset.objects.create(
+            workspace=self.ws, project=self.project, comment=comment,
+            entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            asset="p1/abc-data.docx", attributes={"name": "data.docx"},
+            is_uploaded=True, size=10, created_by=self.owner)
+        with patch("plane.orchestration.execution_context._read_asset_bytes",
+                   side_effect=OSError("S3 unreachable")):
+            out = _card_comment_history(self.issue)
+        self.assertIn("data.docx", out)
+        self.assertIn("读取失败", out)
+
+    def test_attachment_empty_content_flagged(self):
+        """扫描件/空内容（解析出空文本）→ 标注「需人工查看」，不注入空内容。"""
+        from unittest.mock import patch
+        from plane.db.models.asset import FileAsset
+        comment = self._comment(text="见扫描件")
+        FileAsset.objects.create(
+            workspace=self.ws, project=self.project, comment=comment,
+            entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            asset="p1/abc-blank.pdf", attributes={"name": "blank.pdf"},
+            is_uploaded=True, size=10, created_by=self.owner)
+        with patch("plane.orchestration.execution_context._read_asset_bytes", return_value=b""):
+            out = _card_comment_history(self.issue)
+        self.assertIn("blank.pdf", out)
+        self.assertIn("需人工查看", out)
+        self.assertNotIn("附件《blank.pdf》内容：", out)
+
+    @staticmethod
+    def _xlsx_bytes() -> bytes:
+        import io
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "数据"
+        ws.append(["列A", "列B"])
+        ws.append([1, "x"])
+        buf = io.BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
 
     def test_budget_truncation_keeps_recent(self):
         """超预算：最旧丢弃、保最近、注明省略条数。"""
@@ -124,15 +201,43 @@ class CommentInjectionTest(TestCase):
         self.assertLess(len(out), CARD_COMMENTS_BUDGET + 200)
 
     def test_post_supplement_ack_creates_bot_comment(self):
-        """G1 回执：节点成功后以 bot 身份建评论，且不因缺目录名而崩。"""
+        """G1 回执：有人的补充时，节点成功后以 bot 身份建评论（无采纳说明→固定兜底）。"""
         from types import SimpleNamespace
         execution = SimpleNamespace(issue=self.issue)
         node = {"expertId": "agent:test:ack", "name": "测试员工"}
+        self._comment(text="补充了数据")
         _post_supplement_ack(execution=execution, node=node)
         from plane.db.models.issue import IssueComment
         comment = IssueComment.objects.filter(issue=self.issue, actor__is_bot=True).first()
         self.assertIsNotNone(comment)
-        self.assertIn("已纳入本次执行", comment.comment_stripped)
+        self.assertIn("已用于本次执行", comment.comment_stripped)
+
+    def test_post_supplement_ack_uses_ack_text(self):
+        """G1 回执（实质化）：LLM 有【采纳说明】时，回评用该实质文案而非兜底。"""
+        from types import SimpleNamespace
+        execution = SimpleNamespace(issue=self.issue)
+        node = {"expertId": "agent:test:ack", "name": "测试员工"}
+        self._comment(text="补充了数据")
+        _post_supplement_ack(
+            execution=execution, node=node,
+            ack_text="采纳毛重 480 KGM、箱号 TCLU1234567；散货与集装箱矛盾需确认")
+        from plane.db.models.issue import IssueComment
+        comment = IssueComment.objects.filter(issue=self.issue, actor__is_bot=True).first()
+        self.assertIsNotNone(comment)
+        self.assertIn("采纳毛重 480 KGM", comment.comment_stripped)
+        self.assertIn("矛盾需确认", comment.comment_stripped)
+
+    def test_post_supplement_ack_idempotent(self):
+        """G1 回执幂等：同一员工在人的补充之后已回评过 → 不再重复回评。"""
+        from types import SimpleNamespace
+        execution = SimpleNamespace(issue=self.issue)
+        node = {"expertId": "agent:test:ack", "name": "测试员工"}
+        self._comment(text="补充了数据")
+        _post_supplement_ack(execution=execution, node=node)
+        _post_supplement_ack(execution=execution, node=node)
+        from plane.db.models.issue import IssueComment
+        self.assertEqual(
+            IssueComment.objects.filter(issue=self.issue, actor__is_bot=True).count(), 1)
 
     def test_stub_issue_without_comments_relation(self):
         """非持久化 issue 替身（无评论关系）：build_node_prompt 不炸、不注入。"""
@@ -140,3 +245,57 @@ class CommentInjectionTest(TestCase):
             node={"key": "n1"}, issue=_issue_stub(name="替身卡"), prior_outputs=[])
         self.assertIn("任务标题：替身卡", prompt)
         self.assertNotIn("用户对话记录", prompt)
+
+    def test_extract_ack_parses_marker(self):
+        """采纳说明提取：从产出里截取【采纳说明】到【任务完成】之间的一段。"""
+        reply = "节点结果……\n【采纳说明】采纳毛重 480 KGM；散货矛盾需确认\n【任务完成】"
+        self.assertEqual(_extract_ack(reply), "采纳毛重 480 KGM；散货矛盾需确认")
+
+    def test_extract_ack_absent_returns_none(self):
+        """无【采纳说明】标记 → None（回评走固定兜底）。"""
+        self.assertIsNone(_extract_ack("节点结果……\n【任务完成】"))
+        self.assertIsNone(_extract_ack(""))
+
+    def test_extract_ack_ignores_negation(self):
+        """「不输出【采纳说明】」这种否定表述不是真标记 → None，不误提取垃圾回执。"""
+        self.assertIsNone(_extract_ack("无可采纳内容，故不输出【采纳说明】。\n- 本节点目标…"))
+
+    def test_parse_need_input_confirm(self):
+        """结构化 NEED_INPUT：confirm → 通过/驳回按钮 + 原因框（options + freeText=True）。"""
+        ask = _parse_need_input('NEED_INPUT: {"type":"confirm","question":"散货是否保留箱号？"}')
+        self.assertEqual(ask["type"], "confirm")
+        self.assertEqual(ask["question"], "散货是否保留箱号？")
+        self.assertEqual([o["value"] for o in ask["options"]], ["approve", "reject"])
+        self.assertTrue(ask["freeText"])
+
+    def test_parse_need_input_choice(self):
+        """结构化 NEED_INPUT：choice → 模型给的选项按钮。"""
+        ask = _parse_need_input('NEED_INPUT: {"type":"choice","question":"毛重哪个？","options":["480","500"]}')
+        self.assertEqual(ask["type"], "choice")
+        self.assertEqual([o["value"] for o in ask["options"]], ["480", "500"])
+        self.assertFalse(ask["freeText"])
+
+    def test_parse_need_input_plain_text_fallback(self):
+        """旧式纯文本 NEED_INPUT → text 回退。"""
+        ask = _parse_need_input("NEED_INPUT: 毛重是多少？")
+        self.assertEqual(ask["type"], "text")
+        self.assertEqual(ask["question"], "毛重是多少？")
+        self.assertEqual(ask["options"], [])
+
+    def test_parse_need_input_invalid_choice_falls_back_text(self):
+        """choice 但选项非法（缺失）→ text 回退，不卡死。"""
+        ask = _parse_need_input('NEED_INPUT: {"type":"choice","question":"毛重？","options":[]}')
+        self.assertEqual(ask["type"], "text")
+
+    def test_parse_need_input_none_for_non_ask(self):
+        """非 NEED_INPUT 前缀 → None。"""
+        self.assertIsNone(_parse_need_input("节点结果……【任务完成】"))
+
+    def test_parse_need_input_marker_at_end(self):
+        """模型先输出正文、末尾才 NEED_INPUT（实测形态）→ rfind 命中末尾标记。"""
+        ask = _parse_need_input(
+            '正文……\n【采纳说明】……\nNEED_INPUT: {"type":"choice","question":"毛重哪个？","options":["480","500"]}'
+        )
+        self.assertEqual(ask["type"], "choice")
+        self.assertEqual(ask["question"], "毛重哪个？")
+        self.assertEqual([o["value"] for o in ask["options"]], ["480", "500"])

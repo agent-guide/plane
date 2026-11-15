@@ -65,6 +65,11 @@ function parseRunSummary(html?: string | null) {
   return { kind, reason, deliverables } as const;
 }
 
+/** 是否为「团队执行完成/失败/取消」终端总结。bot 的普通回评（如消费回执
+ * 「已收到…」）不是总结，应走普通评论卡片而非结构化总结卡。 */
+export const isRunSummaryComment = (comment?: { comment_html?: string | null } | null) =>
+  !!comment && parseRunSummary(comment.comment_html) !== null;
+
 const KIND_TEXT_STYLES: Record<TerminalKind, string> = {
   completed: "text-success-primary",
   failed: "text-danger-primary",

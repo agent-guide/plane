@@ -43,6 +43,11 @@ slack-sdk==3.27.1
 scout-apm==3.5.3
 # xlsx generation
 openpyxl==3.1.2
+# 附件解析（P3 一期「文档类」）：定向轻量库（弃用 markitdown，其经 magika
+# 拉 onnxruntime、经 pdfplumber 拉 pandas，部署体积过重）
+pypdf==7.0.1
+python-docx==1.2.0
+python-pptx==1.0.2
 # logging
 python-json-logger==4.0.0
 # html parser

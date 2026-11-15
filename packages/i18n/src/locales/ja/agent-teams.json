@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "状態はチームワークフローが管理しています",
   "agent_teams_state_locked_message": "この作業項目はチームワークフローで実行中のため、状態は自動的に管理されます。手動で変更するには、先にカードパネルから実行をキャンセルしてください。",
   "agent_teams_draft_convert_auto_exec": "変換後、「{team}」チームのワークフローが自動実行します",
-  "agent_teams_draft_convert_no_workflow": "このプロジェクトはチームに紐づいていますが、ワークフローが未設定です。先に設定してください。"
+  "agent_teams_draft_convert_no_workflow": "このプロジェクトはチームに紐づいていますが、ワークフローが未設定です。先に設定してください。",
+  "agent_teams_inbox_answer_attach": "添付ファイル",
+  "agent_teams_inbox_uploading": "アップロード中…",
+  "agent_teams_inbox_upload_failed": "添付ファイルのアップロードに失敗しました。再試行してください",
+  "agent_teams_inbox_attachment_remove": "添付ファイルを削除"
 }

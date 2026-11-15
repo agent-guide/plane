@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "O estado é mantido pelo fluxo da equipe",
   "agent_teams_state_locked_message": "Este item de trabalho está sendo executado por um fluxo da equipe; o estado é mantido automaticamente. Para alterá-lo manualmente, cancele a execução no painel do cartão primeiro.",
   "agent_teams_draft_convert_auto_exec": "Após a conversão, será executado automaticamente pelo fluxo da equipe \"{team}\"",
-  "agent_teams_draft_convert_no_workflow": "Este projeto tem uma equipe vinculada, mas ainda sem fluxo configurado. Configure o fluxo antes de converter."
+  "agent_teams_draft_convert_no_workflow": "Este projeto tem uma equipe vinculada, mas ainda sem fluxo configurado. Configure o fluxo antes de converter.",
+  "agent_teams_inbox_answer_attach": "Anexar arquivos",
+  "agent_teams_inbox_uploading": "Enviando…",
+  "agent_teams_inbox_upload_failed": "Falha ao enviar o anexo, tente novamente",
+  "agent_teams_inbox_attachment_remove": "Remover anexo"
 }

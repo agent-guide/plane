@@ -27,6 +27,56 @@ from plane.utils.path_validator import sanitize_filename
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from plane.throttles.asset import AssetRateThrottle
 
+# 评论/描述附件可接受的 MIME（图片 + 文档类，P3 附件一期）。文档类上传后经
+# orchestration.attachment_parse 解析成文本注入员工 prompt。用户头像/封面等
+# 仍走 UserAssetsV2Endpoint 的图片白名单，不受此影响。
+ACCEPTED_ATTACHMENT_MIME_TYPES = [
+    # 图片
+    "image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif",
+    # Office 文档
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    # 纯文本
+    "text/plain", "text/markdown", "text/csv", "application/json",
+    # 结构化文本（attachment_parse 文本类同源支持：直接按文本读）
+    "application/xml", "text/xml", "text/html", "text/yaml",
+]
+
+# 签名检测认不出（file-type 对 txt/md/csv 恒空、对部分 Office 文档也可能
+# 拿不到 [Content_Types].xml 特征）时，按扩展名回退映射。覆盖白名单全部
+# 文档类与图片——回退产物仍须经 ACCEPTED_ATTACHMENT_MIME_TYPES 白名单，
+# 不放宽接受范围。
+_EXTENSION_TO_MIME = {
+    "txt": "text/plain", "log": "text/plain", "md": "text/markdown",
+    "markdown": "text/markdown", "csv": "text/csv", "json": "application/json",
+    "yaml": "text/plain", "yml": "text/plain",
+    "xml": "application/xml", "htm": "text/html", "html": "text/html",
+    # Office / PDF（2026-11-14：答复面板附件实测 docx 签名检测返回空被拒）
+    "pdf": "application/pdf",
+    "doc": "application/msword",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xls": "application/vnd.ms-excel",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "ppt": "application/vnd.ms-powerpoint",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    # 图片
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp",
+}
+
+
+def _resolve_attachment_mime(name: str, type_: str) -> str:
+    """前端签名检测认不出的纯文本附件，按扩展名回退出 MIME（否则会因 type 空被拒）。"""
+    if type_:
+        return type_
+    ext = (name or "").rsplit(".", 1)[-1].lower() if "." in (name or "") else ""
+    return _EXTENSION_TO_MIME.get(ext, "")
+
 
 class UserAssetsV2Endpoint(BaseAPIView):
     """This endpoint is used to upload user profile images."""
@@ -340,7 +390,7 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def post(self, request, slug):
         name = sanitize_filename(request.data.get("name")) or "unnamed"
-        type = request.data.get("type", "image/jpeg")
+        type = _resolve_attachment_mime(name, request.data.get("type", ""))
         size = int(request.data.get("size", settings.FILE_SIZE_LIMIT))
         entity_type = request.data.get("entity_type")
         entity_identifier = request.data.get("entity_identifier", False)
@@ -363,18 +413,11 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
-        # Check if the file type is allowed
-        allowed_types = [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/jpg",
-            "image/gif",
-        ]
-        if type not in allowed_types:
+        # Check if the file type is allowed（图片 + 文档类，P3 附件一期）
+        if type not in ACCEPTED_ATTACHMENT_MIME_TYPES:
             return Response(
                 {
-                    "error": "Invalid file type. Only JPEG, PNG, WebP, JPG and GIF files are allowed.",
+                    "error": "Invalid file type. Only images and documents are allowed.",
                     "status": False,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -580,7 +623,7 @@ class ProjectAssetEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def post(self, request, slug, project_id):
         name = sanitize_filename(request.data.get("name")) or "unnamed"
-        type = request.data.get("type", "image/jpeg")
+        type = _resolve_attachment_mime(name, request.data.get("type", ""))
         size = int(request.data.get("size", settings.FILE_SIZE_LIMIT))
         entity_type = request.data.get("entity_type", "")
         entity_identifier = request.data.get("entity_identifier")
@@ -592,18 +635,11 @@ class ProjectAssetEndpoint(BaseAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Check if the file type is allowed
-        allowed_types = [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/jpg",
-            "image/gif",
-        ]
-        if type not in allowed_types:
+        # Check if the file type is allowed（图片 + 文档类，P3 附件一期）
+        if type not in ACCEPTED_ATTACHMENT_MIME_TYPES:
             return Response(
                 {
-                    "error": "Invalid file type. Only JPEG, PNG, WebP, JPG and GIF files are allowed.",
+                    "error": "Invalid file type. Only images and documents are allowed.",
                     "status": False,
                 },
                 status=status.HTTP_400_BAD_REQUEST,

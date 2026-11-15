@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "状态由团队流程维护",
   "agent_teams_state_locked_message": "此工作卡正由团队流程执行，状态由流程自动维护；如需手动调整，请先在卡片面板取消执行。",
   "agent_teams_draft_convert_auto_exec": "转正后将由「{team}」团队流程自动执行",
-  "agent_teams_draft_convert_no_workflow": "该项目已绑定团队但尚未配置流程，请先完成流程配置再转正。"
+  "agent_teams_draft_convert_no_workflow": "该项目已绑定团队但尚未配置流程，请先完成流程配置再转正。",
+  "agent_teams_inbox_answer_attach": "上传附件",
+  "agent_teams_inbox_uploading": "上传中…",
+  "agent_teams_inbox_upload_failed": "附件上传失败，请重试",
+  "agent_teams_inbox_attachment_remove": "移除附件"
 }

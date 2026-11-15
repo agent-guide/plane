@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "Stav spravuje týmový workflow",
   "agent_teams_state_locked_message": "Tento pracovní položku spouští týmový workflow; stav je spravován automaticky. Chcete-li jej změnit ručně, nejprve zrušte spuštění v panelu karty.",
   "agent_teams_draft_convert_auto_exec": "Po převodu ji automaticky spustí workflow týmu „{team}“",
-  "agent_teams_draft_convert_no_workflow": "Projekt má navázaný tým, ale workflow ještě není nastaven. Před převodem jej nastavte."
+  "agent_teams_draft_convert_no_workflow": "Projekt má navázaný tým, ale workflow ještě není nastaven. Před převodem jej nastavte.",
+  "agent_teams_inbox_answer_attach": "Připojit soubory",
+  "agent_teams_inbox_uploading": "Nahrávání…",
+  "agent_teams_inbox_upload_failed": "Nahrání přílohy se nezdařilo, zkuste to znovu",
+  "agent_teams_inbox_attachment_remove": "Odebrat přílohu"
 }

@@ -10,12 +10,13 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 // plane imports
 import { cn } from "@plane/utils";
 // constants
-import { ACCEPTED_IMAGE_MIME_TYPES } from "@/constants/config";
+import { ACCEPTED_ATTACHMENT_MIME_TYPES, ACCEPTED_IMAGE_MIME_TYPES } from "@/constants/config";
 import { CORE_EXTENSIONS } from "@/constants/extension";
 // helpers
 import type { EFileError } from "@/helpers/file";
 // hooks
 import { useUploader, useDropZone, uploadFirstFileAndInsertRemaining } from "@/hooks/use-file-upload";
+import { insertFilesSafely } from "@/plugins/drop";
 // local imports
 import { ECustomImageStatus } from "../types";
 import { getImageComponentImageFileMap } from "../utils";
@@ -163,13 +164,31 @@ export function CustomImageUploader(props: CustomImageUploaderProps) {
       if (!filesList || pos === undefined) {
         return;
       }
-      await uploadFirstFileAndInsertRemaining({
-        editor,
-        filesList,
-        pos,
-        type: "image",
-        uploader: uploadFile,
-      });
+      const files = Array.from(filesList);
+      const isAllImages = files.every((f) => ACCEPTED_IMAGE_MIME_TYPES.includes(f.type));
+      // 图片 → 复用当前占位节点（原流程）；含文档 → 删占位 image 节点、
+      // 用 insertFilesSafely 自动路由（图内联、文档走附件节点）
+      if (isAllImages) {
+        await uploadFirstFileAndInsertRemaining({
+          editor,
+          filesList,
+          pos,
+          type: "image",
+          uploader: uploadFile,
+        });
+      } else {
+        editor
+          .chain()
+          .focus()
+          .deleteRange({ from: pos, to: pos + 1 })
+          .run();
+        await insertFilesSafely({
+          editor,
+          files,
+          initialPos: pos,
+          event: "drop",
+        });
+      }
     },
     [uploadFile, editor, getPos]
   );
@@ -258,7 +277,7 @@ export function CustomImageUploader(props: CustomImageUploaderProps) {
         ref={fileInputRef}
         hidden
         type="file"
-        accept={ACCEPTED_IMAGE_MIME_TYPES.join(",")}
+        accept={[...ACCEPTED_IMAGE_MIME_TYPES, ...ACCEPTED_ATTACHMENT_MIME_TYPES].join(",")}
         onChange={onFileChange}
         multiple
       />

@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "상태는 팀 워크플로가 관리합니다",
   "agent_teams_state_locked_message": "이 작업 항목은 팀 워크플로가 실행 중이며 상태는 자동으로 관리됩니다. 수동으로 변경하려면 먼저 카드 패널에서 실행을 취소하세요.",
   "agent_teams_draft_convert_auto_exec": "변환 후 \"{team}\" 팀 워크플로가 자동 실행합니다",
-  "agent_teams_draft_convert_no_workflow": "이 프로젝트는 팀에 연결되었지만 워크플로가 아직 구성되지 않았습니다. 변환 전에 구성을 완료하세요."
+  "agent_teams_draft_convert_no_workflow": "이 프로젝트는 팀에 연결되었지만 워크플로가 아직 구성되지 않았습니다. 변환 전에 구성을 완료하세요.",
+  "agent_teams_inbox_answer_attach": "첨부 파일",
+  "agent_teams_inbox_uploading": "업로드 중…",
+  "agent_teams_inbox_upload_failed": "첨부 파일 업로드에 실패했습니다. 다시 시도해 주세요",
+  "agent_teams_inbox_attachment_remove": "첨부 파일 제거"
 }

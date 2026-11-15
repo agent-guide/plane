@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "Status dikelola oleh alur kerja tim",
   "agent_teams_state_locked_message": "Item kerja ini sedang dijalankan oleh alur kerja tim; statusnya dikelola secara otomatis. Untuk mengubahnya secara manual, batalkan eksekusi di panel kartu terlebih dahulu.",
   "agent_teams_draft_convert_auto_exec": "Setelah dikonversi, akan dijalankan otomatis oleh alur kerja tim \"{team}\"",
-  "agent_teams_draft_convert_no_workflow": "Proyek ini memiliki tim terkait tetapi alur kerja belum dikonfigurasi. Konfigurasikan alur kerja sebelum mengonversi."
+  "agent_teams_draft_convert_no_workflow": "Proyek ini memiliki tim terkait tetapi alur kerja belum dikonfigurasi. Konfigurasikan alur kerja sebelum mengonversi.",
+  "agent_teams_inbox_answer_attach": "Lampirkan berkas",
+  "agent_teams_inbox_uploading": "Mengunggah…",
+  "agent_teams_inbox_upload_failed": "Gagal mengunggah lampiran, coba lagi",
+  "agent_teams_inbox_attachment_remove": "Hapus lampiran"
 }

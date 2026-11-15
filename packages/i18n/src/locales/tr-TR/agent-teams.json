@@ -365,5 +365,9 @@
   "agent_teams_state_locked_title": "Durum ekip iş akışı tarafından yönetilir",
   "agent_teams_state_locked_message": "Bu iş öğesi bir ekip iş akışı tarafından yürütülüyor; durumu otomatik olarak yönetilir. El ile değiştirmek için önce kart panelinden yürütmeyi iptal edin.",
   "agent_teams_draft_convert_auto_exec": "Dönüştürmeden sonra \"{team}\" ekibinin iş akışı tarafından otomatik olarak yürütülecek",
-  "agent_teams_draft_convert_no_workflow": "Bu projeye bir ekip bağlı ancak iş akışı henüz yapılandırılmadı. Dönüştürmeden önce iş akışını yapılandırın."
+  "agent_teams_draft_convert_no_workflow": "Bu projeye bir ekip bağlı ancak iş akışı henüz yapılandırılmadı. Dönüştürmeden önce iş akışını yapılandırın.",
+  "agent_teams_inbox_answer_attach": "Dosya ekle",
+  "agent_teams_inbox_uploading": "Yükleniyor…",
+  "agent_teams_inbox_upload_failed": "Ek yüklemesi başarısız oldu, tekrar deneyin",
+  "agent_teams_inbox_attachment_remove": "Eki kaldır"
 }
