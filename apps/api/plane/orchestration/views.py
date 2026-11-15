@@ -19,6 +19,7 @@ from plane.db.models.workspace import Workspace
 from rest_framework.response import Response
 
 from . import services, workflows
+from .execution_context import answer_attachment_blocks
 from .models import (
     AgentTeam, AgentTeamMember, BusinessApproval, ProjectTeamBinding,
     WorkItemExecution, WorkflowDefinition, WorkflowVersion,
@@ -675,7 +676,8 @@ class ApprovalsEndpoint(BaseAPIView):
         approval.save(update_fields=["result", "reason", "answered_at"])
         from . import execution as execution_svc
         # agent 求助单（AI 节点发起，能力化人工介入）：答复 = 补充资料 →
-        # 同节点重跑（attempt+1，prompt 注入答复）；拒绝 = 终止执行
+        # 同节点重跑（attempt+1，prompt 注入答复）；拒绝 = 终止执行。
+        # 通过且无原因时给「确认继续」兜底，避免空重跑让 agent 重复问 NEED_INPUT。
         _definition = approval.execution.binding.workflow_version.definition or {}
         _node_type = next((n.get("type") for n in (_definition.get("nodes") or [])
                            if n.get("key") == approval.node_ref), None)
@@ -695,12 +697,27 @@ class ApprovalsEndpoint(BaseAPIView):
             record = NodeRuntimeRecord.objects.filter(
                 execution=approval.execution, node_key=approval.node_ref).first()
             attempt = (record.attempt + 1) if record else 1
+            human_answer = (approval.reason or "").strip() or "已确认，按你的判断继续。"
+            # 答复附件（2026-11-14）：agent 问「要文档」而文本框答不了——答复面板
+            # 可传附件，服务端用评论附件同源管线解析成文本并入重跑 prompt。
+            # approval.reason 保持纯手输文本（展示面不掺解析内容）。
+            _attachment_blocks = answer_attachment_blocks(
+                [str(a) for a in (request.data.get("attachment_ids") or [])],
+                workspace_id=approval.execution.binding.project.workspace_id)
+            if _attachment_blocks:
+                human_answer = human_answer + "\n\n" + "\n".join(_attachment_blocks)
             if record:
-                NodeRuntimeRecord.objects.filter(id=record.id).update(attempt=attempt)
+                # 答复 → 节点从 waiting_human 回到 running（重跑），观察循环继续等其
+                # 终态。B1（2026-11-14）：人工答复=新一轮——failure_retries 清零
+                #（失败重派预算不与问询-答答复共线），答复落 human_answer 供后续
+                # 失败自动重派随行携带。
+                NodeRuntimeRecord.objects.filter(id=record.id).update(
+                    status=NodeRuntimeRecord.Status.RUNNING, attempt=attempt,
+                    failure_retries=0, human_answer=human_answer)
             payload = {
                 "executionId": approval.execution_id, "nodeKey": approval.node_ref,
                 "attempt": attempt,
-                "humanAnswer": approval.reason or "",
+                "humanAnswer": human_answer,
             }
             OrchestrationOutbox.objects.get_or_create(
                 idempotency_key=f"agent_call:{approval.execution_id}:{approval.node_ref}:{attempt}",
@@ -710,6 +727,28 @@ class ApprovalsEndpoint(BaseAPIView):
                         _json2.dumps(payload, sort_keys=True).encode()).hexdigest(),
                 },
             )
+            # 答答回写卡评论（C2，2026-11-15）：补料内容以答者身份落到动态流
+            # ——团队可见、事后可追溯；附件挂到该评论（UI 按评论附件渲染，
+            # 后续 prompt 组装经评论附件管线同样可见）。失败不阻断作答
+            #（回写非事实源，重跑注入以 humanAnswer 为权威通道）。
+            _reason_text = (approval.reason or "").strip()
+            _answer_asset_ids = [str(a) for a in (request.data.get("attachment_ids") or [])]
+            if _reason_text or _answer_asset_ids:
+                try:
+                    from django.utils.html import escape
+                    from plane.db.models import IssueComment, FileAsset
+                    _issue = approval.execution.issue
+                    _comment = IssueComment.objects.create(
+                        workspace_id=_issue.workspace_id, project_id=_issue.project_id,
+                        issue=_issue, actor=request.user, created_by=request.user,
+                        comment_html=f"<p>{escape(_reason_text) or '（附件补充）'}</p>")
+                    if _answer_asset_ids:
+                        FileAsset.objects.filter(
+                            id__in=_answer_asset_ids,
+                            workspace_id=_issue.workspace_id, is_uploaded=True, comment__isnull=True,
+                        ).update(comment_id=_comment.id)
+                except Exception:
+                    pass
             return Response({"id": str(approval.id), "result": decision})
         if decision == BusinessApproval.Result.REJECTED:
             # 驳回/终止选项（等价旧链 reject terminal 语义）：答复即取消执行，
@@ -1189,12 +1228,22 @@ class DagNodeStartView(DagNodeRuntimeBase):
         if record.status in (NodeRuntimeRecord.Status.SUCCESS,
                              NodeRuntimeRecord.Status.CANCELLED):
             return Response({"accepted": True, "status": record.status})
+        definition = (execution.binding.workflow_version.definition or {})
+        # 重试上限（B1 2026-11-14 语义分离）：上限只看 failure_retries（失败
+        # 自动重派的专用预算）；attempt 是总运行序号（幂等键/线程保鲜），
+        # 「提问→答复」重跑推进 attempt 但不占预算、无限次。sensor 收到
+        # status=failed 会 raise 结束 run，终结「失败→重试」循环。
+        _node_def = next((n for n in (definition.get("nodes") or []) if n.get("key") == node_key), {})
+        _retries = _node_def.get("retries") if _node_def.get("retries") is not None else 1
+        if record.status == NodeRuntimeRecord.Status.FAILED and record.failure_retries >= _retries:
+            return Response({"accepted": True, "status": record.status, "error": "retries exhausted"})
         _key_exists = OrchestrationOutbox.objects.filter(
             idempotency_key=f"agent_call:{execution.id}:{node_key}:{record.attempt}"
         ).exists()
         if record.status == NodeRuntimeRecord.Status.FAILED or _key_exists:
+            if record.status == NodeRuntimeRecord.Status.FAILED:
+                record.failure_retries += 1
             record.attempt = record.attempt + 1
-        definition = (execution.binding.workflow_version.definition or {})
         # 剪枝闸门：条件已选别的分支时 start 直接判 skipped（handoff/命令都不发）
         if self._prune_if_unreachable(execution, definition, node_key):
             record.refresh_from_db()
@@ -1237,6 +1286,10 @@ class DagNodeStartView(DagNodeRuntimeBase):
             except Exception:
                 pass
             payload = {"executionId": execution.id, "nodeKey": node_key, "attempt": record.attempt}
+            # 人工答复随行（B1）：失败自动重派也带上最近答复——防「答复后偶发
+            # 空回复→重派把用户答复丢了」；为空则不带（worker 按无答复处理）。
+            if record.human_answer:
+                payload["humanAnswer"] = record.human_answer
             OrchestrationOutbox.objects.get_or_create(
                 idempotency_key=f"agent_call:{execution.id}:{node_key}:{record.attempt}",
                 defaults={"command_type": "agent.invoke", "payload": payload,
@@ -1288,3 +1341,41 @@ class DagNodeFailView(DagNodeRuntimeBase):
         except Exception:
             pass  # 已终态时节点失败仅登记
         return Response({"accepted": True, "status": record.status})
+
+
+class ExecutionSupplementsView(BaseAPIView):
+    """执行中补料自取接口（C8-B，steering 一期）。
+
+    permission_classes/throttle_classes 置空——签名即鉴权（调用方是
+    agent，无会话）。
+
+    `GET /api/internal/executions/{execution_id}/supplements/?after=<ISO>&exp=<unix>&sig=<hmac>`
+
+    - 鉴权：短期签名（supplement_access.verify，共享 token 不出平台）；
+      不用 X-Orchestration-Token——那个是 worker↔API 的固定凭证，不能进
+      prompt 交给模型（G4）。
+    - 返回 after 之后的人工补充（结构化单条；防注入语义由 prompt 纪律承担）。
+    - after 缺省为执行创建时刻（首次自取即全量节点期内补充）。
+    """
+
+    permission_classes = []
+    throttle_classes = []
+
+    def get(self, request, execution_id):
+        from .supplement_access import verify_supplement_access, supplement_entries
+        if not verify_supplement_access(
+                execution_id, request.GET.get("exp"), request.GET.get("sig")):
+            return Response({"error": "invalid or expired signature"}, status=403)
+        execution = WorkItemExecution.objects.filter(id=execution_id).select_related("issue").first()
+        if not execution:
+            return Response({"error": "execution not found"}, status=404)
+        after = None
+        raw_after = (request.GET.get("after") or "").strip()
+        if raw_after:
+            from django.utils.dateparse import parse_datetime
+            # 时区偏移的 '+' 在 query 里会裸传成空格（未编码形态），先还原
+            after = parse_datetime(raw_after.replace(" ", "+"))
+            if after is None:
+                return Response({"error": "invalid after (ISO 8601 expected)"}, status=400)
+        items = supplement_entries(execution.issue, after_dt=after)
+        return Response({"supplements": items, "hasNew": bool(items)})

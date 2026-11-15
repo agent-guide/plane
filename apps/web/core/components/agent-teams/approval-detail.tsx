@@ -21,6 +21,7 @@ import { Bot, FileBox } from "lucide-react";
 // components
 import { useAgentApprovalsSelection } from "@/components/agent-teams/approvals-context";
 import { ApprovalAnswerArea } from "@/components/agent-teams/approval-answer";
+import { ApprovalAttachmentUpload, type AnswerAttachment } from "@/components/agent-teams/approval-attachments";
 import { AgentArtifactPreviewModal } from "@/components/agent-teams/artifact-preview-modal";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
@@ -40,18 +41,31 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
   const { mutate: mutateApprovals } = usePendingApprovals(workspaceSlug);
   const [answering, setAnswering] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
+  const [attachments, setAttachments] = useState<AnswerAttachment[]>([]);
   const [errorKey, setErrorKey] = useState<"answer" | "">("");
   const [previewArtifact, setPreviewArtifact] = useState<OrchestrationRuntimeArtifact | null>(null);
 
   if (!selected) return null;
 
-  const handleAnswer = async (decision: "approved" | "rejected", reason: string, key: string) => {
+  const handleAnswer = async (
+    decision: "approved" | "rejected",
+    reason: string,
+    key: string,
+    attachmentIds: string[] = []
+  ) => {
     setAnswering(key);
     setErrorKey("");
     try {
-      await orchestrationService.answerApproval(workspaceSlug, selected.id, decision, reason || undefined);
+      await orchestrationService.answerApproval(
+        workspaceSlug,
+        selected.id,
+        decision,
+        reason || undefined,
+        attachmentIds.length ? attachmentIds : undefined
+      );
       setSelected(null);
       setTextAnswer("");
+      setAttachments([]);
       await mutateApprovals();
     } catch {
       setErrorKey("answer");
@@ -115,9 +129,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
             依据点名开预览弹层看全文，与工作卡执行面板同源） */}
         {(selected.contextArtifacts ?? []).length > 0 && (
           <div className="flex flex-col gap-1.5 rounded-lg border border-subtle bg-layer-1 px-3 py-2.5">
-            <span className="text-caption-sm-regular text-placeholder">
-              {t("agent_teams_stream_approval_basis")}
-            </span>
+            <span className="text-caption-sm-regular text-placeholder">{t("agent_teams_stream_approval_basis")}</span>
             {(selected.contextArtifacts ?? []).map((artifact) => (
               <button
                 key={artifact.id}
@@ -127,7 +139,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
               >
                 <FileBox className="size-3.5 flex-shrink-0" aria-hidden />
                 <span className="truncate">{artifact.name}</span>
-                <span className="flex-shrink-0 font-normal text-tertiary">v{artifact.version}</span>
+                <span className="font-normal flex-shrink-0 text-tertiary">v{artifact.version}</span>
               </button>
             ))}
           </div>
@@ -144,7 +156,16 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
           answering={answering}
           textAnswer={textAnswer}
           onTextChange={setTextAnswer}
-          onAnswer={(decision, reason, key) => void handleAnswer(decision, reason, key)}
+          attachmentIds={attachments.map((a) => a.id)}
+          attachmentSlot={
+            <ApprovalAttachmentUpload
+              workspaceSlug={workspaceSlug}
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
+              disabled={answering !== ""}
+            />
+          }
+          onAnswer={(decision, reason, key, attachmentIds) => void handleAnswer(decision, reason, key, attachmentIds)}
         />
       </div>
 

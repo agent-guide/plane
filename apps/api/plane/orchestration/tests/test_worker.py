@@ -208,10 +208,67 @@ class AgentInvokeSuccessAckTests(OutboxConsumerTests):
         self._run_success(ex, "analyze_0")
         ack = IssueComment.objects.filter(issue=self.issue, actor__is_bot=True).first()
         self.assertIsNotNone(ack)
-        self.assertIn("已纳入本次执行", ack.comment_stripped)
+        self.assertIn("已用于本次执行", ack.comment_stripped)
 
     def test_no_ack_without_supplement(self):
         from plane.db.models.issue import IssueComment
         ex = self._seed_running_execution("analyze_0")
         self._run_success(ex, "analyze_0")
         self.assertFalse(IssueComment.objects.filter(issue=self.issue, actor__is_bot=True).exists())
+
+
+class RuntimeTypeResolutionTests(TestCase):
+    """A1（2026-11-15）：运行时类型按 applied release 快照显式解析，
+    替代旧「先 builtin 后按报错文案换 ACP」的试探。"""
+
+    def _call(self, releases_payload):
+        def call(method, path, payload=None, timeout=30):
+            self.assertEqual((method, path), ("GET", "/agents/agent:x/releases"))
+            return releases_payload
+        return call
+
+    def test_builtin_snapshot(self):
+        from plane.orchestration.worker import _resolve_runtime_type, _RUNTIME_CACHE
+        _RUNTIME_CACHE.clear()
+        dep = {"id": "dep:1", "appliedReleaseId": "rel:1"}
+        rt = _resolve_runtime_type(
+            self._call({"items": [{"id": "rel:1", "snapshot": {"runtime": {"type": "builtin"}}}]}),
+            "agent:x", dep)
+        self.assertEqual(rt, "builtin")
+
+    def test_acp_snapshot(self):
+        from plane.orchestration.worker import _resolve_runtime_type, _RUNTIME_CACHE
+        _RUNTIME_CACHE.clear()
+        dep = {"id": "dep:2", "appliedReleaseId": "rel:2"}
+        rt = _resolve_runtime_type(
+            self._call({"items": [{"id": "rel:2", "snapshot": {"runtime": {"type": "acp"}}}]}),
+            "agent:x", dep)
+        self.assertEqual(rt, "acp")
+
+    def test_release_not_found_fails_loud(self):
+        from plane.orchestration.worker import _resolve_runtime_type, _RUNTIME_CACHE
+        _RUNTIME_CACHE.clear()
+        with self.assertRaises(RuntimeError):
+            _resolve_runtime_type(self._call({"items": []}), "agent:x",
+                                  {"id": "dep:3", "appliedReleaseId": "rel:gone"})
+
+    def test_unknown_type_fails_loud(self):
+        from plane.orchestration.worker import _resolve_runtime_type, _RUNTIME_CACHE
+        _RUNTIME_CACHE.clear()
+        with self.assertRaises(RuntimeError):
+            _resolve_runtime_type(
+                self._call({"items": [{"id": "rel:4", "snapshot": {"runtime": {"type": "k8s"}}}]}),
+                "agent:x", {"id": "dep:4", "appliedReleaseId": "rel:4"})
+
+    def test_cached_by_deployment_and_release(self):
+        from plane.orchestration.worker import _resolve_runtime_type, _RUNTIME_CACHE
+        _RUNTIME_CACHE.clear()
+        dep = {"id": "dep:5", "appliedReleaseId": "rel:5"}
+        calls = {"n": 0}
+
+        def counting_call(method, path, payload=None, timeout=30):
+            calls["n"] += 1
+            return {"items": [{"id": "rel:5", "snapshot": {"runtime": {"type": "builtin"}}}]}
+        self.assertEqual(_resolve_runtime_type(counting_call, "agent:x", dep), "builtin")
+        self.assertEqual(_resolve_runtime_type(counting_call, "agent:x", dep), "builtin")
+        self.assertEqual(calls["n"], 1)  # 第二次命中缓存，不重复查

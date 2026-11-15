@@ -23,6 +23,7 @@ class NodeRuntimeRecord(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         RUNNING = "running", "Running"
+        WAITING_HUMAN = "waiting_human", "Waiting Human"
         SUCCESS = "success", "Success"
         FAILED = "failed", "Failed"
         CANCELLED = "cancelled", "Cancelled"
@@ -33,6 +34,13 @@ class NodeRuntimeRecord(models.Model):
     node_key = models.CharField(max_length=200)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
     attempt = models.PositiveIntegerField(default=1)
+    # 失败重派专用预算（B1，2026-11-14）：attempt 是总运行序号（幂等键/线程
+    # 保鲜用），重试上限只看 failure_retries——「提问→答复」重跑不占失败
+    # 预算、无限次；人工答复到达视为新一轮，failure_retries 清零。
+    failure_retries = models.PositiveIntegerField(default=0)
+    # 最近一次人工答复（含附件解析文本）：失败重派随行携带，防「答复后偶发
+    # 空回复→自动重派把用户答复丢了」。
+    human_answer = models.TextField(blank=True, default="")
     last_event_id = models.CharField(max_length=250, default="")
     result = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -25,6 +25,7 @@ import { Check, ChevronDown, Clock, Minus, X } from "lucide-react";
 // components
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
 import { ApprovalAnswerArea } from "@/components/agent-teams/approval-answer";
+import { ApprovalAttachmentUpload, type AnswerAttachment } from "@/components/agent-teams/approval-attachments";
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import Link from "next/link";
@@ -107,6 +108,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   const loading = isLoading && !summary;
   const [answering, setAnswering] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
+  const [answerAttachments, setAnswerAttachments] = useState<AnswerAttachment[]>([]);
   const [cancelling, setCancelling] = useState(false);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
@@ -186,12 +188,18 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   }, [runtimeSignature]);
 
   const handleAnswer = useCallback(
-    async (decision: "approved" | "rejected", reason: string) => {
+    async (decision: "approved" | "rejected", reason: string, attachmentIds: string[] = []) => {
       const approval = summary?.pendingApproval;
       if (!approval) return;
       setAnswering(decision);
       try {
-        await orchestrationService.answerApproval(workspaceSlug, approval.id, decision, reason || undefined);
+        await orchestrationService.answerApproval(
+          workspaceSlug,
+          approval.id,
+          decision,
+          reason || undefined,
+          attachmentIds.length ? attachmentIds : undefined
+        );
         await refresh();
       } catch {
         // Errors surface via the notifications inbox; the panel keeps its state.
@@ -474,7 +482,18 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                               answering={answering}
                               textAnswer={textAnswer}
                               onTextChange={setTextAnswer}
-                              onAnswer={(decision, reason) => void handleAnswer(decision, reason)}
+                              attachmentIds={answerAttachments.map((a) => a.id)}
+                              attachmentSlot={
+                                <ApprovalAttachmentUpload
+                                  workspaceSlug={workspaceSlug}
+                                  attachments={answerAttachments}
+                                  onAttachmentsChange={setAnswerAttachments}
+                                  disabled={answering !== ""}
+                                />
+                              }
+                              onAnswer={(decision, reason, _key, attachmentIds) =>
+                                void handleAnswer(decision, reason, attachmentIds ?? [])
+                              }
                             />
                           </div>
                         )}

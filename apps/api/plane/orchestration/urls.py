@@ -14,6 +14,7 @@ from .views import (
     ProjectWorkflowDetailEndpoint, ProjectWorkflowsEndpoint, TeamDetailEndpoint,
     TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint,
     TeamsEndpoint, WorkflowPublishEndpoint, WorkflowVersionsEndpoint,
+    ExecutionSupplementsView,
 )
 
 urlpatterns = [
@@ -52,4 +53,6 @@ urlpatterns += [
     path("internal/workflow-runs/<str:run_ref>/nodes/<str:node_key>/start/", DagNodeStartView.as_view(http_method_names=["post"]), name="dag-node-start"),
     path("internal/workflow-runs/<str:run_ref>/nodes/<str:node_key>/finish/", DagNodeFinishView.as_view(http_method_names=["post"]), name="dag-node-finish"),
     path("internal/workflow-runs/<str:run_ref>/nodes/<str:node_key>/fail/", DagNodeFailView.as_view(http_method_names=["post"]), name="dag-node-fail"),
+    # 执行中补料自取（C8-B）：短期签名鉴权（不用共享 token——不进 prompt）
+    path("internal/executions/<str:execution_id>/supplements/", ExecutionSupplementsView.as_view(http_method_names=["get"]), name="execution-supplements"),
 ]

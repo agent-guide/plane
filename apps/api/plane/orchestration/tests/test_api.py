@@ -17,6 +17,14 @@ User = get_user_model()
 
 class OrchestrationAPITest(TestCase):
     def setUp(self):
+        # 测试不依赖外部引擎（曾因 .env 带真 Airflow 配置把测试 DAG 发往本机
+        # Airflow，发布是否就绪取决于 dag-processor 当时负载——环境时序 flake）：
+        # 用例内剥离引擎 env，发布走无引擎过渡路径（同步 finish_publish）。
+        import os
+        self._engine_env = {k: os.environ.pop(k, None) for k in (
+            "ORCHESTRATION_AIRFLOW_BASE_URL", "ORCHESTRATION_AIRFLOW_TOKEN",
+            "ORCHESTRATION_DAG_ROOT")}
+        super().setUp()
         self.client = Client()
         self.owner = User.objects.create_user(email="api-o@test.io", username="api-o")
         self.human = User.objects.create_user(email="api-h@test.io", username="api-h")
@@ -24,6 +32,13 @@ class OrchestrationAPITest(TestCase):
         WorkspaceMember.objects.create(workspace=self.ws, member=self.owner, role=20)
         self.project = Project.objects.create(name="ap", identifier="APORCH2", workspace=self.ws, created_by=self.owner)
         self.client.force_login(self.owner)
+
+    def tearDown(self):
+        import os
+        for k, v in self._engine_env.items():
+            if v is not None:
+                os.environ[k] = v
+        super().tearDown()
 
     def test_full_journey_over_http(self):
         """建团队→加成员→上架→建流程→存版本→发布→绑定。"""

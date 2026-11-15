@@ -550,11 +550,12 @@ export async function answerApproval(
   workspace: string,
   approvalId: string,
   decision: "approved" | "rejected",
-  reason?: string
+  reason?: string,
+  attachmentIds?: string[]
 ): Promise<{ id: string; result: string }> {
   return request(`${WS(workspace)}/agent-teams/approvals/${approvalId}/`, {
     method: "POST",
-    body: JSON.stringify({ decision, reason }),
+    body: JSON.stringify({ decision, reason, attachment_ids: attachmentIds }),
     headers: csrfHeaders(),
   });
 }
