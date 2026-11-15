@@ -41,6 +41,7 @@ from airflow.sdk import PokeReturnValue, dag, get_current_context, task
 WORKFLOW_ID = {workflow_id!r}
 WORKFLOW_VERSION_ID_HASH = {definition_hash!r}
 NODES = {nodes_payload!r}
+SENSOR_TIMEOUT_SECONDS = {sensor_timeout}
 
 
 def _internal_request(method: str, path: str, timeout_seconds: int = 15, **kwargs):
@@ -55,6 +56,38 @@ def _internal_request(method: str, path: str, timeout_seconds: int = 15, **kwarg
     )
     response.raise_for_status()
     return response.json()
+
+
+def report_sensor_failure(context):
+    """sensor 终结（超时/失败）回调：把失败原因登记回后端节点失败端点。
+
+    后端登记节点 FAILED + 以团队助手身份把原因落到卡片评论（C5 一期：
+    超时终结不再「悄悄失败」）。此处尽力而为，登不上时 worker 的引擎
+    终态对账仍然兜底结算——只是没有原因可展示。
+    """
+    ti = context["task_instance"]
+    node_key = ti.task_id.split("_", 2)[2]
+    run_ref = context["dag_run"].conf.get("backendRunId", context["dag_run"].run_id)
+    raw = str(context.get("exception") or "")
+    is_timeout = "timed out" in raw.lower() or "AirflowTaskTimeout" in raw
+    if is_timeout:
+        reason = (
+            f"节点 {{node_key}} 等待人工处理超时"
+            f"（超过 {{SENSOR_TIMEOUT_SECONDS // 86400}} 天未响应），执行已终止"
+        )
+    else:
+        reason = f"节点 {{node_key}} 运行失败：{{raw or 'unknown error'}}"
+    try:
+        _internal_request(
+            "POST",
+            f"/api/internal/workflow-runs/{{run_ref}}/nodes/{{node_key}}/fail/",
+            json={{
+                "eventId": f"sensor-fail:{{run_ref}}:{{node_key}}",
+                "result": {{"error": reason, "timeout": is_timeout}},
+            }},
+        )
+    except Exception:
+        pass  # 对账兜底；此处仅尽力补原因
 
 
 def observe_node(node: dict) -> PokeReturnValue:
@@ -149,21 +182,17 @@ def render_dag(*, workflow_id: str, version: int, definition_hash: str, definiti
             if upstream[node["key"]] > 1
             else ""
         )
-        sensor_timeout = APPROVAL_MAX_TIMEOUT_SECONDS
-        if node["type"] == HUMAN_NODE_TYPE:
-            tasks.append(
-                f'    @task.sensor(task_id="{node["key"]}", mode="reschedule", '
-                f"poke_interval=15, retries=3, retry_delay=30, timeout={sensor_timeout}{trigger})\n"
-                f"    def task_{index}_{node['key']}(node: dict) -> PokeReturnValue:\n"
-                f"        return observe_node(node)\n"
-            )
-        else:
-            tasks.append(
-                f'    @task.sensor(task_id="{node["key"]}", mode="reschedule", '
-                f"poke_interval=15, retries={effective_retries}, retry_delay=30, timeout={sensor_timeout}{trigger})\n"
-                f"    def task_{index}_{node['key']}(node: dict) -> PokeReturnValue:\n"
-                f"        return observe_node(node)\n"
-            )
+        # C5 一期（2026-11-15）：sensor retries=0——Airflow 层重试会让超时窗口
+        # 静默翻倍（人工节点原 retries=3 = 最多 4×7 天无人知晓），且业务失败
+        # 重试预算已由后端 /start 的 failure_retries 判定，Airflow 重试纯空转。
+        # 超时/失败经 on_failure_callback 带原因回后端（report_sensor_failure）。
+        tasks.append(
+            f'    @task.sensor(task_id="{node["key"]}", mode="reschedule", '
+            f"poke_interval=15, retries=0, timeout={APPROVAL_MAX_TIMEOUT_SECONDS}, "
+            f"on_failure_callback=report_sensor_failure{trigger})\n"
+            f"    def task_{index}_{node['key']}(node: dict) -> PokeReturnValue:\n"
+            f"        return observe_node(node)\n"
+        )
         calls.append(f"    step_{index} = task_{index}_{node['key']}(NODES[{index}])")
         nodes_payload.append(
             {
@@ -171,9 +200,8 @@ def render_dag(*, workflow_id: str, version: int, definition_hash: str, definiti
                 "type": node["type"],
                 "timeoutSeconds": node.get("timeoutSeconds"),
                 "effectiveTimeoutSeconds": effective_timeout,
-                "sensorTimeoutSeconds": APPROVAL_MAX_TIMEOUT_SECONDS
-                if node["type"] == HUMAN_NODE_TYPE
-                else None,
+                # 等待上限对全部节点生效（AI 节点 NEED_INPUT 等人也受此封顶）
+                "sensorTimeoutSeconds": APPROVAL_MAX_TIMEOUT_SECONDS,
                 "retries": effective_retries,
             }
         )
@@ -189,6 +217,7 @@ def render_dag(*, workflow_id: str, version: int, definition_hash: str, definiti
         nodes_payload=nodes_payload,
         identifier=identifier,
         max_active_runs=MAX_ACTIVE_RUNS_PER_DAG,
+        sensor_timeout=APPROVAL_MAX_TIMEOUT_SECONDS,
         function_body=function_body,
     )
 

@@ -50,7 +50,11 @@ class AirflowClient:
                     return json.loads(response.read() or b"{}")
             except urllib.error.HTTPError as exc:
                 if 200 <= exc.code < 500 or not retry_on_5xx or attempt >= self._max_retries:
-                    raise AirflowError(exc.code, exc.read().decode(errors="replace"))
+                    try:
+                        detail = exc.read().decode(errors="replace")
+                    except OSError:
+                        detail = ""  # 错误体读不出（对端断连等）不能盖掉状态码语义
+                    raise AirflowError(exc.code, detail)
             except (urllib.error.URLError, TimeoutError):
                 if attempt >= self._max_retries:
                     raise

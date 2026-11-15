@@ -103,3 +103,55 @@ class EngineEventEndpointTests(StartExecutionTestBase):
                  "payload": {"executionId": ex.id, "engine_run_ref": "af-run-9"}},
                 content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
             self.assertEqual(r2.json()["status"], "skipped")
+
+
+class DagNodeFailEndpointTests(StartExecutionTestBase):
+    """C5 一期：节点失败登记 + 失败原因上卡片（不再「悄悄失败」）。"""
+
+    def setUp(self):
+        self.internal = Client()
+
+    def _start_with_run_ref(self) -> str:
+        import os
+        os.environ["ORCHESTRATION_INTERNAL_TOKEN"] = "test-internal-token"
+        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        r = self.internal.post(
+            "/api/internal/agent-teams/events/",
+            {"externalEventId": "fail-setup-1", "eventType": "engine.started",
+             "payload": {"executionId": ex.id, "engine_run_ref": "af-run-fail"}},
+            content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
+        self.assertEqual(r.status_code, 200, r.content)
+        return ex
+
+    def test_fail_registers_record_settles_and_comments_reason(self):
+        from plane.db.models.issue import IssueComment
+        from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord
+        ex = self._start_with_run_ref()
+        r = self.internal.post(
+            "/api/internal/workflow-runs/af-run-fail/nodes/agent_1_0/fail/",
+            {"eventId": "sensor-fail:af-run-fail:agent_1_0",
+             "result": {"error": "node agent_1_0 wait timed out (7 days), execution stopped", "timeout": True}},
+            content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
+        self.assertEqual(r.status_code, 200, r.content)
+        ex.refresh_from_db()
+        self.assertEqual(ex.business_status, "failed")
+        record = NodeRuntimeRecord.objects.get(execution=ex, node_key="agent_1_0")
+        self.assertEqual(record.status, NodeRuntimeRecord.Status.FAILED)
+        self.assertIn("timed out", record.result["error"])
+        # 失败原因以在牌团队助手身份落到卡片评论
+        comment = IssueComment.objects.filter(issue=ex.issue).first()
+        self.assertIsNotNone(comment)
+        self.assertIn("timed out", comment.comment_html)
+        self.assertTrue(comment.actor.is_bot)
+
+    def test_repeat_fail_does_not_duplicate_comment(self):
+        from plane.db.models.issue import IssueComment
+        ex = self._start_with_run_ref()
+        for _ in range(2):
+            self.internal.post(
+                "/api/internal/workflow-runs/af-run-fail/nodes/agent_1_0/fail/",
+                {"eventId": "sensor-fail:af-run-fail:agent_1_0",
+                 "result": {"error": "boom"}},
+                content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
+        self.assertEqual(
+            IssueComment.objects.filter(issue=ex.issue, comment_html__contains="failure-notice:").count(), 1)

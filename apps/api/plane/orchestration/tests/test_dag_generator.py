@@ -50,7 +50,7 @@ class RenderEquivalenceTests(SimpleTestCase):
         self.assertIn("from airflow.sdk import PokeReturnValue, dag, get_current_context, task", out)
         self.assertIn("WORKFLOW_ID = 'wfv_3c3962568a684ec5a6cf80a01430b427'", out)
         self.assertIn("'effectiveTimeoutSeconds': 1800", out)  # 平台默认 30min
-        self.assertIn('@task.sensor(task_id="agent_1_0", mode="reschedule", poke_interval=15, retries=1, retry_delay=30, timeout=604800)', out)
+        self.assertIn('@task.sensor(task_id="agent_1_0", mode="reschedule", poke_interval=15, retries=0, timeout=604800, on_failure_callback=report_sensor_failure)', out)
         self.assertIn("step_0 = task_0_agent_1_0(NODES[0])", out)
         self.assertIn("dag_id='wf_01430b427_v1'", out)  # 取 id 末 9 位
         self.assertIn('tags=["workflow_version", \'22e8460a', out)
@@ -61,17 +61,30 @@ class RenderEquivalenceTests(SimpleTestCase):
             workflow_id="wfv_" + "x" * 30, version=2, definition_hash="h" * 64, definition=BRANCH_HUMAN,
         )
         # 审批节点：sensor 模式 + 无 execution_timeout（等待人工不被引擎杀）
-        self.assertIn('@task.sensor(task_id="approve", mode="reschedule", poke_interval=15, retries=3', out)
+        self.assertIn('@task.sensor(task_id="approve", mode="reschedule", poke_interval=15, retries=0', out)
         self.assertNotIn('task_id="approve", execution_timeout', out)
         self.assertIn(f"timeout={7 * 24 * 60 * 60}", out)  # sensor 上限 7 天
         # 汇合节点：none_failed_min_one_success（条件分支 skip 不中断）
-        self.assertIn('@task.sensor(task_id="join", mode="reschedule", poke_interval=15, retries=1, retry_delay=30, timeout=604800, trigger_rule="none_failed_min_one_success")', out)
+        self.assertIn('@task.sensor(task_id="join", mode="reschedule", poke_interval=15, retries=0, timeout=604800, on_failure_callback=report_sensor_failure, trigger_rule="none_failed_min_one_success")', out)
         # 依赖渲染（含显式边）
         self.assertIn("    step_0 >> step_1", out)
         self.assertIn("    step_2 >> step_4", out)
         self.assertIn("    step_3 >> step_4", out)
         # 无重复边渲染
         self.assertEqual(out.count("step_0 >> step_1"), 1)
+
+    def test_sensor_failure_callback_timeout_reason(self):
+        """C5 一期：超时终结必须带原因回后端，且 sensor retries=0 不静默翻倍等待。"""
+        out = render_dag(
+            workflow_id="wfv_" + "x" * 30, version=2, definition_hash="h" * 64, definition=BRANCH_HUMAN,
+        )
+        # 回调定义存在且可被 Airflow 反序列化引用（模块顶层函数）
+        self.assertIn("def report_sensor_failure(context):", out)
+        self.assertIn("on_failure_callback=report_sensor_failure", out)
+        self.assertNotIn("retries=1", out)   # Airflow 层不再重试 sensor
+        self.assertNotIn("retries=3", out)
+        # 生成的 DAG 源码可编译（模板插值无语法错误）
+        compile(out, "<generated-dag>", "exec")
 
     def test_env_adaptations_only_divergence(self):
         """与旧模板的差异仅限两处环境寻址（其余逐字）。"""

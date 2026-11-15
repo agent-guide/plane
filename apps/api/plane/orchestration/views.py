@@ -1321,6 +1321,44 @@ class DagNodeFinishView(DagNodeRuntimeBase):
 
 
 class DagNodeFailView(DagNodeRuntimeBase):
+    def _comment_failure(self, *, execution, node_key: str, result: dict | None):
+        """节点失败原因回写卡片评论（尽力而为，幂等由「同执行同节点仅一条」保证）。"""
+        try:
+            from django.utils.html import escape
+            from plane.db.models import IssueComment
+            from .models import AgentTeamMember
+            from .bot_provisioning import ensure_bot_for_agent
+            member = execution.current_member
+            if member is None:
+                # 无在牌员工（未及换牌/纯人工流程）时以首个启用 agent 成员代言
+                member = AgentTeamMember.objects.filter(
+                    team__id=execution.frozen_context.get("teamId") if execution.frozen_context else None,
+                    kind="agent", enabled=True,
+                ).first()
+            issue = execution.issue
+            if not member:
+                return  # 团队确无 agent 成员，叙事流仍有节点失败记录
+            if IssueComment.objects.filter(
+                issue=issue, comment_html__contains=f"failure-notice:{execution.id}:{node_key}"
+            ).exists():
+                return
+            bot = ensure_bot_for_agent(
+                agent_definition_id=member.agent_definition_id,
+                workspace_id=str(issue.workspace_id))
+            if not bot:
+                return
+            error = str((result or {}).get("error") or "未知原因")
+            IssueComment.objects.create(
+                project=issue.project, workspace=issue.project.workspace,
+                issue=issue, actor=bot, created_by=bot, access="INTERNAL",
+                comment_html=(
+                    f"<p>执行失败：{escape(error)}</p>"
+                    f"<!-- failure-notice:{execution.id}:{node_key} -->"
+                ),
+            )
+        except Exception:
+            pass  # 投影非事实源：静默降级
+
     def post(self, request, run_ref, node_key):
         from .node_runtime import NodeRuntimeRecord
         from . import execution as execution_svc
@@ -1333,6 +1371,9 @@ class DagNodeFailView(DagNodeRuntimeBase):
         record.status = NodeRuntimeRecord.Status.FAILED
         record.result = request.data.get("result") or {"error": "node failed"}
         record.save()
+        # 失败原因上卡片（C5 一期）：以当前在牌团队助手身份落到动态流，
+        # 终结不再「悄悄失败」。投影非事实源，回写失败不阻断登记。
+        self._comment_failure(execution=execution, node_key=node_key, result=record.result)
         try:
             execution_svc.on_engine_terminal(
                 execution_id=execution.id,
