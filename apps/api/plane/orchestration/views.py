@@ -759,10 +759,20 @@ class ApprovalsEndpoint(BaseAPIView):
                     from django.utils.html import escape
                     from plane.db.models import IssueComment, FileAsset
                     _issue = approval.execution.issue
+                    # 附件以编辑器附件节点嵌入正文（实证：UI 渲染评论附件走
+                    # comment_html 里的 attachment-component 节点，url=资产id）
+                    _asset_rows = FileAsset.objects.filter(
+                        id__in=_answer_asset_ids,
+                        workspace_id=_issue.workspace_id, is_uploaded=True)
+                    _nodes = "".join(
+                        f'<attachment-component id="{a.id}" '
+                        f'name="{escape((a.attributes or {}).get("name") or a.asset.name.rsplit("/", 1)[-1])}" '
+                        f'url="{a.id}" status="uploaded"></attachment-component>'
+                        for a in _asset_rows)
                     _comment = IssueComment.objects.create(
                         workspace_id=_issue.workspace_id, project_id=_issue.project_id,
                         issue=_issue, actor=request.user, created_by=request.user,
-                        comment_html=f"<p>{escape(_reason_text) or '（附件补充）'}</p>")
+                        comment_html=f"<p>{escape(_reason_text) or '（附件补充）'}</p>{_nodes}")
                     if _answer_asset_ids:
                         # 挂评论必须同时写 entity_identifier=评论id：UI 按该字段
                         # 渲染评论附件（仅 comment FK 不显示，C2 上线即缺，11-15 补）
