@@ -252,10 +252,17 @@ def _normalize_agent_error(exc: BaseException) -> dict:
     text = str(exc)
     if isinstance(exc, AgentTurnError):
         code = exc.code if exc.code in AGENT_ERROR_CODES else "agent_error"
-        payload = {"code": code}
-        if exc.detail is not None:
-            payload["detail"] = exc.detail
-        return {"code": code, "detail": _error_detail(payload, text)}
+        # detail 人话优先（D1 口径 11-16）：上游结构化错误的 message；
+        # 非结构化/缺失时回退整句。曾误经 _error_detail（只认 message 键）
+        # 永远落到整句 str(exc)。
+        d = exc.detail
+        if isinstance(d, dict):
+            detail_text = str(d.get("message") or text)
+        elif d is not None:
+            detail_text = str(d)
+        else:
+            detail_text = text
+        return {"code": code, "detail": (detail_text.strip() or text)[:800]}
 
     try:
         payload = json.loads(text)
