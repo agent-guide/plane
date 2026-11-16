@@ -246,14 +246,17 @@ def _resolve_runtime_type(call, agent_definition_id: str, deployment: dict) -> s
     snapshot.runtime.type——发布快照是「部署那一刻」的权威定义（读 draft
     会随改稿漂移）。受控枚举 builtin/acp；取不到或未知值 fail-loud。
     """
-    release_id = deployment.get("appliedReleaseId") or ""
-    cache_key = (deployment.get("id") or "", release_id)
+    release_id = deployment.get("appliedReleaseNumber") or deployment.get("appliedReleaseId") or ""
+    cache_key = (deployment.get("id") or "", str(release_id))
     cached = _RUNTIME_CACHE.get(cache_key)
     if cached:
         return cached
     releases = call("GET", f"/agents/{agent_definition_id}/releases")
     items = releases.get("items") if isinstance(releases, dict) else releases
-    release = next((r for r in (items or []) if r.get("id") == release_id), None)
+    # agwmngr dev（2026-11-16 重构）：release 以数字 number 为版本键；
+    # 兼容旧 appliedReleaseId（id 引用）形态
+    release = next((r for r in (items or []) if str(r.get("number")) == str(release_id)
+                    or r.get("id") == release_id), None)
     snapshot = (release or {}).get("snapshot") or {}
     runtime = snapshot.get("runtime") or {}
     runtime_type = str(runtime.get("type") or "").lower()
