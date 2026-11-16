@@ -16,7 +16,11 @@ import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
 import { Input, TextArea } from "@plane/ui";
 import { Rocket, Workflow } from "lucide-react";
 // services
-import { orchestrationService, type OrchestrationWorkflow } from "@/services/agent-teams/orchestration.service";
+import {
+  orchestrationService,
+  type OrchestrationWorkflow,
+  type OrchestrationWorkflowVersion,
+} from "@/services/agent-teams/orchestration.service";
 import { connectionsService } from "@/services/agent-teams/connections.service";
 // components
 import { WorkflowCanvasEditor } from "@/components/agent-teams/workflow-canvas";
@@ -106,6 +110,42 @@ const CANVAS_LABELS_EN: WorkflowCanvasEditorLabels = {
   approverTeamHint: "If unspecified, human members of the team handle it",
 };
 
+/** 发布终态轮询：publish 接口是"启动发布"语义——引擎就绪在请求外完成，
+ * 窗口内未就绪时返回 `publishing`（进行中），由 worker 对账收尾。
+ * 因此 `publishing` 绝不能当失败：只有明确 `published` / `failed` 才是终态。
+ * 预算取后端对账的最大窗口（600s）之上：超龄 15 分钟才判 failed。 */
+const PUBLISH_POLL_INTERVAL_MS = 3_000;
+const PUBLISH_POLL_BUDGET_MS = 15 * 60 * 1000;
+
+type PublishOutcome = OrchestrationWorkflowVersion["status"] | "timeout";
+
+/** 轮询单个版本到终态；预算内没等到终态返回 "timeout"（仍是发布中，
+ * 不是失败）。轮询瞬时错误不改变结论，等下一轮。 */
+async function waitForVersionSettled(
+  workspace: string,
+  projectId: string,
+  workflowId: string,
+  versionId: string,
+  isCancelled: () => boolean
+): Promise<PublishOutcome> {
+  const deadline = Date.now() + PUBLISH_POLL_BUDGET_MS;
+  while (!isCancelled() && Date.now() < deadline) {
+    // 轮询必须串行（间隔 + 顺序读状态），不适用并发收集
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, PUBLISH_POLL_INTERVAL_MS));
+    if (isCancelled()) return "timeout";
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const detail = await orchestrationService.getWorkflow(workspace, projectId, workflowId);
+      const target = detail.versions?.find((item) => item.id === versionId);
+      if (target?.status === "published" || target?.status === "failed") return target.status;
+    } catch {
+      /* 轮询瞬时失败（网络/网关抖动）不改变结论，下一轮继续 */
+    }
+  }
+  return "timeout";
+}
+
 function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; workflowId: string } }) {
   const routeParams = useParams<{ workspaceSlug: string }>();
   const workspaceSlug = routeParams.workspaceSlug ?? "";
@@ -154,6 +194,46 @@ function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; wo
     if (!projectId || !workflowId) return;
     void reload();
   }, [reload, projectId, workflowId]);
+
+  // 在途发布续轮询：刷新/重进画布时若有版本仍是 publishing，接着等终态。
+  // 既避免把进行中误显示为失败，也避免发布按钮被重复触发。
+  const inFlightPublishVersionId = workflow?.versions?.find((v) => v.status === "publishing")?.id ?? "";
+  useEffect(() => {
+    if (!inFlightPublishVersionId) return;
+    let cancelled = false;
+    setPublishing(true);
+    setActionError("");
+    setActionMessage(zh ? "发布中，等待引擎就绪…" : "Publishing — waiting for the engine…");
+    void (async () => {
+      const outcome = await waitForVersionSettled(
+        workspaceSlug,
+        projectId,
+        workflowId,
+        inFlightPublishVersionId,
+        () => cancelled
+      );
+      if (cancelled) return;
+      setPublishing(false);
+      if (outcome === "published") {
+        setActionMessage(zh ? "发布完成" : "Published");
+        await reload();
+      } else if (outcome === "failed") {
+        setActionError("发布失败，请稍后重试 / Publish failed");
+        await reload();
+      } else {
+        setActionMessage(
+          zh ? "仍在发布中，稍后刷新查看结果（版本列表可见状态）" : "Still publishing — refresh later to see the result"
+        );
+      }
+    })().catch(() => {
+      if (!cancelled) setPublishing(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // zh 为语言常量，随 navigator 固定；reload 已 useCallback 稳定
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inFlightPublishVersionId, reload, workspaceSlug, projectId, workflowId]);
 
   // 目录懒加载（成员收敛 §3.5）：先取项目 active 绑定 → 团队 enabled 成员分拣。
   useEffect(() => {
@@ -219,17 +299,35 @@ function ProjectWorkflowCanvasPage({ params }: { params: { projectId: string; wo
   }
 
   async function publish() {
+    if (publishing) return;
     setPublishing(true);
     setActionError("");
-    setActionMessage("");
+    setActionMessage(zh ? "正在发布…" : "Publishing…");
     try {
       const version = await orchestrationService.saveDraftVersion(workspaceSlug, projectId, workflowId);
-      const published = await orchestrationService.publishVersion(workspaceSlug, projectId, workflowId, version.id);
-      if (published.status === "published") {
-        setActionMessage(`已发布 v${published.version} / Published v${published.version}`);
+      const started = await orchestrationService.publishVersion(workspaceSlug, projectId, workflowId, version.id);
+      // 状态严格三分支：published=成功；failed=明确失败；publishing=进行中
+      // （引擎就绪在请求外完成），轮询到终态再下结论——绝不把进行中当失败。
+      let outcome: PublishOutcome = started.status;
+      if (started.status === "publishing") {
+        setActionMessage(zh ? "发布中，等待引擎就绪…" : "Publishing — waiting for the engine…");
+        outcome = await waitForVersionSettled(workspaceSlug, projectId, workflowId, started.id, () => false);
+      }
+      if (outcome === "published") {
+        setActionMessage(`已发布 v${started.version} / Published v${started.version}`);
+        await reload();
+      } else if (outcome === "failed") {
+        setActionError(`发布失败，请稍后重试 / Publish failed: v${started.version}`);
+        await reload();
+      } else if (outcome === "timeout") {
+        // 仍在发布中：不报失败，如实告知稍后回看
+        setActionMessage(
+          zh ? "仍在发布中，稍后刷新查看结果（版本列表可见状态）" : "Still publishing — refresh later to see the result"
+        );
         await reload();
       } else {
-        setActionError(`发布失败 / Publish failed：${published.status}`);
+        // 后端返回了未知/中间状态（如 draft）：既非成功也非失败，如实呈现
+        setActionError(zh ? `发布未完成，当前状态：${outcome}` : `Publish not completed — current status: ${outcome}`);
       }
     } catch (err) {
       const message = (err as Error).message ?? "";
