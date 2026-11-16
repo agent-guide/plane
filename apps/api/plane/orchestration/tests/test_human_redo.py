@@ -14,10 +14,9 @@ from django.test import TestCase
 from plane.db.models.workspace import Workspace, WorkspaceMember
 from plane.db.models.project import Project, ProjectMember
 from plane.db.models.issue import Issue, IssueComment
-from .canvas import CANVAS_SINGLE
 from plane.orchestration import services, workflows
 from plane.orchestration.models import (
-    BusinessApproval, NodeRuntimeRecord, OrchestrationOutbox, WorkflowDefinition,
+    BusinessApproval, NodeRuntimeRecord, WorkflowDefinition,
 )
 from plane.orchestration.execution import start_execution, on_human_handoff
 
@@ -123,9 +122,10 @@ class HumanRedoTests(HumanRedoTestBase):
         self.assertIn("480", upstream.human_answer)
         confirm = NodeRuntimeRecord.objects.get(execution=ex, node_key="confirm_1")
         self.assertEqual(confirm.status, NodeRuntimeRecord.Status.PENDING)
-        self.assertTrue(OrchestrationOutbox.objects.filter(
-            idempotency_key=f"agent_call:{ex.id}:analyze_0:2",
-            command_type="agent.invoke").exists())
+        from .conftest import DEFERRED
+        entry = DEFERRED.get(f"agent_call:{ex.id}:analyze_0:2")
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry[0], "orchestration.agent_invoke")
         # 用户回执：bot 评论说明驳回去向
         self.assertTrue(IssueComment.objects.filter(
             issue=ex.issue, comment_stripped__contains="重新处理").exists())

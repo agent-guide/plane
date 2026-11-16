@@ -8,7 +8,7 @@ from django.test import TestCase
 from plane.db.models.workspace import Workspace
 from plane.db.models.project import Project
 from plane.orchestration import services
-from plane.orchestration.models import AgentTeam, WorkflowDefinition, WorkflowVersion, ProjectTeamBinding
+from plane.orchestration.models import WorkflowDefinition, WorkflowVersion, ProjectTeamBinding
 from plane.orchestration.services import TeamDomainError
 
 User = get_user_model()

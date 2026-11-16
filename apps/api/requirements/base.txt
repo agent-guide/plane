@@ -10,6 +10,9 @@ psycopg==3.3.4
 # binary（CentOS 7 有 wheel 即装即用）；上游同列的 psycopg-c 无 wheel 须源码编译，删。
 psycopg-binary==3.3.4
 dj-database-url==3.0.1
+# PG 原生任务队列（编排域命令消费，2026-11-16 替换自研 outbox 轮询：
+# SKIP LOCKED 认领 + 心跳租约 + stalled 回收，Django 集成共享连接/事务）
+procrastinate[django]==3.11.0
 # redis
 redis==5.0.4
 django-redis==7.0.0

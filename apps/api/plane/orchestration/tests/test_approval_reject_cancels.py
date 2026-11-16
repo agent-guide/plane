@@ -12,9 +12,9 @@ from plane.db.models.issue import Issue
 from .canvas import CANVAS_SINGLE
 from plane.orchestration import services, workflows
 from plane.orchestration.models import (
-    BusinessApproval, OrchestrationOutbox, ProjectTeamBinding, WorkflowDefinition,
+    BusinessApproval, WorkflowDefinition,
 )
-from plane.orchestration.execution import start_execution, on_human_handoff
+from plane.orchestration.execution import start_execution
 
 User = get_user_model()
 
@@ -63,8 +63,9 @@ class CancelExecutionTests(ApprovalRejectCancelsTestBase):
         self.assertEqual(cancelled.business_status, "cancelled")
         approval.refresh_from_db()
         self.assertEqual(approval.result, BusinessApproval.Result.REJECTED)
-        self.assertTrue(OrchestrationOutbox.objects.filter(
-            idempotency_key=f"cancel:{ex.id}", command_type="engine.cancel").exists())
+        from .conftest import DEFERRED
+        task, _payload, _lock = DEFERRED[f"cancel:{ex.id}"]
+        self.assertEqual(task, "orchestration.engine_cancel")
 
     def test_cancel_rejects_terminal_execution(self):
         from plane.orchestration.execution import cancel_execution

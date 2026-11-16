@@ -9,12 +9,11 @@
 七处调用点 → 事件类型映射见规格第 4 节。
 """
 
-from datetime import timezone
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone as dj_tz
 
-from .models import OrchestrationInbox, OrchestrationOutbox, WorkItemExecution
+from .models import OrchestrationInbox, WorkItemExecution
 from .services import TeamDomainError
 from .state_machine import TERMINAL_STATUSES, require_transition
 
@@ -248,8 +247,7 @@ def on_human_redo(*, execution_id: str, node_ref: str, feedback: str, event_id: 
     - 返回 (execution, target_node_def)：target 供调用方按上游节点 expertId
       解析真正负责重做的员工（回执署名）。
     """
-    import hashlib, json as _json
-    from .models import NodeRuntimeRecord, OrchestrationOutbox
+    from .models import NodeRuntimeRecord
     ex = _load_active(execution_id)
     definition = (ex.binding.workflow_version.definition or {})
     nodes = definition.get("nodes") or []
@@ -282,14 +280,11 @@ def on_human_redo(*, execution_id: str, node_ref: str, feedback: str, event_id: 
         "attempt": attempt,
         "humanAnswer": feedback,
     }
-    OrchestrationOutbox.objects.get_or_create(
+    from .tasks import defer_command, execution_lock
+    defer_command(
         idempotency_key=f"agent_call:{ex.id}:{target}:{attempt}",
-        defaults={
-            "command_type": "agent.invoke", "payload": payload,
-            "payload_hash": hashlib.sha256(
-                _json.dumps(payload, sort_keys=True).encode()).hexdigest(),
-        },
-    )
+        task_name="orchestration.agent_invoke",
+        payload=payload, lock=execution_lock(ex.id))
     # 执行回 running（waiting_human → running；已 running 幂等跳过）
     if ex.business_status == "waiting_human":
         transition_execution(execution=ex, target="running", event_id=event_id)
@@ -360,8 +355,7 @@ def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> Wor
     调用方：手动取消端点、审批驳回/终止选项（等价旧链 reject terminal 语义——
     答复不是恢复执行而是终止它）。
     """
-    from .models import BusinessApproval, OrchestrationOutbox
-    import hashlib, json as _json
+    from .models import BusinessApproval
     if execution.business_status in TERMINAL_STATUSES:
         raise TeamDomainError(409, "EXECUTION_ALREADY_TERMINAL", "Execution already terminal")
     execution.business_status = "cancelled"
@@ -387,10 +381,11 @@ def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> Wor
         from .execution_context import reclaim_approval_assets
         reclaim_approval_assets(stale)
     payload = {"executionId": execution.id}
-    OrchestrationOutbox.objects.get_or_create(
+    from .tasks import defer_command, execution_lock
+    defer_command(
         idempotency_key=f"cancel:{execution.id}",
-        defaults={"command_type": "engine.cancel", "payload": payload,
-                  "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest()})
+        task_name="orchestration.engine_cancel",
+        payload=payload, lock=execution_lock(execution.id))
     return execution
 
 
@@ -524,13 +519,14 @@ def start_execution(*, issue, binding, user_id) -> WorkItemExecution:
             execution = WorkItemExecution.objects.create(
                 issue=issue, binding=binding, frozen_context=frozen,
             )
-            import hashlib, json as _json
-            OrchestrationOutbox.objects.create(
+            # 同事务投递（Procrastinate DjangoConnector 共享 Django 连接）——
+            # 执行行与启动命令原子提交，等价旧 outbox 同事务写入语义
+            from .tasks import defer_command, execution_lock
+            defer_command(
                 idempotency_key=f"start:{execution.id}",
-                command_type="engine.start",
+                task_name="orchestration.engine_start",
                 payload={"executionId": execution.id, "workflowVersionId": str(version.id)},
-                payload_hash=hashlib.sha256(_json.dumps(frozen, sort_keys=True).encode()).hexdigest(),
-            )
+                lock=execution_lock(execution.id))
             return execution
     except Exception as e:
         if "uniq_nonterminal_execution" in str(e):

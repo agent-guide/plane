@@ -6,7 +6,6 @@
 前生成基准并落 fixture；断言新旧仅差 env 变量名与鉴权头两处）。
 """
 
-import re
 
 from django.test import SimpleTestCase
 

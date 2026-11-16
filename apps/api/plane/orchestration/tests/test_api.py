@@ -277,7 +277,7 @@ class OrchestrationAPITest(TestCase):
         """工作项运行时面板：摘要+结构化时间线一体；未绑定 204；取消置终态+outbox。"""
         from plane.orchestration import services
         from plane.orchestration.models import (
-            WorkflowDefinition, WorkflowVersion, ProjectTeamBinding, BusinessApproval, OrchestrationOutbox)
+            WorkflowDefinition, WorkflowVersion, ProjectTeamBinding)
 
         # 未绑定：204
         issue0 = Issue.objects.create(project=self.project, name="未绑定项", created_by=self.owner)
@@ -318,13 +318,42 @@ class OrchestrationAPITest(TestCase):
         self.assertEqual(r.status_code, 200)
         execution.refresh_from_db()
         self.assertEqual(execution.business_status, "cancelled")
-        self.assertTrue(OrchestrationOutbox.objects.filter(
-            command_type="engine.cancel", idempotency_key=f"cancel:{execution.id}").exists())
+        from .conftest import DEFERRED
+        task, _payload, _lock = DEFERRED[f"cancel:{execution.id}"]
+        self.assertEqual(task, "orchestration.engine_cancel")
         # 终态后再取消 → 409
         r = self.client.post(
             f"/api/workspaces/aws-orch/projects/{self.project.id}/work-items/{issue.id}/runtime/",
             content_type="application/json")
         self.assertEqual(r.status_code, 409)
+
+    def test_work_item_runtime_exposes_agent_error_code(self):
+        from plane.orchestration import services
+        from plane.orchestration.models import (
+            WorkflowDefinition, WorkflowVersion, ProjectTeamBinding, NodeRuntimeRecord)
+
+        team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="错误团队")
+        services.add_member(team=team, user_id=self.owner.id, is_admin=True, kind="human", role="approver", user_ref=self.owner.id)
+        services.activate_team(team=team, user_id=self.owner.id, is_admin=True)
+        wf = WorkflowDefinition.objects.create(project=self.project, name="错误流程", created_by=self.owner)
+        version = WorkflowVersion.objects.create(workflow=wf, version=1, status=WorkflowVersion.Status.PUBLISHED)
+        binding = ProjectTeamBinding.objects.create(
+            project=self.project, team=team, workflow_version=version,
+            status=ProjectTeamBinding.Status.ACTIVE)
+        issue = Issue.objects.create(project=self.project, name="错误工作项", created_by=self.owner)
+        execution = WorkItemExecution.objects.get(issue=issue)
+        execution.business_status = "failed"
+        execution.save(update_fields=["business_status", "updated_at"])
+        NodeRuntimeRecord.objects.create(
+            execution=execution, node_key="analyze_0", status=NodeRuntimeRecord.Status.FAILED,
+            result={"error": "raw agent turn error {'error_type':'turn_failed'}", "error_normalized": {"code": "timeout", "detail": "no SSE event"}})
+
+        r = self.client.get(f"/api/workspaces/aws-orch/projects/{self.project.id}/work-items/{issue.id}/runtime/")
+        self.assertEqual(r.status_code, 200, r.content)
+        node_event = next(e for e in r.json()["timeline"] if e.get("nodeKey") == "analyze_0")
+        self.assertEqual(node_event["errorCode"], "timeout")
+        self.assertEqual(node_event["errorDetail"], "no SSE event")
+        self.assertIsNone(node_event.get("output"))
 
     def test_member_cannot_touch_others_team(self):
         self.client.post("/api/workspaces/aws-orch/agent-teams/", {"name": "归属"}, content_type="application/json")
@@ -339,7 +368,7 @@ class OrchestrationAPITest(TestCase):
     def test_approval_answer_flow(self):
         """审批待办与作答（含执行状态联动）。"""
         from plane.orchestration import services
-        from plane.orchestration.models import WorkflowDefinition, WorkflowVersion, ProjectTeamBinding, BusinessApproval
+        from plane.orchestration.models import WorkflowDefinition, WorkflowVersion, BusinessApproval
         team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="审批团队")
         member = services.add_member(team=team, user_id=self.owner.id, is_admin=True, kind="human", role="approver", user_ref=self.human.id)
         services.activate_team(team=team, user_id=self.owner.id, is_admin=True)
@@ -372,8 +401,7 @@ class OrchestrationAPITest(TestCase):
     def test_approval_visibility_scoped_to_team(self):
         """§3.3 收窄：未指定审批人 → 仅执行团队 human 成员可见可答。"""
         from plane.orchestration import services
-        from plane.orchestration.models import (WorkflowDefinition, WorkflowVersion,
-                                                ProjectTeamBinding, WorkItemExecution, BusinessApproval)
+        from plane.orchestration.models import (WorkflowDefinition, WorkItemExecution, BusinessApproval)
         from django.contrib.auth import get_user_model
         team = services.create_team(workspace_id=self.ws.id, user_id=self.owner.id, is_admin=True, name="收窄团队")
         services.add_member(team=team, user_id=self.owner.id, is_admin=True, kind="agent", role="analyst",

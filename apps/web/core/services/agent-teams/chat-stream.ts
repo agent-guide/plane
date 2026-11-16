@@ -7,6 +7,8 @@
  * no framework/app dependencies, shared by the Plane chat page.
  */
 
+import { translate } from "@plane/i18n";
+
 const chineseSectionNumber = "[一二三四五六七八九十]+";
 const inlineSubheadingPattern =
   "(核心关键词|长尾关键词|场景词|竞品词|标题结构|标题建议|标题公式|示例方向|五点卖点建议|五点描述|卖点描述|图片\\/A\\+重点|Search Terms|图片和视频|合规提醒|广告策略|预算建议|落地步骤)";
@@ -360,14 +362,14 @@ function inferToolProgressLabel(title: string, status: string) {
     lowerTitle.includes("wiki");
 
   if (isKnowledgeBase) {
-    return isCompleted ? "已完成知识库检索" : "正在检索知识库";
+    return translate(isCompleted ? "agent_teams_chat_progress_knowledge_done" : "agent_teams_chat_progress_knowledge_running");
   }
 
   if (title) {
-    return isCompleted ? "已完成工具执行" : "正在执行工具";
+    return translate(isCompleted ? "agent_teams_chat_progress_tool_done" : "agent_teams_chat_progress_tool_running");
   }
 
-  return isCompleted ? "已完成资料处理" : "正在处理资料";
+  return translate(isCompleted ? "agent_teams_chat_progress_material_done" : "agent_teams_chat_progress_material_running");
 }
 
 export function readToolCallId(payload: Record<string, unknown> | null) {

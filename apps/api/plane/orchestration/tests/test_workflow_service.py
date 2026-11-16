@@ -11,7 +11,7 @@ from plane.orchestration.workflows import (
     create_workflow, fail_publish, finish_publish, save_draft_version,
     start_publish, update_draft,
 )
-from plane.orchestration.models import WorkflowDefinition, WorkflowVersion
+from plane.orchestration.models import WorkflowVersion
 from plane.orchestration.services import TeamDomainError
 from .canvas import CANVAS_SINGLE
 

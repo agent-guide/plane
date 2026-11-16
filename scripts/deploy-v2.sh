@@ -5,7 +5,7 @@
 #
 # 目标：v2 独立栈（不碰现役 v1——deploy.sh 管 v1，本脚本只动 v2/*）：
 #   api   /opt/projects/ai-platform/v2/plane/api   → 127.0.0.1:8202（systemd plane-v2-api）
-#   worker 同目录 worker_loop.py                    → systemd plane-v2-worker
+#   worker 同目录 procrastinate_worker.py          → systemd plane-v2-worker（PG 队列消费）
 #   web   /opt/projects/ai-platform/v2/plane-web    → nginx :4004 静态
 # 发布纪律与 v1 deploy.sh 同源：全量打包+完整替换（不留幽灵文件）、
 # 依赖无条件同步（幂等由工具保证）、构建产物校验、探活失败即中止。
@@ -93,8 +93,34 @@ set -a; . "$V2ROOT/env/plane-api.env"; set +a
 .venv/bin/python manage.py migrate > /tmp/plane-v2-migrate.log 2>&1 \
   || { tail -20 /tmp/plane-v2-migrate.log; echo "❌ migrate 失败"; exit 1; }
 
+# 切换清理（2026-11-16 自研 outbox → Procrastinate 一次性迁移）：drain 旧
+# pending 命令（按新 handler 执行收尾）——必须在 restart 前最后一步跑，
+# 消除「老代码 drain 后、restart 前写入的行变孤儿」窗口；幂等可重跑
+echo "---- drain legacy outbox (一次性，幂等) ----"
+.venv/bin/python manage.py shell -c "
+from plane.orchestration.worker import drain_outbox_once
+print('drain:', drain_outbox_once())
+from plane.orchestration.models import OrchestrationOutbox
+n = OrchestrationOutbox.objects.filter(state=OrchestrationOutbox.State.PENDING).count()
+print('legacy pending after drain:', n)
+assert n == 0, 'drain 后仍有 pending——人工核查后再部署'
+" || { echo "❌ drain 失败"; exit 1; }
+
 sudo -n systemctl restart plane-v2-api plane-v2-worker \
   || { echo "❌ systemd 重启失败（需 passwordless sudo 或手动重启）"; exit 1; }
+
+# worker 单元一致性防御：ExecStart 须指向 procrastinate_worker.py（2026-11-16
+# 迁移）；旧单元仍指 worker_loop.py 会导致 restart 后 worker 起不来——
+# 先跑 scripts/sync-systemd-units.sh 同步单元再部署
+_active_exec=$(systemctl show -p ExecStart plane-v2-worker 2>/dev/null || true)
+echo "$_active_exec" | grep -q "procrastinate_worker.py" \
+  || { echo "❌ plane-v2-worker 单元仍是旧 ExecStart（worker_loop.py）——先执行 bash scripts/sync-systemd-units.sh $SERVER"; exit 1; }
+
+# worker 探活（systemd active 即视为就绪；job 消费由库内机制自证）
+sleep 3
+sudo -n systemctl is-active --quiet plane-v2-worker \
+  || { echo "❌ plane-v2-worker 未运行"; systemctl status plane-v2-worker --no-pager | tail -15; exit 1; }
+echo "v2 worker: active"
 
 # api 探活（8202 内网直连）
 for _ in $(seq 1 30); do

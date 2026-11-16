@@ -32,6 +32,7 @@ import Link from "next/link";
 // services
 import {
   orchestrationService,
+  type AgentErrorCode,
   type OrchestrationRuntimeArtifact,
   type OrchestrationTimelineEvent,
   type OrchestrationWorkItemRuntime,
@@ -47,6 +48,15 @@ type WorkItemRuntimePanelProps = {
 
 const TERMINAL = new Set(["completed", "cancelled", "failed"]);
 const STEP_ACTIVE = new Set(["running", "pending", "queued"]);
+const AGENT_ERROR_MESSAGE_KEYS: Record<AgentErrorCode, string> = {
+  rate_limit: "agent_teams_error_rate_limit",
+  timeout: "agent_teams_error_timeout",
+  empty_reply: "agent_teams_error_empty_reply",
+  not_deployed: "agent_teams_error_not_deployed",
+  configuration_error: "agent_teams_error_configuration_error",
+  agent_error: "agent_teams_error_agent_error",
+};
+const AGENT_TEAM_ERROR_CODES = new Set<AgentErrorCode>(["not_deployed", "configuration_error"]);
 
 /** 步骤（叙事流的行单位）：同一节点的事件归并成一步。 */
 interface StreamStep {
@@ -58,6 +68,10 @@ interface StreamStep {
   lastAt: string;
   /** 节点输出正文（结论行：内联截断 + 就地展开，统一不走弹层）。 */
   output: string | null;
+  /** 失败节点的稳定错误码（前端产品文案使用）。 */
+  errorCode: AgentErrorCode | null;
+  /** 受控的排障详情，不作为主错误文案直接展示。 */
+  errorDetail: string | null;
   /** 审批/求助的答复文本（选项文案或人工补充资料）——状态位后缀呈现。 */
   answer: string | null;
   artifact: OrchestrationRuntimeArtifact | null;
@@ -146,6 +160,8 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           firstAt: event.createdAt,
           lastAt: event.createdAt,
           output: event.output ?? null,
+          errorCode: event.errorCode ?? null,
+          errorDetail: event.errorDetail ?? null,
           answer: null,
           artifact: null,
         });
@@ -155,6 +171,10 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
         // 审批事件（approved）盖掉——曾致当前步识别丢失（无呼吸灯）
         if (event.kind === "node") existing.status = event.status;
         if (event.memberName) existing.memberName = event.memberName;
+        if (event.kind === "node" && event.errorCode) {
+          existing.errorCode = event.errorCode;
+          existing.errorDetail = event.errorDetail ?? null;
+        }
         if (event.kind === "approval" && event.output) existing.answer = event.output;
         else if (event.output) existing.output = event.output;
       }
@@ -369,8 +389,14 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   /** 结论行：所有产出统一内联折叠——超两行截断，就地展开看全文
       （展开态限高滚动；工件正文优先取 artifact.content 全文）。 */
   const renderConclusion = (step: StreamStep) => {
-    const content = (step.artifact?.content ?? step.output)?.trim();
+    const rawContent = (step.artifact?.content ?? step.output)?.trim();
+    const hasAgentError = step.status === "failed" && step.errorCode;
+    const errorMessage = hasAgentError ? t(AGENT_ERROR_MESSAGE_KEYS[step.errorCode as AgentErrorCode]) : "";
+    const content = hasAgentError ? (errorMessage || step.errorCode) : rawContent;
     if (!content) return null;
+    // 原始报错只留 worker 日志与节点记录（DB），不进 UI（D1 口径 11-16 定：
+    // 用户只见人话 + 引导动作；errorDetail 字段后端照带，前端不渲染，
+    // 将来若做管理员诊断视图再恢复）
     const expanded = expandedSteps.has(step.key);
     const isLong = content.length > 80 || content.split("\n").length > 2;
     return (
@@ -386,6 +412,14 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
             />
           )}
         </div>
+        {hasAgentError && AGENT_TEAM_ERROR_CODES.has(step.errorCode as AgentErrorCode) ? (
+          <Link
+            href={agentTeamDetailPath(summary?.teamId ?? "")}
+            className="hover:text-accent-hover mt-1 inline-flex text-body-xs-medium text-accent-primary"
+          >
+            {t("agent_teams_error_view_team")}
+          </Link>
+        ) : null}
         {isLong && (
           <button
             type="button"

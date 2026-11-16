@@ -756,8 +756,6 @@ class ApprovalsEndpoint(BaseAPIView):
             execution_svc.on_ask_answered(
                 execution_id=approval.execution_id, event_id=f"approval:{approval.id}")
             from .node_runtime import NodeRuntimeRecord
-            from .models import OrchestrationOutbox
-            import hashlib, json as _json2
             record = NodeRuntimeRecord.objects.filter(
                 execution=approval.execution, node_key=approval.node_ref).first()
             attempt = (record.attempt + 1) if record else 1
@@ -788,14 +786,11 @@ class ApprovalsEndpoint(BaseAPIView):
                 "attempt": attempt,
                 "humanAnswer": human_answer,
             }
-            OrchestrationOutbox.objects.get_or_create(
+            from .tasks import defer_command, execution_lock
+            defer_command(
                 idempotency_key=f"agent_call:{approval.execution_id}:{approval.node_ref}:{attempt}",
-                defaults={
-                    "command_type": "agent.invoke", "payload": payload,
-                    "payload_hash": hashlib.sha256(
-                        _json2.dumps(payload, sort_keys=True).encode()).hexdigest(),
-                },
-            )
+                task_name="orchestration.agent_invoke",
+                payload=payload, lock=execution_lock(approval.execution_id))
             # 答答回写卡评论（C2，2026-11-15）：补料内容以答者身份落到动态流
             # ——团队可见、事后可追溯；附件挂到该评论（UI 按评论附件渲染，
             # 后续 prompt 组装经评论附件管线同样可见）。失败不阻断作答
@@ -913,19 +908,17 @@ class ApprovalsEndpoint(BaseAPIView):
                              "choice": decision})
             _write_answer_comment(approval, request.user, _merged, _blocks)
             _reclaim_unlinked(approval, _merged)
-            # 人工恢复事件入 outbox（worker 转投引擎；本地无 worker 时由
-            # 过渡内联处理执行状态）
-            from .models import OrchestrationOutbox
-            import hashlib, json as _json
-            payload = {"executionId": approval.execution_id, "approvalId": approval.id, "decision": decision}
-            OrchestrationOutbox.objects.get_or_create(
+            # 人工恢复命令（worker 兜底推进；本地无 worker 时由过渡内联处理）
+            from .tasks import defer_command, execution_lock
+            defer_command(
                 idempotency_key=f"approval:{approval.id}",
-                defaults={
-                    "command_type": "engine.human_resume", "payload": payload,
-                    "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest(),
-                },
-            )
-            # 过渡：本地直接推进执行状态（终局删此段，由 worker 消费 outbox）
+                task_name="orchestration.human_resume",
+                payload={"executionId": approval.execution_id, "approvalId": approval.id},
+                lock=execution_lock(approval.execution_id))
+            # 双保险之一：作答即内联推进执行状态（即时生效，无 worker 环境也可用）；
+            # 另一道是 worker 对该命令的幂等消费（已推进过按 409 视为已办）。
+            # 勿删此段——删后无 worker 环境人工确认推不动，且要吃轮询延迟。
+
             try:
                 execution_svc.on_human_resume(execution_id=approval.execution_id, event_id=f"approval:{approval.id}")
             except Exception:
@@ -1070,7 +1063,8 @@ class ConnectionResolveEndpoint(BaseAPIView):
     throttle_classes = []
 
     def post(self, request):
-        import os, secrets
+        import os
+        import secrets
         expected = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
         provided = request.headers.get("X-Orchestration-Token", "")
         if not expected or not secrets.compare_digest(expected, provided):
@@ -1226,13 +1220,20 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
         for n in execution.node_records.order_by("updated_at"):
             # output：节点输出正文（叙事流每步结论行；失败节点回退 error）。
             # 截断 4000——页内展开看全文，预览弹层仍走 artifact.content
+            raw_result = n.result or {}
+            normalized_error = raw_result.get("error_normalized") or {}
+            error_code = normalized_error.get("code") if isinstance(normalized_error, dict) else None
+            error_detail = normalized_error.get("detail") if isinstance(normalized_error, dict) else None
+            node_output = raw_result.get("output") or ("" if error_code else raw_result.get("error")) or ""
             events.append({
                 "id": f"node:{n.id}:{n.status}", "kind": "node",
                 "status": n.status, "nodeKey": n.node_key,
                 "nodeName": node_names.get(n.node_key, n.node_key),
                 "memberName": _node_member_name(n.node_key),
                 "createdAt": n.updated_at.isoformat(),
-                "output": ((((n.result or {}).get("output")) or ((n.result or {}).get("error")) or "")[:4000]) or None,
+                "output": node_output[:4000] or None,
+                "errorCode": error_code,
+                "errorDetail": (error_detail or "")[:4000] or None,
             })
         for a in execution.approvals.order_by("created_at"):
             events.append({
@@ -1321,7 +1322,8 @@ class EngineEventEndpoint(BaseAPIView):
     throttle_classes = []
 
     def post(self, request):
-        import os, secrets
+        import os
+        import secrets
         expected = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
         provided = request.headers.get("X-Orchestration-Token", "")
         if not expected or not secrets.compare_digest(expected, provided):
@@ -1342,7 +1344,8 @@ class DagNodeRuntimeBase(BaseAPIView):
     throttle_classes = []
 
     def _auth(self, request):
-        import os, secrets
+        import os
+        import secrets
         expected = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
         return expected and secrets.compare_digest(expected, request.headers.get("X-Orchestration-Token", ""))
 
@@ -1416,8 +1419,6 @@ class DagNodeView(DagNodeRuntimeBase):
 class DagNodeStartView(DagNodeRuntimeBase):
     def post(self, request, run_ref, node_key):
         from .node_runtime import NodeRuntimeRecord
-        from .models import OrchestrationOutbox
-        import hashlib, json as _json
         if not self._auth(request):
             return self._denied()
         execution = self._execution(run_ref)
@@ -1441,9 +1442,10 @@ class DagNodeStartView(DagNodeRuntimeBase):
         _retries = _node_def.get("retries") if _node_def.get("retries") is not None else 1
         if record.status == NodeRuntimeRecord.Status.FAILED and record.failure_retries >= _retries:
             return Response({"accepted": True, "status": record.status, "error": "retries exhausted"})
-        _key_exists = OrchestrationOutbox.objects.filter(
-            idempotency_key=f"agent_call:{execution.id}:{node_key}:{record.attempt}"
-        ).exists()
+        # 当前 attempt 的命令是否已投递（任意状态——等价旧 outbox 键存在判据，
+        # 改查 procrastinate job 表：行完成后仍保留）
+        from .tasks import command_exists
+        _key_exists = command_exists(f"agent_call:{execution.id}:{node_key}:{record.attempt}")
         if record.status == NodeRuntimeRecord.Status.FAILED or _key_exists:
             if record.status == NodeRuntimeRecord.Status.FAILED:
                 record.failure_retries += 1
@@ -1508,17 +1510,17 @@ class DagNodeStartView(DagNodeRuntimeBase):
             # 空回复→重派把用户答复丢了」；为空则不带（worker 按无答复处理）。
             if record.human_answer:
                 payload["humanAnswer"] = record.human_answer
-            OrchestrationOutbox.objects.get_or_create(
+            from .tasks import defer_command, execution_lock
+            defer_command(
                 idempotency_key=f"agent_call:{execution.id}:{node_key}:{record.attempt}",
-                defaults={"command_type": "agent.invoke", "payload": payload,
-                          "payload_hash": hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest()})
+                task_name="orchestration.agent_invoke",
+                payload=payload, lock=execution_lock(execution.id))
         return Response({"accepted": True, "status": record.status})
 
 
 class DagNodeFinishView(DagNodeRuntimeBase):
     def post(self, request, run_ref, node_key):
         from .node_runtime import NodeRuntimeRecord
-        from . import execution as execution_svc
         if not self._auth(request):
             return self._denied()
         execution = self._execution(run_ref)

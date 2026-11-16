@@ -450,6 +450,14 @@ export interface OrchestrationRuntimeArtifact {
 }
 
 /** 结构化时间线事件——文案归前端 i18n（修复旧链服务端中文硬编码）。 */
+export type AgentErrorCode =
+  | "rate_limit"
+  | "timeout"
+  | "empty_reply"
+  | "not_deployed"
+  | "configuration_error"
+  | "agent_error";
+
 export interface OrchestrationTimelineEvent {
   id: string;
   kind: "execution" | "node" | "approval";
@@ -459,8 +467,12 @@ export interface OrchestrationTimelineEvent {
   nodeName?: string | null;
   memberName: string | null;
   createdAt: string;
-  /** 节点输出正文（叙事流每步结论行；失败节点为错误信息，截断 4000）。 */
+  /** 节点输出正文（叙事流每步结论行；成功节点/非错误节点才有）。 */
   output?: string | null;
+  /** 失败节点的稳定错误码；前端按 code 出产品文案，不展示工程日志。 */
+  errorCode?: AgentErrorCode | null;
+  /** 错误排障详情，仅作为次要技术信息展示。 */
+  errorDetail?: string | null;
 }
 
 export interface OrchestrationWorkItemRuntime {

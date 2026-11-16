@@ -9,6 +9,7 @@
 // connection-resolved credentials), human_confirm (pauses the run for a person).
 
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "@plane/i18n";
 import {
   Background,
   BackgroundVariant,
@@ -67,15 +68,18 @@ export type FlowNode = Node<NodeData, GraphNodeType>;
 const NODE_WIDTH = 220;
 const NODE_NEW_OFFSET = 180;
 
-const TYPE_LABELS: Record<string, string> = {
-  agent: "Agent",
-  tool: "Tool",
-  human_confirm: "确认",
-  condition: "条件",
+const NODE_TYPE_LABEL_KEYS: Record<string, string> = {
+  agent: "agent_teams_node_type_agent",
+  tool: "agent_teams_node_type_tool",
+  human_confirm: "agent_teams_node_type_human_confirm",
+  condition: "agent_teams_node_type_condition",
 };
 
-function nodeSummary(data: NodeData): string {
-  if (data.expertId) return data.prompt || "已绑定员工";
+const nodeTypeLabel = (t: ReturnType<typeof useTranslation>["t"], type: string) =>
+  t(NODE_TYPE_LABEL_KEYS[type] ?? "agent_teams_node_type_unknown");
+
+function nodeSummary(data: NodeData, boundMemberLabel: string): string {
+  if (data.expertId) return data.prompt || boundMemberLabel;
   if (data.tool_name) return data.tool_name;
   if (Array.isArray(data.branches) && data.branches.length > 0) {
     return data.branches.map((b) => b.label || b.target).join(" / ");
@@ -111,24 +115,25 @@ function editableOptions(raw: unknown): NodeOption[] {
 
 // Live branch summary derived from the CURRENT canvas edges (not the saved
 // payload) — the card shows branches the moment they are drawn (n8n/Dify
-// pattern), empty labels fall back to 分支N placeholders.
+// pattern), empty labels fall back to localized branch placeholders.
 function ConditionBranchLine({ nodeId }: { nodeId: string }) {
+  const { t } = useTranslation();
   // Live edges/nodes via XYFlow hooks — branches appear as they are drawn,
-  // before any save (n8n/Dify pattern); empty labels show 分支N placeholders.
+  // before any save; empty labels show generated branch names.
   const edges = useEdges();
   const nodes = useNodes() as FlowNode[];
-  const summary = branchSummary(nodeId, edges, nodes);
-  return <p className="text-amber-600 mt-1 truncate text-11 leading-relaxed">{summary || "（拉出连线定义分支）"}</p>;
+  const summary = branchSummary(nodeId, edges, nodes, t("agent_teams_canvas_branch_placeholder"));
+  return <p className="text-amber-600 mt-1 truncate text-11 leading-relaxed">{summary || t("agent_teams_canvas_pull_branch_hint")}</p>;
 }
 
-function branchSummary(nodeId: string, edges: Edge[], nodes: FlowNode[]): string {
+function branchSummary(nodeId: string, edges: Edge[], nodes: FlowNode[], placeholder: string): string {
   const out = edges.filter((e) => e.source === nodeId);
   if (out.length === 0) return "";
   return out
     .map((e, i) => {
       const label = ((e as Edge & { label?: string }).label || "").trim();
       const target = nodes.find((n) => n.id === e.target);
-      return `${label || `分支${i + 1}`}→${target?.data.name || "?"}`;
+      return `${label || placeholder.replace("{index}", String(i + 1))}→${target?.data.name || "?"}`;
     })
     .join("  ");
 }
@@ -145,7 +150,9 @@ const TYPE_ACCENTS: Record<string, string> = {
 };
 
 export function GraphNodeCard({ data, selected, type, id }: NodeProps<FlowNode>) {
+  const { t } = useTranslation();
   const accent = TYPE_ACCENTS[type] ?? "#64748b";
+  const label = nodeTypeLabel(t, type);
   return (
     <div
       className={`w-[220px] rounded-lg border bg-layer-1 px-3.5 py-3 transition-all duration-150 ${
@@ -165,14 +172,14 @@ export function GraphNodeCard({ data, selected, type, id }: NodeProps<FlowNode>)
         <span
           className="grid h-[20px] w-[20px] shrink-0 place-items-center rounded-sm text-[10px] font-semibold text-white"
           style={{ backgroundColor: accent }}
-          title={TYPE_LABELS[type] ?? type}
+          title={label}
           aria-hidden
         >
-          {(TYPE_LABELS[type] ?? "N").slice(0, 1)}
+          {label.slice(0, 1) || "N"}
         </span>
         <p className="min-w-0 flex-1 truncate text-13 font-medium text-primary">{data.name || "—"}</p>
       </div>
-      <p className="mt-1.5 line-clamp-2 text-12 leading-relaxed text-secondary">{nodeSummary(data) || "—"}</p>
+      <p className="mt-1.5 line-clamp-2 text-12 leading-relaxed text-secondary">{nodeSummary(data, t("agent_teams_canvas_bound_member")) || "—"}</p>
       {type === "condition" ? <ConditionBranchLine nodeId={id} /> : null}
       <Handle
         type="source"
@@ -221,7 +228,7 @@ export function graphToFlow(graph: WorkflowGraph | null | undefined): {
   };
 }
 
-function flowToGraphNodes(nodes: FlowNode[], edges: Edge[]): WorkflowGraphNode[] {
+function flowToGraphNodes(nodes: FlowNode[], edges: Edge[], branchPlaceholder: string): WorkflowGraphNode[] {
   return nodes.map((n) => {
     const data: Record<string, unknown> = { name: (n.data.name || "").trim() };
     if (n.type === "agent") {
@@ -243,7 +250,7 @@ function flowToGraphNodes(nodes: FlowNode[], edges: Edge[]): WorkflowGraphNode[]
     if (n.type === "condition") {
       const outEdges = edges.filter((e) => e.source === n.id);
       data.branches = outEdges.map((e) => ({
-        label: ((e as Edge & { label?: string }).label || "").trim() || `分支${outEdges.indexOf(e) + 1}`,
+        label: ((e as Edge & { label?: string }).label || "").trim() || branchPlaceholder.replace("{index}", String(outEdges.indexOf(e) + 1)),
         target: e.target,
       }));
     }
@@ -308,60 +315,6 @@ export function hasGraphCycle(nodes: WorkflowGraphNode[], edges: { source: strin
   return false;
 }
 
-export type WorkflowCanvasEditorLabels = {
-  addAgent: string;
-  addTool: string;
-  addConfirm: string;
-  addCondition: string;
-  fieldBranches: string;
-  fieldBranchesHint: string;
-  branchLabel: string;
-  noBranches: string;
-  save: string;
-  saving: string;
-  savedMessage: string;
-  saveFailed: string;
-  emptyFieldError: string;
-  cycleError: string;
-  nodePanelTitle: string;
-  fieldName: string;
-  connectionsSection: string;
-  connectionSelect: string;
-  connectionHint: string;
-  fieldEmployee: string;
-  /** 团队暂无在编数字员工时的空态引导（不回退全租户目录，验收修正 2026-10-15）。 */
-  fieldEmployeeEmptyHint?: string;
-  genericAgent: string;
-  employeePersonaInjected: string;
-  /** 成员收敛 §3.5：越界引用警示与成员来源提示（可选，旧调用不传不渲染）。 */
-  employeeOutOfRoster?: string;
-  memberSourceHint?: string;
-  approverOutOfRoster?: string;
-  approverTeamHint?: string;
-  addNode: string;
-  fieldPrompt: string;
-  fieldPromptHint: string;
-  fieldPromptPlaceholder: string;
-  fieldToolName: string;
-  fieldConnection: string;
-  noConnection: string;
-  connectionPlaceholder: string;
-  fieldParams: string;
-  fieldMessage: string;
-  fieldApprover: string;
-  /** 团队暂无人类成员时的空态引导（不回退全租户成员，验收修正 2026-10-15）。 */
-  fieldApproverEmptyHint?: string;
-  fieldApproverPlaceholder: string;
-  fieldFreeText: string;
-  fieldOptions: string;
-  fieldOptionsHint: string;
-  optionLabel: string;
-  terminate: string;
-  terminateHint: string;
-  addOption: string;
-  deleteNode: string;
-  selectNodeHint: string;
-};
 
 // Tool catalog entries for the tool-node dropdown (fetched by the page).
 export type ToolCatalogEntry = {
@@ -370,7 +323,12 @@ export type ToolCatalogEntry = {
   connection_type?: string;
 };
 
-const connectionTypeLabel = (type: string) => (type === "zentao" ? "禅道" : type === "http_api" ? "其他系统" : type);
+const connectionTypeLabel = (type: string, t: ReturnType<typeof useTranslation>["t"]) =>
+  type === "zentao"
+    ? t("agent_teams_connection_type_zentao")
+    : type === "http_api"
+      ? t("agent_teams_connection_type_http_api")
+      : type;
 
 // Available connections (name + type) for the tool-node credential dropdown —
 // filtered by the selected tool's declared connection_type when known.
@@ -385,7 +343,6 @@ export type UserEntry = { id: string; name: string };
 export function WorkflowCanvasEditor({
   initialGraph,
   onSave,
-  labels,
   toolCatalog = [],
   connections = [],
   employees = [],
@@ -395,7 +352,6 @@ export function WorkflowCanvasEditor({
 }: {
   initialGraph: WorkflowGraph | null | undefined;
   onSave: (graph: WorkflowGraph) => Promise<void>;
-  labels: WorkflowCanvasEditorLabels;
   toolCatalog?: ToolCatalogEntry[];
   connections?: ConnectionEntry[];
   employees?: EmployeeEntry[];
@@ -405,14 +361,15 @@ export function WorkflowCanvasEditor({
   /** 单行头部右区（发布/设置等），渲染在保存按钮左侧。 */
   headerRight?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>(graphToFlow(initialGraph).nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graphToFlow(initialGraph).edges);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const ADD_LABELS: Record<string, string> = {
-    agent: labels.addAgent,
-    tool: labels.addTool,
-    human_confirm: labels.addConfirm,
-    condition: labels.addCondition,
+    agent: t("agent_teams_canvas_add_agent"),
+    tool: t("agent_teams_canvas_add_tool"),
+    human_confirm: t("agent_teams_canvas_add_confirm"),
+    condition: t("agent_teams_canvas_add_condition"),
   };
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -496,10 +453,10 @@ export function WorkflowCanvasEditor({
     const missing = nodes.filter(nodeFieldMissing);
     if (missing.length > 0) {
       setSelectedId(missing[0].id);
-      setError(labels.emptyFieldError);
+      setError(t("agent_teams_canvas_empty_field_error"));
       return;
     }
-    const graphNodes = flowToGraphNodes(nodes, edges);
+    const graphNodes = flowToGraphNodes(nodes, edges, t("agent_teams_canvas_branch_placeholder"));
     const nodeIds = new Set(graphNodes.map((n) => n.id));
     const graph: WorkflowGraph = {
       version: 1,
@@ -514,15 +471,15 @@ export function WorkflowCanvasEditor({
         })),
     };
     if (hasGraphCycle(graph.nodes, graph.edges)) {
-      setError(labels.cycleError);
+      setError(t("agent_teams_canvas_cycle_error"));
       return;
     }
     setSaving(true);
     try {
       await onSave(graph);
-      setMessage(labels.savedMessage);
+      setMessage(t("agent_teams_canvas_saved_message"));
     } catch {
-      setError(labels.saveFailed);
+      setError(t("agent_teams_canvas_save_failed"));
     } finally {
       setSaving(false);
     }
@@ -539,7 +496,7 @@ export function WorkflowCanvasEditor({
           customButton={
             <Button variant="secondary" size="lg">
               <Plus className="size-3.5" aria-hidden />
-              {labels.addNode}
+              {t("agent_teams_canvas_add_node")}
             </Button>
           }
           placement="bottom-start"
@@ -561,7 +518,7 @@ export function WorkflowCanvasEditor({
         {message ? <span className="text-emerald-600 text-12">{message}</span> : null}
         {headerRight}
         <Button variant="primary" size="lg" onClick={() => void save()} loading={saving}>
-          {saving ? labels.saving : labels.save}
+          {saving ? t("agent_teams_canvas_saving") : t("agent_teams_canvas_save")}
         </Button>
       </header>
 
@@ -608,15 +565,15 @@ export function WorkflowCanvasEditor({
                   style={{ backgroundColor: TYPE_ACCENTS[selectedNode.type] ?? "#64748b" }}
                   aria-hidden
                 >
-                  {(TYPE_LABELS[selectedNode.type] ?? "N").slice(0, 1)}
+                  {nodeTypeLabel(t, selectedNode.type).slice(0, 1) || "N"}
                 </span>
                 <span className="text-13 font-medium text-primary">
-                  {TYPE_LABELS[selectedNode.type] ?? selectedNode.type}
+                  {nodeTypeLabel(t, selectedNode.type)}
                 </span>
-                <span className="text-12 text-tertiary">{labels.nodePanelTitle}</span>
+                <span className="text-12 text-tertiary">{t("agent_teams_canvas_node_panel_title")}</span>
               </div>
               <div className="grid gap-1.5">
-                <span className={FIELD_LABEL_CLASS}>{labels.fieldName}</span>
+                <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_field_name")}</span>
                 <Input
                   mode="primary"
                   inputSize="sm"
@@ -628,15 +585,15 @@ export function WorkflowCanvasEditor({
               {selectedNode.type === "agent" ? (
                 <>
                   <div className="grid gap-1.5">
-                    <span className={FIELD_LABEL_CLASS}>{labels.fieldEmployee}</span>
+                    <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_field_employee")}</span>
                     {employees.length > 0 ? (
                       <span className="block">
                         <FormSelect
                           value={selectedNode.data.expertId ?? ""}
-                          placeholder={labels.genericAgent}
+                          placeholder={t("agent_teams_canvas_generic_agent")}
                           options={employees.map((emp) => ({
                             id: emp.id,
-                            name: emp.categoryName ? `${emp.name}（${emp.categoryName}）` : emp.name,
+                            name: emp.categoryName ? `${emp.name} (${emp.categoryName})` : emp.name,
                           }))}
                           onChange={(v) => patchSelected({ expertId: v })}
                         />
@@ -651,50 +608,50 @@ export function WorkflowCanvasEditor({
                           onChange={(e) => patchSelected({ expertId: e.target.value })}
                           placeholder="expert_…"
                         />
-                        {labels.fieldEmployeeEmptyHint ? (
-                          <span className={FIELD_HINT_CLASS}>· {labels.fieldEmployeeEmptyHint}</span>
+                        {t("agent_teams_canvas_field_employee_empty_hint") ? (
+                          <span className={FIELD_HINT_CLASS}>· {t("agent_teams_canvas_field_employee_empty_hint")}</span>
                         ) : null}
                       </>
                     )}
                     {(() => {
                       const picked = (selectedNode.data.expertId ?? "").trim();
                       const bound = employees.find((emp) => emp.id === picked);
-                      if (bound) return <span className={FIELD_HINT_CLASS}>· {labels.employeePersonaInjected}</span>;
+                      if (bound) return <span className={FIELD_HINT_CLASS}>· {t("agent_teams_canvas_employee_persona_injected")}</span>;
                       // 越界警示：已选值不在团队名册（挂载时后端会拦，提前在画布可见）
-                      if (picked && employees.length > 0 && labels.employeeOutOfRoster)
-                        return <span className="text-11 text-danger-primary">· {labels.employeeOutOfRoster}</span>;
+                      if (picked && employees.length > 0 && t("agent_teams_canvas_employee_out_of_roster"))
+                        return <span className="text-11 text-danger-primary">· {t("agent_teams_canvas_employee_out_of_roster")}</span>;
                       return null;
                     })()}
-                    {labels.memberSourceHint ? (
-                      <span className={FIELD_HINT_CLASS}>· {labels.memberSourceHint}</span>
+                    {t("agent_teams_canvas_member_source_hint") ? (
+                      <span className={FIELD_HINT_CLASS}>· {t("agent_teams_canvas_member_source_hint")}</span>
                     ) : null}
                   </div>
                   <div className="grid gap-1.5">
-                    <span className={FIELD_LABEL_CLASS}>{labels.fieldPrompt}</span>
+                    <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_field_prompt")}</span>
                     <TextArea
                       mode="primary"
                       textAreaSize="sm"
                       className="font-normal min-h-28 w-full resize-y text-13"
                       value={selectedNode.data.prompt ?? ""}
                       onChange={(e) => patchSelected({ prompt: e.target.value })}
-                      placeholder={labels.fieldPromptPlaceholder}
+                      placeholder={t("agent_teams_canvas_field_prompt_placeholder")}
                     />
-                    <span className={FIELD_HINT_CLASS}>{labels.fieldPromptHint}</span>
+                    <span className={FIELD_HINT_CLASS}>{t("agent_teams_canvas_field_prompt_hint")}</span>
                   </div>
                   {/* 连接（条件区，设计 §5.2）：所选员工携带工具时为每类工具选连接 */}
                   {agentConnections.length > 0 ? (
                     <div className="flex flex-col gap-2 rounded-md border border-subtle px-2.5 py-2">
-                      <span className={FIELD_LABEL_CLASS}>{labels.connectionsSection}</span>
+                      <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_connections_section")}</span>
                       {agentConnections.map((entry) => (
                         <div key={entry.type} className="flex flex-col gap-1">
-                          <span className="text-11 text-tertiary">{connectionTypeLabel(entry.type)}</span>
+                          <span className="text-11 text-tertiary">{connectionTypeLabel(entry.type, t)}</span>
                           <span className="flex items-center gap-1.5">
                             <FormSelect
                               value={
                                 (selectedNode.data.connections as Record<string, string> | undefined)?.[entry.type] ??
                                 ""
                               }
-                              placeholder={labels.connectionSelect}
+                              placeholder={t("agent_teams_canvas_connection_select")}
                               options={entry.options.map((c) => ({
                                 id: c.name,
                                 name: c.status === "unreachable" ? `${c.name} ⚠` : c.name,
@@ -711,7 +668,7 @@ export function WorkflowCanvasEditor({
                           </span>
                         </div>
                       ))}
-                      <span className={FIELD_HINT_CLASS}>{labels.connectionHint}</span>
+                      <span className={FIELD_HINT_CLASS}>{t("agent_teams_canvas_connection_hint")}</span>
                     </div>
                   ) : null}
                 </>
@@ -719,12 +676,12 @@ export function WorkflowCanvasEditor({
               {selectedNode.type === "tool" ? (
                 <>
                   <div className="grid gap-1.5">
-                    <span className={FIELD_LABEL_CLASS}>{labels.fieldToolName}</span>
+                    <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_field_tool_name")}</span>
                     {toolCatalog.length > 0 ? (
                       <span className="block">
                         <FormSelect
                           value={selectedNode.data.tool_name ?? ""}
-                          placeholder={labels.fieldToolName}
+                          placeholder={t("agent_teams_canvas_field_tool_name")}
                           options={toolCatalog.map((t) => ({ id: t.tool_name, name: t.tool_name }))}
                           onChange={(v) => patchSelected({ tool_name: v })}
                         />
@@ -741,7 +698,7 @@ export function WorkflowCanvasEditor({
                     )}
                   </div>
                   <div className="grid gap-1.5">
-                    <span className={FIELD_LABEL_CLASS}>{labels.fieldConnection}</span>
+                    <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_field_connection")}</span>
                     {(() => {
                       const toolType = toolCatalog.find(
                         (t) => t.tool_name === selectedNode.data.tool_name
@@ -751,8 +708,8 @@ export function WorkflowCanvasEditor({
                         <span className="block">
                           <FormSelect
                             value={selectedNode.data.connection ?? ""}
-                            placeholder={labels.noConnection}
-                            options={options.map((c) => ({ id: c.name, name: `${c.name}（${c.type}）` }))}
+                            placeholder={t("agent_teams_canvas_no_connection")}
+                            options={options.map((c) => ({ id: c.name, name: `${c.name} (${c.type})` }))}
                             onChange={(v) => patchSelected({ connection: v })}
                           />
                         </span>
@@ -763,13 +720,13 @@ export function WorkflowCanvasEditor({
                           className="w-full"
                           value={selectedNode.data.connection ?? ""}
                           onChange={(e) => patchSelected({ connection: e.target.value })}
-                          placeholder={labels.connectionPlaceholder}
+                          placeholder={t("agent_teams_canvas_connection_placeholder")}
                         />
                       );
                     })()}
                   </div>
                   <div className="grid gap-1.5">
-                    <span className={FIELD_LABEL_CLASS}>{labels.fieldParams}</span>
+                    <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_field_params")}</span>
                     <TextArea
                       mode="primary"
                       textAreaSize="sm"
@@ -784,8 +741,8 @@ export function WorkflowCanvasEditor({
               ) : null}
               {selectedNode.type === "condition" ? (
                 <div className="mt-4">
-                  <p className="text-12 font-medium text-secondary">{labels.fieldBranches}</p>
-                  <p className={FIELD_HINT_CLASS}>{labels.fieldBranchesHint}</p>
+                  <p className="text-12 font-medium text-secondary">{t("agent_teams_canvas_field_branches")}</p>
+                  <p className={FIELD_HINT_CLASS}>{t("agent_teams_canvas_field_branches_hint")}</p>
                   <div className="mt-2 space-y-2">
                     {edges
                       .filter((e) => e.source === selectedNode.id)
@@ -795,7 +752,7 @@ export function WorkflowCanvasEditor({
                           <div key={edge.id} className="flex items-center gap-2">
                             <Input
                               mode="primary"
-                              placeholder={`${labels.branchLabel}${edges.filter((x) => x.source === selectedNode.id).indexOf(edge) + 1}（留空自动命名）`}
+                              placeholder={t("agent_teams_canvas_branch_label_auto", { index: edges.filter((x) => x.source === selectedNode.id).indexOf(edge) + 1 })}
                               onChange={(e) =>
                                 setEdges((current) =>
                                   current.map((x) => (x.id === edge.id ? ({ ...x, label: e.target.value } as Edge) : x))
@@ -811,7 +768,7 @@ export function WorkflowCanvasEditor({
                         );
                       })}
                     {edges.filter((e) => e.source === selectedNode.id).length === 0 ? (
-                      <p className="text-12 text-tertiary">{labels.noBranches}</p>
+                      <p className="text-12 text-tertiary">{t("agent_teams_canvas_no_branches")}</p>
                     ) : null}
                   </div>
                 </div>
@@ -819,7 +776,7 @@ export function WorkflowCanvasEditor({
               {selectedNode.type === "human_confirm" ? (
                 <>
                   <div className="grid gap-1.5">
-                    <span className={FIELD_LABEL_CLASS}>{labels.fieldMessage}</span>
+                    <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_field_message")}</span>
                     <TextArea
                       mode="primary"
                       textAreaSize="sm"
@@ -830,17 +787,17 @@ export function WorkflowCanvasEditor({
                     />
                   </div>
                   <div className="grid gap-1.5">
-                    <span className={FIELD_LABEL_CLASS}>{labels.fieldApprover}</span>
+                    <span className={FIELD_LABEL_CLASS}>{t("agent_teams_canvas_field_approver")}</span>
                     <span className="block">
                       <FormSelect
                         value={selectedNode.data.approverUserId ?? ""}
-                        placeholder={labels.fieldApproverPlaceholder}
+                        placeholder={t("agent_teams_canvas_field_approver_placeholder")}
                         options={users.map((u) => ({ id: u.id, name: u.name }))}
                         onChange={(v) => patchSelected({ approverUserId: v })}
                       />
                     </span>
-                    {users.length === 0 && labels.fieldApproverEmptyHint ? (
-                      <span className={FIELD_HINT_CLASS}>· {labels.fieldApproverEmptyHint}</span>
+                    {users.length === 0 && t("agent_teams_canvas_field_approver_empty_hint") ? (
+                      <span className={FIELD_HINT_CLASS}>· {t("agent_teams_canvas_field_approver_empty_hint")}</span>
                     ) : null}
                     {(() => {
                       // 成员收敛 §3.5：越界警示 + 未指定语义提示（收窄为团队真人可答）
@@ -849,11 +806,11 @@ export function WorkflowCanvasEditor({
                         picked &&
                         users.length > 0 &&
                         !users.some((u) => u.id === picked) &&
-                        labels.approverOutOfRoster
+                        t("agent_teams_canvas_approver_out_of_roster")
                       )
-                        return <span className="text-11 text-danger-primary">· {labels.approverOutOfRoster}</span>;
-                      if (!picked && labels.approverTeamHint)
-                        return <span className={FIELD_HINT_CLASS}>· {labels.approverTeamHint}</span>;
+                        return <span className="text-11 text-danger-primary">· {t("agent_teams_canvas_approver_out_of_roster")}</span>;
+                      if (!picked && t("agent_teams_canvas_approver_team_hint"))
+                        return <span className={FIELD_HINT_CLASS}>· {t("agent_teams_canvas_approver_team_hint")}</span>;
                       return null;
                     })()}
                   </div>
@@ -862,12 +819,12 @@ export function WorkflowCanvasEditor({
                       checked={selectedNode.data.freeText === true}
                       onChange={(e) => patchSelected({ freeText: e.target.checked })}
                     />
-                    {labels.fieldFreeText}
+                    {t("agent_teams_canvas_field_free_text")}
                   </div>
                   <div className="grid gap-2.5 rounded-md border-[0.5px] border-subtle-1 bg-layer-1 p-3.5">
                     <div className="grid gap-0.5">
-                      <p className="text-12 font-medium text-secondary">{labels.fieldOptions}</p>
-                      <p className={FIELD_HINT_CLASS}>{labels.fieldOptionsHint}</p>
+                      <p className="text-12 font-medium text-secondary">{t("agent_teams_canvas_field_options")}</p>
+                      <p className={FIELD_HINT_CLASS}>{t("agent_teams_canvas_field_options_hint")}</p>
                     </div>
                     <div className="space-y-2">
                       {editableOptions(selectedNode.data.options).map((option, index, all) => (
@@ -878,7 +835,7 @@ export function WorkflowCanvasEditor({
                           <Input
                             mode="primary"
                             value={option.label}
-                            placeholder={labels.optionLabel}
+                            placeholder={t("agent_teams_canvas_option_label")}
                             onChange={(e) => {
                               const next = [...all];
                               next[index] = { ...option, label: e.target.value };
@@ -889,7 +846,7 @@ export function WorkflowCanvasEditor({
                           />
                           <div
                             className="flex shrink-0 cursor-pointer items-center gap-1.5 text-12 text-secondary"
-                            title={labels.terminateHint}
+                            title={t("agent_teams_canvas_terminate_hint")}
                           >
                             <Checkbox
                               checked={option.terminate === true}
@@ -899,7 +856,7 @@ export function WorkflowCanvasEditor({
                                 patchSelected({ options: next });
                               }}
                             />
-                            {labels.terminate}
+                            {t("agent_teams_canvas_terminate")}
                           </div>
                           <button
                             type="button"
@@ -923,7 +880,7 @@ export function WorkflowCanvasEditor({
                         }
                         className="text-custom-primary-100 w-full rounded-md border border-dashed border-strong px-3 py-1.5 text-12 hover:border-accent-strong hover:bg-layer-2-hover"
                       >
-                        + {labels.addOption}
+                        + {t("agent_teams_canvas_add_option")}
                       </button>
                     </div>
                   </div>
@@ -932,7 +889,7 @@ export function WorkflowCanvasEditor({
               <span className="flex-1" />
               <div className="flex justify-end border-t border-subtle pt-3">
                 <Button variant="error-outline" size="lg" onClick={deleteSelected}>
-                  {labels.deleteNode}
+                  {t("agent_teams_canvas_delete_node")}
                 </Button>
               </div>
             </div>
@@ -940,7 +897,7 @@ export function WorkflowCanvasEditor({
             <div className="grid place-items-center p-4 pt-10">
               <MousePointerClick className="size-5 text-tertiary" aria-hidden />
               <p className="mt-3 max-w-[240px] text-center text-12 leading-relaxed text-tertiary">
-                {labels.selectNodeHint}
+                {t("agent_teams_canvas_select_node_hint")}
               </p>
             </div>
           )}

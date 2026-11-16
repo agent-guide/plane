@@ -15,8 +15,7 @@ from plane.db.models.project import Project
 from plane.db.models.issue import Issue
 from plane.orchestration import services, workflows
 from plane.orchestration.models import (
-    BusinessApproval, NodeRuntimeRecord, OrchestrationOutbox,
-    ProjectTeamBinding, WorkflowDefinition,
+    BusinessApproval, NodeRuntimeRecord, WorkflowDefinition,
 )
 from plane.orchestration.execution import start_execution
 
@@ -101,8 +100,10 @@ class PruneGateTestBase(TestCase):
         self.fill.refresh_from_db()
         self.assertEqual(self.fill.status, NodeRuntimeRecord.Status.SKIPPED)
         # start 被闸门拦截：不产生 agent.invoke 命令
-        self.assertFalse(OrchestrationOutbox.objects.filter(
-            command_type="agent.invoke", payload__nodeKey="fill_1").exists())
+        from .conftest import DEFERRED
+        self.assertFalse(any(
+            task == "orchestration.agent_invoke" and payload.get("nodeKey") == "fill_1"
+            for _key, (task, payload, _lock) in DEFERRED.items()))
 
     def test_live_branch_untouched(self):
         r = self.client.post(self._url("declare_2", "start"),

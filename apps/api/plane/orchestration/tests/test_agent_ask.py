@@ -14,7 +14,7 @@ from plane.db.models.project import Project, ProjectMember
 from plane.db.models.issue import Issue
 from .canvas import CANVAS_SINGLE
 from plane.orchestration import services, workflows
-from plane.orchestration.models import BusinessApproval, OrchestrationOutbox, WorkflowDefinition
+from plane.orchestration.models import BusinessApproval, WorkflowDefinition
 from plane.orchestration.execution import start_execution, on_agent_ask, on_ask_answered, process_event
 
 User = get_user_model()
@@ -168,8 +168,9 @@ class OnAgentAskTests(AgentAskTestBase):
         record.refresh_from_db()
         self.assertEqual(record.status, NodeRuntimeRecord.Status.RUNNING)
         self.assertEqual(record.failure_retries, 1)  # 这次失败重派才消耗预算
-        cmd = OrchestrationOutbox.objects.filter(command_type="agent.invoke").last()
-        self.assertIn("gross weight 480 KGM", cmd.payload["humanAnswer"])  # 答复随行
+        from .conftest import DEFERRED
+        payloads = [v[1] for v in DEFERRED.values() if v[0] == "orchestration.agent_invoke"]
+        self.assertTrue(any("gross weight 480 KGM" in (p.get("humanAnswer") or "") for p in payloads))
 
 
 class AskAnsweredTests(AgentAskTestBase):
@@ -194,10 +195,12 @@ class AskAnsweredTests(AgentAskTestBase):
         self.assertEqual(approval.reason, "gross weight 96 KGM")
         ex.refresh_from_db()
         self.assertEqual(ex.business_status, "running")
-        cmd = OrchestrationOutbox.objects.filter(command_type="agent.invoke").last()
-        self.assertEqual(cmd.payload["nodeKey"], "analyze_0")
-        self.assertEqual(cmd.payload["attempt"], 1)
-        self.assertIn("gross weight 96 KGM", cmd.payload["humanAnswer"])
+        from .conftest import DEFERRED
+        payloads = [v[1] for v in DEFERRED.values() if v[0] == "orchestration.agent_invoke"]
+        p = payloads[-1]
+        self.assertEqual(p["nodeKey"], "analyze_0")
+        self.assertEqual(p["attempt"], 1)
+        self.assertIn("gross weight 96 KGM", p["humanAnswer"])
 
     def test_answer_reject_cancels_execution(self):
         from django.test import Client

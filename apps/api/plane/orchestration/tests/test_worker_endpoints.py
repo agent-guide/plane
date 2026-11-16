@@ -11,7 +11,7 @@ from plane.db.models.issue import Issue
 from .canvas import CANVAS_SINGLE
 from plane.orchestration import services, workflows
 from plane.orchestration.models import (
-    OrchestrationOutbox, WorkflowDefinition, WorkflowVersion,
+    WorkflowDefinition,
 )
 from plane.orchestration.services import TeamDomainError
 from plane.orchestration.execution import start_execution
@@ -47,9 +47,10 @@ class StartExecutionChainTests(StartExecutionTestBase):
         self.assertEqual(ex.business_status, "queued")
         self.assertEqual(ex.frozen_context["teamId"], str(self.team.id))
         self.assertEqual(ex.frozen_context["members"][0]["kind"], "human")
-        cmd = OrchestrationOutbox.objects.get(idempotency_key=f"start:{ex.id}")
-        self.assertEqual(cmd.command_type, "engine.start")
-        self.assertEqual(cmd.payload["workflowVersionId"], str(self.version.id))
+        from .conftest import DEFERRED
+        task_name, payload, _lock = DEFERRED[f"start:{ex.id}"]
+        self.assertEqual(task_name, "orchestration.engine_start")
+        self.assertEqual(payload["workflowVersionId"], str(self.version.id))
 
     def test_conflict_on_second_active(self):
         start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
@@ -125,7 +126,7 @@ class DagNodeFailEndpointTests(StartExecutionTestBase):
 
     def test_fail_registers_record_settles_and_comments_reason(self):
         from plane.db.models.issue import IssueComment
-        from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord
+        from plane.orchestration.models import NodeRuntimeRecord
         ex = self._start_with_run_ref()
         r = self.internal.post(
             "/api/internal/workflow-runs/af-run-fail/nodes/agent_1_0/fail/",

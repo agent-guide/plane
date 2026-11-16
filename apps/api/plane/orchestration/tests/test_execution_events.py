@@ -6,7 +6,6 @@
 乐观锁并发冲突、inbox 幂等去重、非法转移拒绝、恢复/对账的前置校验。
 """
 
-import threading
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -17,7 +16,7 @@ from plane.db.models.issue import Issue
 from plane.orchestration import services
 from plane.orchestration.execution import (
     ENGINE_TERMINAL_MAP, on_engine_started, on_engine_terminal, on_human_handoff,
-    on_human_resume, on_reconcile_stale, process_event, transition_execution,
+    on_human_resume, process_event, transition_execution,
 )
 from plane.orchestration.models import (
     WorkflowDefinition, WorkflowVersion, WorkItemExecution,
@@ -188,9 +187,9 @@ class AutoStartSignalTests(ExecutionTestBase):
         issue = Issue.objects.create(project=self.project, name="自动启动", created_by=self.owner)
         ex = WorkItemExecution.objects.get(issue=issue)
         self.assertEqual(ex.business_status, "queued")
-        from plane.orchestration.models import OrchestrationOutbox
-        self.assertTrue(OrchestrationOutbox.objects.filter(
-            command_type="engine.start", payload__executionId=str(ex.id)).exists())
+        from .conftest import DEFERRED
+        self.assertIn(f"start:{ex.id}", DEFERRED)
+        self.assertEqual(DEFERRED[f"start:{ex.id}"][0], "orchestration.engine_start")
 
     def test_unbound_project_does_not_start(self):
         """未绑定项目建卡 → not_governed 不启动。"""

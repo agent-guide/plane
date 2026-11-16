@@ -1,6 +1,10 @@
 # Copyright © 2026 agent-guide contributors
 # SPDX-License-Identifier: AGPL-3.0-only
-"""worker 测试：Airflow 客户端（重试/4xx 语义）+ outbox 消费（幂等/失败标记）。"""
+"""worker 测试：Airflow 客户端（重试/4xx 语义）+ 命令 handler（幂等/失败语义）。
+
+2026-11-16：自研 outbox 消费退役，测试从 process_outbox_once 批量轮询改为
+直调 handler 纯函数（行为断言不变）；投递契约见 test_tasks.py。
+"""
 
 import json
 import threading
@@ -15,10 +19,14 @@ from plane.db.models.issue import Issue
 from .canvas import CANVAS_SINGLE
 from plane.orchestration import services, workflows
 from plane.orchestration.models import (
-    OrchestrationOutbox, WorkflowDefinition, WorkflowVersion,
+    WorkflowDefinition,
 )
 from plane.orchestration.execution import start_execution, on_engine_started
-from plane.orchestration.worker import AirflowClient, AirflowError, process_outbox_once
+from plane.orchestration.worker import (
+    AgentTurnError, AirflowClient, AirflowError,
+    handle_agent_invoke, handle_engine_start,
+    _normalize_agent_error,
+)
 
 User = get_user_model()
 
@@ -126,20 +134,47 @@ class OutboxConsumerTests(TestCase):
         cls.binding = services.bind_project(
             project=cls.project, team=cls.team, user_id=cls.owner.id, is_admin=True, workflow_version=cls.version)
 
-    def test_failed_engine_start_marks_failed_not_loop(self):
-        """Airflow 未配置 → 命令标记 failed，不无限重试（等价性：取消/失败分开表示）。"""
+    def test_failed_engine_start_raises_no_library_retry(self):
+        """Airflow 未配置 → handler 抛错（job 落 failed），库不重试——
+        恢复路径是对账/重发，不无限循环（等价旧「标记 failed 不循环」）。"""
         ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
         on_engine_started(execution_id=ex.id, event_id="seed", engine_run_ref="af-run-ox")
         import os
         os.environ.pop("ORCHESTRATION_AIRFLOW_BASE_URL", None)
-        stats = process_outbox_once(dag_root=None)
-        self.assertEqual(stats["failed"], 1)
-        cmd = OrchestrationOutbox.objects.get(idempotency_key=f"start:{ex.id}")
-        self.assertEqual(cmd.state, OrchestrationOutbox.State.FAILED)
-        self.assertEqual(cmd.attempts, 1)
-        # 再消费不重复处理 failed
-        stats2 = process_outbox_once(dag_root=None)
-        self.assertEqual(stats2["processed"], 0)
+        with self.assertRaises(RuntimeError):
+            handle_engine_start(execution_id=ex.id, workflow_version_id=str(self.version.id))
+
+
+class NormalizeAgentErrorTests(TestCase):
+    def test_rate_limit_from_http_error(self):
+        err = _normalize_agent_error(AgentTurnError("rate_limit", "agent turn rejected: HTTP 429", detail={"error_type": "rate_limited", "message": "quota exhausted"}))
+        self.assertEqual(err['code'], 'rate_limit')
+        self.assertEqual(err['detail'], 'quota exhausted')
+
+    def test_timeout(self):
+        err = _normalize_agent_error(AgentTurnError("timeout", "agent turn idle timeout: no SSE event for 240s"))
+        self.assertEqual(err['code'], 'timeout')
+        self.assertEqual(err['detail'], 'agent turn idle timeout: no SSE event for 240s')
+
+    def test_empty_reply(self):
+        err = _normalize_agent_error(AgentTurnError("empty_reply", "agent turn error: empty reply", detail={"error_type": "empty_reply", "message": "empty reply"}))
+        self.assertEqual(err['code'], 'empty_reply')
+        self.assertEqual(err['detail'], 'empty reply')
+
+    def test_not_deployed(self):
+        err = _normalize_agent_error(AgentTurnError("not_deployed", "no deployment for agent abc"))
+        self.assertEqual(err['code'], 'not_deployed')
+        self.assertEqual(err['detail'], 'no deployment for agent abc')
+
+    def test_unknown_fallback(self):
+        err = _normalize_agent_error(RuntimeError('gateway hiccup'))
+        self.assertEqual(err['code'], 'agent_error')
+        self.assertEqual(err['detail'], 'gateway hiccup')
+
+    def test_unknown_structured_error_stays_agent_error(self):
+        err = _normalize_agent_error(AgentTurnError("turn_failed", "agent turn error", detail={"error_type": "turn_failed", "message": "turn failed"}))
+        self.assertEqual(err['code'], 'agent_error')
+        self.assertEqual(err['detail'], 'turn failed')
 
 
 class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
@@ -150,25 +185,22 @@ class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
         记录置 FAILED+错误文本，零终局权、零内部回投——重试由引擎
         RetryPolicy 重打 start 驱动，终局由 run 级对账收敛。"""
         from unittest.mock import patch
-        from plane.orchestration.models import WorkItemExecution, OrchestrationOutbox, NodeRuntimeRecord
+        from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord
         ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
         on_engine_started(execution_id=ex.id, event_id="seed2", engine_run_ref=ex.id)
         WorkItemExecution.objects.filter(id=ex.id).update(business_status="running")
         NodeRuntimeRecord.objects.create(execution=ex, node_key="analyze_0", attempt=1)
-        import hashlib, json as _json
-        payload = {"executionId": ex.id, "nodeKey": "analyze_0", "attempt": 1}
-        OrchestrationOutbox.objects.create(
-            idempotency_key=f"agent_call:{ex.id}:analyze_0:1",
-            command_type="agent.invoke", payload=payload,
-            payload_hash=hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest())
         with patch("plane.orchestration.worker._internal_node_call") as pc:
             with patch("plane.orchestration.worker.invoke_agent_node",
                        side_effect=RuntimeError("gateway hiccup")):
-                process_outbox_once(dag_root=None)
+                with self.assertRaises(RuntimeError):
+                    handle_agent_invoke(execution_id=ex.id, node_key="analyze_0", attempt=1)
             pc.assert_not_called()  # 不回投、不判终局
         record = NodeRuntimeRecord.objects.get(execution=ex, node_key="analyze_0")
         self.assertEqual(record.status, NodeRuntimeRecord.Status.FAILED)
         self.assertIn("gateway hiccup", str(record.result.get("error", "")))
+        self.assertEqual(record.result.get("error_normalized", {}).get("code"), "agent_error")
+        self.assertEqual(record.result.get("error_normalized", {}).get("detail"), "gateway hiccup")
         ex.refresh_from_db()
         self.assertEqual(ex.business_status, "running")  # 执行不因 worker 失败终局
 
@@ -178,18 +210,11 @@ class AgentInvokeSuccessAckTests(OutboxConsumerTests):
     """G1 消费回执集成：agent.invoke 成功收口后，有人的补充才以 bot 身份回评。"""
 
     def _run_success(self, ex, node_key):
-        import hashlib, json as _json
         from unittest.mock import patch
-        from plane.orchestration.models import NodeRuntimeRecord, OrchestrationOutbox
-        payload = {"executionId": ex.id, "nodeKey": node_key, "attempt": 1}
-        OrchestrationOutbox.objects.create(
-            idempotency_key=f"agent_call:{ex.id}:{node_key}:1",
-            command_type="agent.invoke", payload=payload,
-            payload_hash=hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest())
         with patch("plane.orchestration.worker._internal_node_call"):
             with patch("plane.orchestration.worker.invoke_agent_node",
                        return_value="录入完成 单据 DEC2026【任务完成】"):
-                process_outbox_once(dag_root=None)
+                handle_agent_invoke(execution_id=ex.id, node_key=node_key, attempt=1)
 
     def _seed_running_execution(self, node_key):
         from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord

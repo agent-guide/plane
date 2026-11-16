@@ -105,6 +105,8 @@ INSTALLED_APPS = [
     "plane.space",
     "plane.bgtasks",
     "plane.db",
+    # PG 任务队列（须在编排域之前：orchestration/tasks.py 的任务注册在其就绪后）
+    "procrastinate.contrib.django",
     # 编排域独立 app（阶段 2′；自持模型/迁移，接触点仅此注册）
     "plane.orchestration",
     "plane.utils",
@@ -118,6 +120,15 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_celery_beat",
 ]
+
+# Procrastinate（PG 任务队列）worker 并发度：同步任务跑在线程池——
+# 同执行命令 lock=exec:{id} 串行，跨执行并行（4 路并发；单卡长任务不再
+# 冻住全局，11-11 事故根治）
+PROCRASTINATE_WORKER_DEFAULTS = {
+    "concurrency": 4,
+    "install_signal_handlers": True,
+    "listen_notify": True,
+}
 
 # Middlewares
 MIDDLEWARE = [

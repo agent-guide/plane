@@ -52,4 +52,11 @@ class NodeRuntimeRecord(models.Model):
         ]
 
     def view(self) -> dict:
-        return {"status": self.status, "error": self.result.get("error"), "nodeKey": self.node_key}
+        normalized_error = (self.result or {}).get("error_normalized") or {}
+        return {
+            "status": self.status,
+            "error": self.result.get("error"),
+            "errorCode": normalized_error.get("code"),
+            "errorDetail": normalized_error.get("detail"),
+            "nodeKey": self.node_key,
+        }
