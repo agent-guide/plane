@@ -114,6 +114,7 @@ scripts/*
 !scripts/deploy-v2.sh
 !scripts/deploy-agwmngr-v2.sh
 !scripts/sync-systemd-units.sh
+!scripts/bootstrap-supplements.sh
 !scripts/systemd/
 !packages/i18n/scripts/
 
