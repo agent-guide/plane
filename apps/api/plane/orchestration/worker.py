@@ -453,8 +453,10 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
         # SSE 信封：event: <type> / data: {json}——delta 事件取 text 聚合；
         # error 事件显式抛错（不静默空回复）
         # 看门狗计时：仅真实事件行（event:/data:）重置空闲时钟
+        # （systemd 进程级看门狗 2026-11-17 迁 Procrastinate 后改由入口
+        # liveness 心跳统一负责，本函数不再逐事件喂狗——任务级挂死由
+        # 下方 idle/total 双超时兜底，与进程监督分工）
         import time as _time
-        from .sdnotify import sd_notify as _sd
         started = _time.monotonic()
         last_event = started
         for raw in response:
@@ -473,8 +475,6 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
                 # 空行/注释（keepalive）：不重置空闲时钟，继续等真实事件
                 continue
             last_event = now
-            # 活着就向 systemd 报平安（长任务逐事件喂狗，看门狗可用短周期）
-            _sd("WATCHDOG=1")
             if line.startswith("event: "):
                 event_type = line[len("event: "):].strip()
                 continue
