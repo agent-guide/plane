@@ -407,6 +407,19 @@ def on_engine_terminal(*, execution_id: str, event_id: str, engine_status: str) 
     settled.node_records.filter(
         status=NodeRuntimeRecord.Status.RUNNING,
     ).update(status=NodeRuntimeRecord.Status.CANCELLED)
+    # C5 补口（2026-11-17）：agent 失败耗尽后由对账收终态的路径不经过
+    # DagNodeFailView——失败原因上卡片改在终态收口统一触发（按最近
+    # FAILED 节点的 error 文本，幂等标记防重）
+    if target == "failed":
+        try:
+            from .execution_context import comment_failure
+            node = settled.node_records.filter(
+                status=NodeRuntimeRecord.Status.FAILED).order_by("-updated_at").first()
+            if node is not None:
+                comment_failure(execution=settled, node_key=node.node_key,
+                                result=node.result)
+        except Exception:
+            pass  # 投影非事实源：静默降级
     from .models import BusinessApproval
     from django.utils import timezone as dj_tz
     # 作废待审批 + 回收其未认领挂载附件（C7：执行终结 ⇔ 无 pending 审批 ⇔ 无残留附件）
