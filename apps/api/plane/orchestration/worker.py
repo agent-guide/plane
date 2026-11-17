@@ -332,6 +332,27 @@ def _steering_discipline(*, execution_id: str, node: dict) -> str:
 
 
 
+def _select_deployment(items: list, agent_definition_id: str) -> dict:
+    """部署选择：agent 定义 → active 中 appliedReleaseNumber 最大者。
+
+    一个 agent 出现多个 active 部署通常是治理残留（旧部署未下线）——按
+    release 版本号取最大，保证始终驱动最新发布，避免「选到旧版」的歧义。
+    """
+    candidates = [d for d in items
+                  if d.get("definitionId") == agent_definition_id
+                  and str(d.get("lifecycleState", "")).lower() == "active"]
+    if not candidates:
+        raise AgentTurnError("not_deployed", f"no deployment for agent {agent_definition_id}")
+
+    def _release_number(d: dict) -> int:
+        try:
+            return int(d.get("appliedReleaseNumber"))
+        except (TypeError, ValueError):
+            return -1  # 旧管理端无该字段时回退（其余按 -1 平序）
+
+    return max(candidates, key=_release_number)
+
+
 def _resolve_runtime_type(call, agent_definition_id: str, deployment: dict) -> str:
     """按部署的应用中 release 解析运行时类型（A1，2026-11-15）。
 
@@ -400,16 +421,10 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
                 detail = ""
             raise RuntimeError(f"agwmngr {method} {path} rejected: HTTP {exc.code} {detail}") from exc
 
-    # ① 解析部署：agent 定义 → 最新 active 部署
+    # ① 解析部署：agent 定义 → active 部署里版本号最大的（appliedReleaseNumber）。
     deployments = call_checked("GET", "/deployments")
     items = deployments.get("items") if isinstance(deployments, dict) else deployments
-    # 部署字段：definitionId / lifecycleState（active=可调用）
-    candidates = [d for d in (items or [])
-                  if d.get("definitionId") == agent_definition_id
-                  and str(d.get("lifecycleState", "")).lower() == "active"]
-    if not candidates:
-        raise AgentTurnError("not_deployed", f"no deployment for agent {agent_definition_id}")
-    deployment = candidates[0]
+    deployment = _select_deployment(items or [], agent_definition_id)
 
     # ② 运行时类型（A1，2026-11-15）：按 appliedReleaseId 查发布定义快照——
     # snapshot.runtime.type 是「部署那一刻」的权威值（发布快照不可变，员工

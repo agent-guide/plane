@@ -297,3 +297,31 @@ class RuntimeTypeResolutionTests(TestCase):
         self.assertEqual(_resolve_runtime_type(counting_call, "agent:x", dep), "builtin")
         self.assertEqual(_resolve_runtime_type(counting_call, "agent:x", dep), "builtin")
         self.assertEqual(calls["n"], 1)  # 第二次命中缓存，不重复查
+
+
+class DeploymentSelectionTests(TestCase):
+    """invoke 部署解析：多 active 部署按 appliedReleaseNumber 取最大（2026-11-17）。"""
+
+    def test_picks_max_release_number(self):
+        from plane.orchestration.worker import _select_deployment
+        items = [
+            {"id": "dep:old", "definitionId": "agent:x", "lifecycleState": "active", "appliedReleaseNumber": 3},
+            {"id": "dep:new", "definitionId": "agent:x", "lifecycleState": "active", "appliedReleaseNumber": 7},
+            {"id": "dep:deleting", "definitionId": "agent:x", "lifecycleState": "deleting", "appliedReleaseNumber": 9},
+            {"id": "dep:other", "definitionId": "agent:y", "lifecycleState": "active", "appliedReleaseNumber": 99},
+        ]
+        self.assertEqual(_select_deployment(items, "agent:x")["id"], "dep:new")  # 7 > 3；deleting/other 被过滤
+
+    def test_not_deployed_when_no_active(self):
+        from plane.orchestration.worker import _select_deployment, AgentTurnError
+        items = [{"id": "dep:del", "definitionId": "agent:x", "lifecycleState": "deleting", "appliedReleaseNumber": 5}]
+        with self.assertRaises(AgentTurnError):
+            _select_deployment(items, "agent:x")
+
+    def test_fallback_when_no_numeric_field(self):
+        from plane.orchestration.worker import _select_deployment
+        items = [
+            {"id": "dep:a", "definitionId": "agent:x", "lifecycleState": "active"},
+            {"id": "dep:b", "definitionId": "agent:x", "lifecycleState": "active"},
+        ]
+        self.assertIn(_select_deployment(items, "agent:x")["id"], {"dep:a", "dep:b"})
