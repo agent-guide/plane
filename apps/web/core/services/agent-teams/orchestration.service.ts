@@ -169,6 +169,41 @@ export async function listTeamProjects(workspace: string, teamId: string): Promi
   return request(`${WS(workspace)}/agent-teams/${teamId}/projects/`);
 }
 
+export interface ShareableIssue {
+  issueId: string;
+  taskName: string;
+  sequenceId: number;
+  projectIdentifier: string;
+  externalProjectId: string;
+  externalItemId: string;
+  stateName: string | null;
+  stateColor: string | null;
+  stateGroup: string | null;
+  projectName: string;
+  activeMemberName: string | null;
+  controlStatus: string | null;
+}
+
+export interface ShareableIssuesPage {
+  items: ShareableIssue[];
+  nextCursor: string;
+  hasMore: boolean;
+}
+
+/** 团队可分享卡列表（贴回卡片：全量含终态，?q= 后端检索，keyset 游标分页）。 */
+export async function listTeamShareableIssues(
+  workspace: string,
+  teamId: string,
+  q?: string,
+  cursor?: string
+): Promise<ShareableIssuesPage> {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (cursor) params.set("cursor", cursor);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return request(`${WS(workspace)}/agent-teams/${teamId}/shareable-issues/${qs}`);
+}
+
 export async function listTeamActiveTasks(workspace: string, teamId: string): Promise<OrchestrationActiveTask[]> {
   return request(`${WS(workspace)}/agent-teams/${teamId}/active-tasks/`);
 }

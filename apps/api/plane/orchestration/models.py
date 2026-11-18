@@ -278,6 +278,69 @@ class WorkItemArtifact(OrchestrationBaseModel):
         ]
 
 
+# ---------------------------------------------------------------- 会话域（P2 agent chat，2026-11-17）
+
+
+class AgentConversation(OrchestrationBaseModel):
+    """数字员工会话（设计 v2/team-assistant-chat-design.md §3.1）。
+
+    对话主体=具体团队成员（agent 名册成员）；一期私有（成员=发起人）。
+    持久化在 Plane 侧（agwmngr 边界禁存聊天）。
+    """
+
+    team = models.ForeignKey("AgentTeam", on_delete=models.CASCADE, related_name="conversations")
+    agent_member = models.ForeignKey("AgentTeamMember", on_delete=models.CASCADE, related_name="conversations")
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="agent_conversations")
+    title = models.CharField(max_length=200, blank=True, default="")
+    # 滚动摘要（§3.2：超 8000 字符阈值时更早历史压成摘要；空=未压缩过）
+    summary = models.TextField(blank=True, default="")
+    summary_through = models.CharField(max_length=64, blank=True, default="",
+                                       help_text="摘要覆盖到的最后一条消息 id")
+    last_message_at = models.DateTimeField(null=True, blank=True)
+    # 已读游标（一期通知=未读会话数，与审批待办同构的前端轮询形态）
+    last_read_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["workspace", "created_by", "deleted_at"])]
+        constraints = [
+            # 单会话模型（Slack DM 同构）：同（团队,成员,发起人）活跃会话唯一——
+            # 条件唯一索引兜底并发创建竞态（软删后可再开新的）
+            models.UniqueConstraint(
+                fields=["team", "agent_member", "created_by"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="uniq_active_agent_conversation"),
+        ]
+
+
+class AgentMessage(OrchestrationBaseModel):
+    """会话消息。审计口径（拍板记录 §6.4）：不可编辑不可删，仅整会话可删。"""
+
+    class Role(models.TextChoices):
+        USER = "user", "User"
+        AGENT = "agent", "Agent"
+        SYSTEM = "system", "System"
+
+    class Kind(models.TextChoices):
+        TEXT = "text", "Text"
+        TASK = "task", "Task"                  # T1 任务：进度+终产出
+        CONFIRM_CARD = "confirm_card", "Confirm Card"  # L1 建卡预览（确认/取消）
+        FLOW_CARD = "flow_card", "Flow Card"   # 已触发的建卡引用
+
+    conversation = models.ForeignKey(AgentConversation, on_delete=models.CASCADE, related_name="messages")
+    role = models.CharField(max_length=8, choices=Role.choices)
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.TEXT)
+    # content：{text, task{status,progress,output}, card{issue_id,title,status}, confirm{...}}
+    content = models.JSONField(default=dict)
+    streaming_offset = models.PositiveIntegerField(default=0, help_text="流式游标：断线重连续传位置")
+    attachments = models.JSONField(default=list, help_text="FileAsset id 列表")
+
+    class Meta:
+        indexes = [models.Index(fields=["conversation", "created_at"])]
+        ordering = ["created_at"]
+
+
 # ---------------------------------------------------------------- 可靠性基础设施
 
 

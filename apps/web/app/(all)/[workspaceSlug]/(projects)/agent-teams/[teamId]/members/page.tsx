@@ -10,7 +10,7 @@
  */
 import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import Link from "next/link";
 import { useTranslation } from "@plane/i18n";
 import { Bot, Power, User, UserMinus } from "lucide-react";
@@ -37,6 +37,7 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 
 const MemberListPage = observer(function MemberListPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { workspaceSlug: wsSlugParam, teamId } = useParams<{ workspaceSlug: string; teamId: string }>();
   const workspaceSlug = wsSlugParam ?? "";
   const { currentWorkspace } = useWorkspace();
@@ -146,8 +147,21 @@ const MemberListPage = observer(function MemberListPage() {
       content: "",
       tdRender: (member) => (
         <div className="flex items-center justify-end gap-1">
-          {/* 聊天入口已退役（聊天页终局为团队助手，§3 盘点）；数字成员
-              显示名经 agwmngr 目录读时聚合，不可达时回退 role */}
+          {/* P2 一期：数字成员「对话」入口——跳转/新建会话 */}
+          {member.kind === "agent" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                navigate(
+                  `/${workspaceSlug}/agent-teams/chat?member=${member.id}&expert=${member.agentDefinitionId ?? ""}&team=${teamId}&name=${encodeURIComponent(member.displayName ?? member.role)}`
+                )
+              }
+              className="rounded px-2 py-1 text-11 font-medium text-accent-primary hover:bg-layer-2-hover"
+            >
+              {t("agent_teams_chat_new")}
+            </button>
+          )}
           {canManage ? (
             <>
               <button

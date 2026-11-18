@@ -4,6 +4,11 @@
 
 from django.urls import path
 
+from .chat_views import (
+    ConversationsEndpoint, ConversationDetailEndpoint, ConversationConfirmEndpoint,
+    ConversationShareEndpoint,
+    ConversationMessagesEndpoint, ConversationStreamEndpoint,
+)
 from .views import (
     ConnectionsEndpoint, ConnectionDetailEndpoint, ConnectionTestEndpoint, ConnectionResolveEndpoint,
     ApprovalsEndpoint, ApprovalAttachmentsEndpoint, DagNodeFailView, DagNodeFinishView, DagNodeStartView, DagNodeView,
@@ -12,7 +17,7 @@ from .views import (
     TeamAgentCatalogEndpoint, ProjectTeamPanelEndpoint, WorkItemRuntimeEndpoint,
     ProjectRuntimeOverviewEndpoint,
     ProjectWorkflowDetailEndpoint, ProjectWorkflowsEndpoint, TeamDetailEndpoint,
-    TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint,
+    TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint, TeamShareableIssuesEndpoint,
     TeamsEndpoint, WorkflowPublishEndpoint, WorkflowVersionsEndpoint,
     ExecutionSupplementsView,
 )
@@ -22,8 +27,14 @@ urlpatterns = [
     path("workspaces/<str:slug>/agent-teams/approvals/", ApprovalsEndpoint.as_view(), name="orchestration-approvals"),
     path("workspaces/<str:slug>/agent-teams/approvals/<str:approval_id>/", ApprovalsEndpoint.as_view(http_method_names=["post"]), name="orchestration-approval-answer"),
     path("workspaces/<str:slug>/agent-teams/approvals/<str:approval_id>/attachments/", ApprovalAttachmentsEndpoint.as_view(), name="orchestration-approval-attachments"),
-    # quota / agent-catalog 必须排在 <team_id> 通配之前，否则会被当成 team_id
+    # quota / agent-catalog / conversations 必须排在 <team_id> 通配之前，否则会被当成 team_id
     path("workspaces/<str:slug>/agent-teams/agent-catalog/", TeamAgentCatalogEndpoint.as_view(), name="orchestration-agent-catalog"),
+    path("workspaces/<str:slug>/agent-teams/conversations/", ConversationsEndpoint.as_view(), name="orchestration-conversations"),
+    path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/", ConversationDetailEndpoint.as_view(), name="orchestration-conversation-detail"),
+    path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/messages/", ConversationMessagesEndpoint.as_view(), name="orchestration-conversation-messages"),
+    path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/messages/<str:message_id>/confirm/", ConversationConfirmEndpoint.as_view(), name="orchestration-conversation-confirm"),
+    path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/messages/<str:message_id>/share/", ConversationShareEndpoint.as_view(), name="orchestration-conversation-share"),
+    path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/stream/", ConversationStreamEndpoint.as_view(), name="orchestration-conversation-stream"),
     path("workspaces/<str:slug>/agent-teams/quota/", TeamQuotaEndpoint.as_view(), name="orchestration-team-quota"),
     # 连接管理（工作区级外部系统凭据，设计 §4）
     path("workspaces/<str:slug>/connections/", ConnectionsEndpoint.as_view(), name="orchestration-connections"),
@@ -35,6 +46,7 @@ urlpatterns = [
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/members/<str:member_id>/", TeamMemberDetailEndpoint.as_view(), name="orchestration-team-member-detail"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/projects/", TeamProjectsEndpoint.as_view(), name="orchestration-team-projects"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/active-tasks/", TeamActiveTasksEndpoint.as_view(), name="orchestration-team-active-tasks"),
+    path("workspaces/<str:slug>/agent-teams/<str:team_id>/shareable-issues/", TeamShareableIssuesEndpoint.as_view(), name="orchestration-team-shareable-issues"),
     path("workspaces/<str:slug>/agent-teams/<str:team_id>/<str:action>/", TeamLifecycleEndpoint.as_view(), name="orchestration-team-lifecycle"),
     path("workspaces/<str:slug>/projects/<uuid:project_id>/workflows/", ProjectWorkflowsEndpoint.as_view(), name="orchestration-workflows"),
     path("workspaces/<str:slug>/projects/<uuid:project_id>/workflows/<str:workflow_id>/", ProjectWorkflowDetailEndpoint.as_view(), name="orchestration-workflow-detail"),

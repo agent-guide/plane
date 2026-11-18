@@ -23,6 +23,9 @@ class S3Storage(S3Boto3Storage):
     """S3 storage class to generate presigned URLs for S3 objects"""
 
     def __init__(self, request=None):
+        # FIX(local-env): 必须调用 super().__init__() 补齐 file_overwrite/location 等属性，
+        # 否则 django-storages 上传路径 AttributeError（2026-11-17 全形态对齐实证）。
+        super().__init__()
         # Get the AWS credentials and bucket name from the environment
         self.aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
         # Use the AWS_SECRET_ACCESS_KEY environment variable for the secret key

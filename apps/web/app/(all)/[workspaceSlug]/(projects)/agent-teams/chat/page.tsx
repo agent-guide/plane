@@ -1,214 +1,299 @@
 /**
  * Copyright © 2026 agent-guide contributors
  * SPDX-License-Identifier: AGPL-3.0-only
- * See the LICENSE.txt file in the repository root for details.
+ * See the LICENSE file in the repository root for more details.
  *
- * Agent Teams extension — conversation page, feature-aligned with the retired
- * user app's dialogue (backend reused as-is): SSE streaming with reasoning/
- * tool trace, source citations count, live session titles, stop generation,
- * web-search toggle, copy, markdown rendering. Member deep links carry
- * ?member=<expertId>&name=<display>; free dialogue starts a blank session.
+ * 数字员工会话页（P2 一期）——薄壳：路由参数、会话数据装载与选中态机、
+ * 发送/确认/分享编排。UI 全部在 components/agent-teams/chat/ 组件中：
+ *   sidebars（一级团队折叠 / 二级会话列表）、message-bubble（消息与流式气泡）、
+ *   chat-composer（GPT 形态输入区）、modals（新建会话选人 / 贴回卡片）。
+ *
+ * 两级导航（微信折叠群聊同构）：?team= 二级上下文；一级不选中任何会话。
+ * 深链：?member=&expert=&team=&name=（成员行「发起对话」）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
-import { useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-// plane imports
-import { Button } from "@plane/propel/button";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "@plane/i18n";
+import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import { Button } from "@plane/propel/button";
 import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
-// icons
-import { Archive, ArchiveRestore, Bot, Globe, MessageSquare, Send, Users } from "lucide-react";
-// components
+import { MessageSquare, Users } from "lucide-react";
+
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
-// services
-import chatService, { type ChatMessage, type ChatSession } from "@/services/agent-teams/chat.service";
+import { ChatComposer, type PendingAttachment } from "@/components/agent-teams/chat/chat-composer";
+import { MessageBubble, StreamingBubble } from "@/components/agent-teams/chat/message-bubble";
+import { ShareModal } from "@/components/agent-teams/chat/modals";
+import { ConversationSidebar, TeamSidebar } from "@/components/agent-teams/chat/sidebars";
 import {
-  appendUniqueTraceItems,
-  mergeTraceText,
-  normalizeMarkdownForDisplay,
-  type AssistantTraceItem,
-} from "@/services/agent-teams/chat-stream";
-// hooks
+  deriveActiveSession,
+  type ChatDeepLink,
+  type ChatMessage,
+  type ChatSession,
+  type StreamingAssistant,
+} from "@/components/agent-teams/chat/types";
+import chatService from "@/services/agent-teams/chat.service";
+import { shareMessageToCard } from "@/services/agent-teams/agent-chat.service";
+import { orchestrationService } from "@/services/agent-teams/orchestration.service";
 import { useWorkspace } from "@/hooks/store/use-workspace";
-
-/** In-flight assistant message with trace channels (old app's shape). */
-type StreamingAssistant = {
-  id: string;
-  text: string;
-  traceItems: AssistantTraceItem[];
-  sourceCount: number;
-};
 
 function AgentTeamsChatPage() {
   const { t } = useTranslation();
   const { currentWorkspace } = useWorkspace();
   const { agentTeamsPath } = useAgentTeamsLinks();
-  const searchParams = useSearchParams();
-  const memberParam = searchParams.get("member");
-  const nameParam = searchParams.get("name");
-  // derived values
+  const navigate = useNavigate();
+  const { workspaceSlug: slugParam } = useParams<{ workspaceSlug: string }>();
+  const workspaceSlug = slugParam ?? "";
+  const [searchParams] = useSearchParams();
+  const link: ChatDeepLink = {
+    member: searchParams.get("member") ?? undefined,
+    expert: searchParams.get("expert") ?? undefined,
+    team: searchParams.get("team") ?? undefined,
+    name: searchParams.get("name") ?? undefined,
+  };
+  const inTeamView = Boolean(link.team);
+
   const pageTitle = currentWorkspace?.name ? `${currentWorkspace?.name} - ${t("agent_teams_chat_title")}` : undefined;
 
+  // ── 会话域状态 ────────────────────────────────────────────────
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [draft, setDraft] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [webSearch, setWebSearch] = useState(false);
   const [streaming, setStreaming] = useState<StreamingAssistant | null>(null);
-  const [copiedId, setCopiedId] = useState("");
-  const [titleHints, setTitleHints] = useState<Record<string, string>>({});
-  const [archiveView, setArchiveView] = useState(false);
-  const streamRef = useRef<HTMLDivElement>(null);
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [confirmBusy, setConfirmBusy] = useState("");
+  const [summaryHintShownFor, setSummaryHintShownFor] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const streamRef = useRef<HTMLDivElement>(null);
 
-  const loadSessions = useCallback(async () => {
+  // 弹层
+  const [shareMessage, setShareMessage] = useState<ChatMessage | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+
+  // 一级（团队层）不显示会话内容——选中会话仅存在于二级（两级导航不变量）
+  const active = inTeamView ? sessions.find((s) => s.id === activeId) : undefined;
+  const teamSessions = link.team ? sessions.filter((s) => s.teamId === link.team) : [];
+  const teamName = active?.teamName ?? teamSessions[0]?.teamName;
+
+  // ── 会话装载 + 选中态机 ──────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    try {
-      const list = await chatService.listSessions(archiveView ? "archived" : "active");
-      setSessions(list);
-      // Member deep link: open the existing member session or create one.
-      if (memberParam && !archiveView) {
-        const existing = list.find((s) => s.expertId === memberParam);
-        if (existing) {
-          setActiveId(existing.id);
-        } else {
-          const created = await chatService.createSession({
-            title: nameParam ?? t("agent_teams_chat_new_session"),
-            expertId: memberParam,
-            expertName: nameParam ?? null,
-          });
+    (async () => {
+      try {
+        const list = await chatService.listSessions(workspaceSlug);
+        if (cancelled) return;
+        setSessions(list);
+        const { nextActiveId, sessionToCreate } = deriveActiveSession(list, link, activeId);
+        if (sessionToCreate) {
+          const created = await chatService.createSession(
+            workspaceSlug,
+            sessionToCreate
+          );
+          if (cancelled) return;
           setSessions((prev) => [created, ...prev]);
           setActiveId(created.id);
+        } else {
+          setActiveId(nextActiveId);
         }
-      } else if (!activeId && list.length > 0) {
-        setActiveId(list[0].id);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // link 各字段来自 searchParams；activeId 经 deriveActiveSession 语义化读取
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memberParam, nameParam, archiveView]);
+  }, [workspaceSlug, link.member, link.expert, link.team, link.name]);
 
-  useEffect(() => {
-    void loadSessions();
-  }, [loadSessions]);
-
-  // Load history when the active session changes.
+  // 打开会话：拉历史 + 标记已读 + 摘要提示限时淡出
   useEffect(() => {
     if (!activeId) {
       setMessages([]);
       return;
     }
-    void chatService.listMessages(activeId).then(setMessages);
-  }, [activeId]);
+    void chatService.listMessages(workspaceSlug, activeId).then((list) => {
+      setMessages(list);
+      return null;
+    });
+    void chatService.markRead(workspaceSlug, activeId).then(() => {
+      setSessions((prev) => prev.map((s) => (s.id === activeId ? { ...s, unread: false } : s)));
+      return null;
+    });
+    const timer = setTimeout(() => setSummaryHintShownFor(activeId), 8000);
+    return () => clearTimeout(timer);
+  }, [activeId, workspaceSlug]);
 
-  // Keep the stream pinned to the latest content.
+  // 流式输出时钉在最新内容
   useEffect(() => {
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
   }, [messages, streaming]);
 
-  // Abort the in-flight stream when leaving or switching sessions.
+  // 切换/离开会话时中止在途流
   useEffect(() => () => abortRef.current?.abort(), [activeId]);
 
-  const applyTrace = useCallback((item: AssistantTraceItem) => {
-    setStreaming((prev) => {
-      if (!prev) return prev;
-      // Same merge semantics as the old app: same-kind text traces merge,
-      // tool items dedupe by id/name.
-      if (item.kind === "thinking") {
-        const items = [...prev.traceItems];
-        const last = items[items.length - 1];
-        if (last && last.kind === "thinking") {
-          items[items.length - 1] = { ...last, text: mergeTraceText(last.text, item.text) };
-        } else {
-          items.push(item);
+  // ── 发送（乐观插入 + 流式 + 完成收敛） ───────────────────────
+  const handleSend = useCallback(
+    async (text: string, attachments: PendingAttachment[], webSearch: boolean) => {
+      if (!activeId || sending) return;
+      const attachmentIds = attachments.map((f) => f.id);
+      const now = new Date().toISOString();
+      setSending(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `local_${Date.now()}_u`, role: "user", kind: "text",
+          content: { text }, attachments: attachmentIds, streamingOffset: 0, createdAt: now,
+        },
+      ]);
+      setStreaming({ id: `local_${Date.now()}_a`, text: "", sourceCount: 0 });
+      const controller = new AbortController();
+      abortRef.current = controller;
+      try {
+        await chatService.streamTurn(
+          workspaceSlug,
+          activeId,
+          text,
+          {
+            signal: controller.signal,
+            webSearchEnabled: webSearch,
+            onToken: (token) => setStreaming((prev) => (prev ? { ...prev, text: prev.text + token } : prev)),
+            onError: (normalized) => setStreaming((prev) => (prev ? { ...prev, error: normalized } : prev)),
+          },
+          attachmentIds
+        );
+        // 完成后以后端为准拉全量（确认卡/流程卡等结构化 kind）
+        const list = await chatService.listMessages(workspaceSlug, activeId);
+        setMessages(list);
+        setStreaming(null);
+        // 在场即读 + 列表预览刷新（活跃会话未读恒清）
+        void chatService
+          .markRead(workspaceSlug, activeId)
+          .then(() => chatService.listSessions(workspaceSlug))
+          .then((fresh) => {
+            setSessions((prev) =>
+              prev.map((s) => {
+                const hit = fresh.find((n) => n.id === s.id);
+                return hit ? (s.id === activeId ? { ...hit, unread: false } : hit) : s;
+              })
+            );
+            return null;
+          });
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          // 失败收敛：partial + 错误折成一条历史消息（不留悬挂空气泡）
+          setStreaming((current) => {
+            if (current) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: current.id, role: "agent", kind: "text",
+                  content: {
+                    text: current.text,
+                    error: { code: "network", detail: t("agent_teams_chat_send_failed") },
+                  },
+                  attachments: [], streamingOffset: 0, createdAt: new Date().toISOString(),
+                },
+              ]);
+            }
+            return null;
+          });
         }
-        return { ...prev, traceItems: items };
+      } finally {
+        setSending(false);
+        abortRef.current = null;
       }
-      // appendUniqueTraceItems mutates its target in place (old app semantics).
-      const items = [...prev.traceItems];
-      appendUniqueTraceItems(items, [item]);
-      return { ...prev, traceItems: items };
-    });
+    },
+    [activeId, sending, workspaceSlug, t]
+  );
+
+  const handleStop = useCallback(() => abortRef.current?.abort(), []);
+
+  // ── 确认卡（L1：确认创建走闸门链 / 取消） ────────────────────
+  const handleConfirmCard = useCallback(
+    async (messageId: string, action: "confirm" | "cancel") => {
+      if (!activeId) return;
+      setConfirmBusy(messageId);
+      try {
+        await chatService.confirmCard(workspaceSlug, activeId, messageId, action);
+        setMessages(await chatService.listMessages(workspaceSlug, activeId));
+      } catch (err) {
+        const msg = (err as Error).message || "";
+        const detail = msg.includes("PROJECT_NOT_BOUND")
+          ? t("agent_teams_chat_confirm_not_bound")
+          : msg.includes("PROJECT_AMBIGUOUS")
+            ? t("agent_teams_chat_confirm_ambiguous")
+            : msg.includes("CONFIRM_SETTLED")
+              ? t("agent_teams_chat_confirm_settled")
+              : t("agent_teams_chat_error");
+        setToast({ type: TOAST_TYPE.ERROR, title: t("common.error"), message: detail });
+      } finally {
+        setConfirmBusy("");
+      }
+    },
+    [workspaceSlug, activeId, t]
+  );
+
+  // ── 预算检查点三选（继续/转流程卡 → 预填输入；停止 → 保留 partial） ──
+  const [prefill, setPrefill] = useState<{ text: string; nonce: number }>();
+  const handleCheckpoint = useCallback(
+    (option: "continue" | "convert" | "stop") => {
+      if (option === "stop") return;
+      setPrefill({
+        text: option === "continue"
+          ? `${t("agent_teams_chat_continue")}——`
+          : t("agent_teams_chat_convert_prompt"),
+        nonce: Date.now(),
+      });
+    },
+    [t]
+  );
+
+  // ── 贴回卡片（弹层自持卡列表加载与后端检索；此处仅记录待分享消息） ──
+  const openShare = useCallback((message: ChatMessage) => {
+    setShareMessage(message);
   }, []);
 
-  const handleSend = useCallback(async () => {
-    const content = draft.trim();
-    if (!content || !activeId || sending) return;
-    setSending(true);
-    setDraft("");
-    const userMessage: ChatMessage = { id: `local_${Date.now()}_u`, role: "user", content };
-    setMessages((prev) => [...prev, userMessage]);
-    setStreaming({ id: `local_${Date.now()}_a`, text: "", traceItems: [], sourceCount: 0 });
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      await chatService.streamTurn(activeId, content, {
-        signal: controller.signal,
-        webSearchEnabled: webSearch,
-        onToken: (token) => setStreaming((prev) => (prev ? { ...prev, text: prev.text + token } : prev)),
-        onTrace: applyTrace,
-        onSourceCount: (count) => setStreaming((prev) => (prev ? { ...prev, sourceCount: count } : prev)),
-        onTitle: (title) => setTitleHints((prev) => ({ ...prev, [activeId]: title })),
-      });
-      // Fold the completed stream into history.
-      setStreaming((current) => {
-        if (current?.text) {
-          const completed: ChatMessage = { id: current.id, role: "assistant", content: current.text };
-          setMessages((prev) => [...prev, completed]);
-        }
-        return null;
-      });
-      void chatService.listSessions().then(setSessions);
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        setStreaming((current) => {
-          const text = current?.text || t("agent_teams_chat_send_failed");
-          setMessages((prev) => [
-            ...prev,
-            { id: current?.id ?? `local_${Date.now()}_e`, role: "assistant", content: text },
-          ]);
-          return null;
+  const handleShare = useCallback(
+    async (issueId: string, issueName: string) => {
+      if (!activeId || !shareMessage) return;
+      setShareBusy(true);
+      try {
+        await shareMessageToCard(workspaceSlug, activeId, shareMessage.id, issueId);
+        setToast({
+          type: TOAST_TYPE.SUCCESS,
+          title: t("common.success"),
+          message: t("agent_teams_chat_shared", { name: issueName }),
         });
+        setShareMessage(null);
+        // 拉回消息：后端已落「已分享」回执（flow_card），不刷新则看不到
+        setMessages(await chatService.listMessages(workspaceSlug, activeId));
+      } catch {
+        setToast({ type: TOAST_TYPE.ERROR, title: t("common.error"), message: t("agent_teams_chat_error") });
+      } finally {
+        setShareBusy(false);
       }
-    } finally {
-      setSending(false);
-      abortRef.current = null;
-    }
-  }, [draft, activeId, sending, webSearch, applyTrace, t]);
+    },
+    [workspaceSlug, activeId, shareMessage, t]
+  );
 
-  const handleStop = useCallback(() => {
-    abortRef.current?.abort();
-  }, []);
-
-  const handleCopy = useCallback(async (id: string, content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(""), 1500);
-    } catch {
-      // Clipboard unavailable — silently ignore (old app alerted).
-    }
-  }, []);
-
-  const handleNewSession = useCallback(async () => {
-    const created = await chatService.createSession({ title: t("agent_teams_chat_new_session") });
-    setSessions((prev) => [created, ...prev]);
-    setActiveId(created.id);
-  }, [t]);
-
-  const active = sessions.find((s) => s.id === activeId);
-
-  const assistantBody = (text: string) => (
-    <div className="text-body-sm-regular break-words [&_p]:mb-2 [&_pre]:rounded [&_pre]:bg-layer-3 [&_pre]:p-2">
-      <ReactMarkdown>{normalizeMarkdownForDisplay(text)}</ReactMarkdown>
-    </div>
+  // 附件名映射（乐观与历史统一渲染）
+  const [attachmentNames, setAttachmentNames] = useState<Record<string, string>>({});
+  const handleSendWrapped = useCallback(
+    (text: string, attachments: PendingAttachment[], webSearch: boolean) => {
+      setAttachmentNames((prev) => {
+        const next = { ...prev };
+        for (const a of attachments) next[a.id] = a.name;
+        return next;
+      });
+      void handleSend(text, attachments, webSearch);
+    },
+    [handleSend]
   );
 
   return (
@@ -220,15 +305,28 @@ function AgentTeamsChatPage() {
             <Header>
               <Header.LeftItem>
                 <Breadcrumbs>
-                  <Breadcrumbs.Item
-                    component={
-                      <BreadcrumbLink
-                        label={t("agent_teams_breadcrumb")}
-                        href={agentTeamsPath}
-                        icon={<Users className="size-4 text-tertiary" />}
-                      />
-                    }
-                  />
+                  {!inTeamView && (
+                    <Breadcrumbs.Item
+                      component={
+                        <BreadcrumbLink
+                          label={t("agent_teams_breadcrumb")}
+                          href={agentTeamsPath}
+                          icon={<Users className="size-4 text-tertiary" />}
+                        />
+                      }
+                    />
+                  )}
+                  {inTeamView && (
+                    <Breadcrumbs.Item
+                      component={
+                        <BreadcrumbLink
+                          label={teamName ?? ""}
+                          href={`/${workspaceSlug}/agent-teams/${link.team}`}
+                          icon={<Users className="size-4 text-tertiary" />}
+                        />
+                      }
+                    />
+                  )}
                   <Breadcrumbs.Item
                     component={
                       <BreadcrumbLink
@@ -239,196 +337,83 @@ function AgentTeamsChatPage() {
                   />
                 </Breadcrumbs>
               </Header.LeftItem>
-              <Header.RightItem>
-                {/* Free dialogue entry (migrated 自由对话) */}
-                <Button variant="secondary" size="lg" onClick={() => void handleNewSession()}>
-                  {t("agent_teams_chat_new_session")}
-                </Button>
-              </Header.RightItem>
+
             </Header>
           }
         />
         <ContentWrapper>
           <div className="flex h-full w-full overflow-hidden">
-            {/* session list */}
-            <aside className="w-full max-w-60 shrink-0 border-r border-subtle">
-              <button
-                type="button"
-                onClick={() => {
+            {inTeamView ? (
+              <ConversationSidebar
+                sessions={teamSessions}
+                activeId={activeId}
+                loading={loading}
+                onBack={() => {
                   setActiveId("");
-                  setArchiveView((prev) => !prev);
+                  navigate(`/${workspaceSlug}/agent-teams/chat`);
                 }}
-                className="flex w-full items-center gap-1.5 border-b border-subtle px-3 py-2 text-caption-sm-medium text-secondary hover:bg-layer-2-hover"
-              >
-                {archiveView ? (
-                  <ArchiveRestore className="size-3.5" aria-hidden />
-                ) : (
-                  <Archive className="size-3.5" aria-hidden />
-                )}
-                {archiveView ? t("agent_teams_chat_active_view") : t("agent_teams_chat_archive_view")}
-              </button>
-              {loading ? (
-                <div className="p-4 text-body-sm-regular text-tertiary">{t("agent_teams_inbox_loading")}</div>
-              ) : (
-                <div className="flex flex-col">
-                  {sessions.map((session) => (
-                    <div key={session.id} className="group relative">
-                      <button
-                        type="button"
-                        onClick={() => setActiveId(session.id)}
-                        className={`flex w-full flex-col gap-0.5 border-b border-subtle px-3 py-2.5 text-left ${
-                          session.id === activeId ? "bg-layer-2" : "hover:bg-layer-2-hover"
-                        }`}
-                      >
-                        <span className="flex w-full items-center gap-1.5 truncate text-body-xs-medium">
-                          {session.expertName && <Bot className="size-3 shrink-0 text-accent-primary" aria-hidden />}
-                          {titleHints[session.id] ?? session.title}
-                        </span>
-                        <span className="truncate text-caption-sm-regular text-tertiary">
-                          {session.expertName ?? t("agent_teams_chat_free")}
-                        </span>
-                      </button>
-                      {/* Sibling (not nested) button — a11y lint forbids nested
-                          interactive elements; hover-revealed archive action. */}
-                      <button
-                        type="button"
-                        title={archiveView ? t("agent_teams_chat_unarchive") : t("agent_teams_chat_archive")}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void chatService.setArchived(session.id, !archiveView).then(() => loadSessions());
-                        }}
-                        className="hover:text-secondary-hover absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-tertiary opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                      >
-                        {archiveView ? (
-                          <ArchiveRestore className="size-3.5" aria-hidden />
-                        ) : (
-                          <Archive className="size-3.5" aria-hidden />
-                        )}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </aside>
+                onSelect={setActiveId}
+              />
+            ) : (
+              <TeamSidebar
+                sessions={sessions}
+                loading={loading}
+                onOpenTeam={(teamId) => navigate(`/${workspaceSlug}/agent-teams/chat?team=${teamId}`)}
+              />
+            )}
 
-            {/* message stream */}
+            {/* 消息流 + 输入区（仅二级选中会话时） */}
             <div className="flex h-full min-w-0 flex-grow flex-col">
               {active ? (
                 <>
-                  <div ref={streamRef} className="flex min-h-0 flex-grow flex-col gap-3 overflow-y-auto p-4">
+                  <div ref={streamRef} className="flex min-h-0 flex-grow flex-col gap-5 overflow-y-auto p-5">
                     {messages.length === 0 && !streaming && (
                       <div className="m-auto text-body-sm-regular text-tertiary">{t("agent_teams_chat_empty")}</div>
                     )}
-                    {messages.map((message) =>
-                      message.role === "user" ? (
-                        <div
-                          key={message.id}
-                          className="max-w-[80%] self-end rounded-lg bg-accent-subtle px-3 py-2 text-body-sm-regular text-primary"
-                        >
-                          {message.content}
-                        </div>
-                      ) : (
-                        <div
-                          key={message.id}
-                          className="group max-w-[85%] self-start rounded-lg border border-subtle bg-layer-2 px-3 py-2"
-                        >
-                          {assistantBody(message.content)}
-                          <button
-                            type="button"
-                            onClick={() => void handleCopy(message.id, message.content)}
-                            className="mt-1 text-caption-sm-regular text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-secondary"
-                          >
-                            {copiedId === message.id ? t("agent_teams_chat_copied") : t("agent_teams_chat_copy")}
-                          </button>
-                        </div>
-                      )
-                    )}
-                    {streaming && (
-                      <div className="max-w-[85%] self-start rounded-lg border border-subtle bg-layer-2 px-3 py-2">
-                        {/* reasoning/tool trace channel */}
-                        {streaming.traceItems.length > 0 && (
-                          <div className="mb-2 flex flex-col gap-1">
-                            {streaming.traceItems.map((item) => (
-                              <div
-                                key={item.id ?? item.text.slice(0, 24)}
-                                className="flex items-start gap-1.5 text-caption-sm-regular text-tertiary"
-                              >
-                                <span
-                                  className="mt-1.5 size-1 shrink-0 rounded-full"
-                                  style={{ background: "var(--text-color-tertiary)" }}
-                                  aria-hidden
-                                />
-                                {item.text}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {streaming.text ? (
-                          assistantBody(streaming.text)
-                        ) : (
-                          <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_typing")}</div>
-                        )}
-                        {streaming.sourceCount > 0 && (
-                          <div className="mt-1 text-caption-sm-regular text-tertiary">
-                            {t("agent_teams_chat_sources", { count: streaming.sourceCount })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {/* composer */}
-                  <div className="flex flex-col gap-1.5 border-t border-subtle p-3">
-                    <div className="flex items-end gap-2">
-                      <textarea
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            void handleSend();
-                          }
-                        }}
-                        placeholder={t("agent_teams_chat_input_placeholder")}
-                        rows={2}
-                        className="focus:border-custom-border-200 min-h-10 w-full resize-none rounded-md border border-subtle bg-layer-1 px-3 py-2 text-body-sm-regular outline-none"
+                    {messages.map((message) => (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        busy={confirmBusy === message.id}
+                        attachmentNames={attachmentNames}
+                        onConfirmCard={handleConfirmCard}
+                        onCheckpoint={handleCheckpoint}
+                        onShare={(m) => void openShare(m)}
+                        onOpenCard={(projectId, issueId) =>
+                          navigate(`/${workspaceSlug}/projects/${projectId}/issues/${issueId}`)
+                        }
                       />
-                      {sending ? (
-                        <Button variant="secondary" size="lg" onClick={handleStop}>
-                          {t("agent_teams_chat_stop")}
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="primary"
-                          size="lg"
-                          appendIcon={<Send />}
-                          disabled={!draft.trim()}
-                          onClick={() => void handleSend()}
-                        >
-                          {t("agent_teams_chat_send")}
-                        </Button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setWebSearch((prev) => !prev)}
-                        className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-caption-sm-medium ${
-                          webSearch ? "bg-accent-subtle text-accent-primary" : "text-tertiary hover:text-secondary"
-                        }`}
-                      >
-                        <Globe className="size-3" aria-hidden />
-                        {t("agent_teams_chat_web_search")}
-                      </button>
-                    </div>
+                    ))}
+                    {streaming && <StreamingBubble streaming={streaming} onCheckpoint={handleCheckpoint} />}
                   </div>
+                  <ChatComposer
+                    workspaceSlug={workspaceSlug}
+                    disabled={!active}
+                    sending={sending}
+                    showSummaryHint={Boolean(active.summaryCompacted) && summaryHintShownFor !== active.id}
+                    onStop={handleStop}
+                    onSend={handleSendWrapped}
+                    prefill={prefill}
+                  />
                 </>
               ) : (
-                <div className="m-auto text-body-sm-regular text-tertiary">{t("agent_teams_chat_no_session")}</div>
+                <div className="m-auto text-body-sm-regular text-tertiary">
+                  {t(inTeamView ? "agent_teams_chat_no_session" : "agent_teams_chat_pick_team")}
+                </div>
               )}
             </div>
           </div>
         </ContentWrapper>
       </div>
+
+      <ShareModal
+        open={Boolean(shareMessage)}
+        workspaceSlug={workspaceSlug}
+        teamId={active?.teamId}
+        busy={shareBusy}
+        onClose={() => setShareMessage(null)}
+        onShare={(issueId, name) => void handleShare(issueId, name)}
+      />
     </>
   );
 }

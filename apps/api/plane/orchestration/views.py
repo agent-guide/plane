@@ -451,6 +451,106 @@ class TeamProjectsEndpoint(BaseAPIView):
         } for b in bindings])
 
 
+class TeamShareableIssuesEndpoint(BaseAPIView):
+    """团队可分享卡列表（贴回卡片弹层数据源，2026-11-18）。
+
+    - 范围：团队绑定项目下的**全部**卡（含终态——评论留痕不限对象状态，
+      执行中的卡仅是「贴上去会被员工自取」的加成，非准入门槛）
+    - 搜索：`?q=` 后端检索（卡名/项目名/负责人，icontains）；无 q 返回最近 50 张
+    - 字段：卡名 / 项目名 / 执行状态（进行中/排队/已完成/失败/取消/未执行）/
+      负责人（最近执行的当前成员，human 取显示名、agent 走目录名）
+    """
+
+    def get(self, request, slug, team_id):
+        from django.db.models import Q, OuterRef, Subquery
+        from plane.db.models.issue import Issue
+        from .models import WorkItemExecution
+        from .agent_directory import resolve_agent_names
+
+        project_ids = ProjectTeamBinding.objects.filter(
+            team__workspace__slug=slug, team_id=team_id,
+        ).values_list("project_id", flat=True)
+
+        issues = Issue.objects.filter(project_id__in=list(project_ids))
+        q = (request.GET.get("q") or "").strip()
+        if q:
+            issues = issues.filter(
+                Q(name__icontains=q)
+                | Q(project__name__icontains=q)
+                | Q(assignees__display_name__icontains=q)
+            ).distinct()
+        # 每 issue 最近一条执行（决定执行状态与负责人）
+        latest_execution = WorkItemExecution.objects.filter(
+            issue_id=OuterRef("pk")
+        ).order_by("-created_at").values("id")[:1]
+        issues = issues.annotate(
+            latest_execution_id=Subquery(latest_execution)
+        ).select_related("project", "state").prefetch_related("assignees").order_by("-updated_at", "-id")
+
+        # 游标分页（keyset：按 -updated_at,-id 排序，游标=上一页末条的 updated_at|id）
+        limit = min(int(request.GET.get("limit") or 20), 50)
+        cursor = (request.GET.get("cursor") or "").strip()
+        if cursor:
+            try:
+                cur_updated, cur_id = cursor.split("|", 1)
+            except ValueError:
+                cur_updated, cur_id = cursor, ""
+            from django.utils.dateparse import parse_datetime
+            cur_dt = parse_datetime(cur_updated)
+            if cur_dt is not None:
+                issues = issues.filter(
+                    Q(updated_at__lt=cur_dt) | Q(updated_at=cur_dt, id__lt=cur_id)
+                )
+        page = list(issues[: limit + 1])
+        has_more = len(page) > limit
+        result = page[:limit]
+        next_cursor = ""
+        if has_more and result:
+            last = result[-1]
+            next_cursor = f"{last.updated_at.isoformat()}|{last.id}"
+
+        # 批量取执行 + 成员
+        exec_map = {
+            e.issue_id: e for e in WorkItemExecution.objects.filter(
+                id__in=[i.latest_execution_id for i in result if i.latest_execution_id]
+            ).select_related("current_member", "current_member__user")
+        }
+        agent_defs = {
+            e.current_member.agent_definition_id
+            for e in exec_map.values()
+            if e.current_member and e.current_member.kind == "agent"
+        }
+        agent_names = resolve_agent_names(agent_defs)
+
+        items = []
+        for issue in result:
+            ex = exec_map.get(issue.id)
+            member = ex.current_member if ex else None
+            if member is not None and member.kind == "human":
+                member_name = member.user.display_name if member.user else None
+            elif member is not None:
+                member_name = agent_names.get(member.agent_definition_id)
+            else:
+                member_name = None
+            items.append({
+                "issueId": str(issue.id),
+                "taskName": issue.name,
+                "sequenceId": issue.sequence_id,
+                "projectIdentifier": issue.project.identifier,
+                "externalProjectId": str(issue.project_id),
+                "externalItemId": str(issue.id),
+                # 工作项状态（与工作项列表显示同源：名+色徽章，StateGroupIcon 消费）
+                "stateName": issue.state.name if issue.state_id else None,
+                "stateColor": issue.state.color if issue.state_id else None,
+                "stateGroup": issue.state.group if issue.state_id else None,
+                "projectName": issue.project.name,
+                "activeMemberName": member_name,
+                # 执行状态（贴回卡片的「执行中自取」加成徽标）
+                "controlStatus": ex.business_status if ex else None,
+            })
+        return Response({"items": items, "nextCursor": next_cursor, "hasMore": has_more})
+
+
 class TeamActiveTasksEndpoint(BaseAPIView):
     """团队详情页「进行中工作项」：本团队绑定下的非终态执行。
 
