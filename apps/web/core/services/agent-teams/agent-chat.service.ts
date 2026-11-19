@@ -50,7 +50,7 @@ export interface AgentMessage {
 export type ChatStreamEvent =
   | { type: "delta"; text: string; messageId: string }
   | { type: "stage"; phase: "tool" | "plan"; label: string }
-  | { type: "done"; messageId: string; userMessageId?: string; kind: AgentMessageKind; content: { text?: string }; stopReason?: string }
+  | { type: "done"; messageId: string; userMessageId?: string; kind: AgentMessageKind; content: AgentMessage["content"]; stopReason?: string }
   | { type: "error"; code: string; detail?: string; checkpoint?: boolean; options?: string[] };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

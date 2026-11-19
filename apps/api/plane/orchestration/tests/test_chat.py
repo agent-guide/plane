@@ -159,6 +159,21 @@ class SendMessageTests(ChatTestBase):
         self.assertEqual(payload["messageId"], (AgentConversation.objects.get(id=cid).messages
                                                 .filter(role="agent").last().id))
 
+    def test_done_snapshot_carries_confirm_structure(self):
+        """协议 v2 §五：确认卡场景 done 帧 content 携带 confirm 结构（供前端定稿渲染卡片）。"""
+        import json as _json
+        from unittest.mock import patch
+        cid = self._create_conversation()
+        card_json = '```json\n{"type": "create_card", "title": "出口报关-001", "description": "毛重 480"}\n```'
+        with patch("plane.orchestration.chat.stream_agent_turn",
+                   side_effect=_fake_stream([{"type": "delta", "text": card_json}, {"type": "done"}])):
+            r = self._post_message(cid)
+        body = b"".join(r.streaming_content).decode()
+        done_frame = next(b for b in body.split("\n\n") if b.startswith("event: done"))
+        payload = _json.loads(next(l for l in done_frame.split("\n") if l.startswith("data: "))[len("data: "):])
+        self.assertEqual(payload["kind"], "confirm_card")
+        self.assertEqual(payload["content"]["confirm"]["title"], "出口报关-001")
+
     def test_confirm_card_recognition(self):
         """回复为建卡 JSON → 消息落成 confirm_card（L1 确认卡）。"""
         from unittest.mock import patch
@@ -190,9 +205,25 @@ class SendMessageTests(ChatTestBase):
         body = b"".join(r.streaming_content).decode()
         self.assertIn("event: error", body)
         self.assertIn("not_deployed", body)
+
+    def test_unexpected_exception_does_not_leave_empty_message(self):
+        """协议 v2 §P4 收口健壮性：消费端非预期异常落 error，不留空消息不 500。"""
+        from unittest.mock import patch
+        cid = self._create_conversation()
+
+        def _boom(**kwargs):
+            raise ValueError("unexpected decode failure")
+            yield  # pragma: no cover
+
+        with patch("plane.orchestration.chat.stream_agent_turn", side_effect=_boom):
+            r = self._post_message(cid)
+        self.assertEqual(r.status_code, 200)
+        body = b"".join(r.streaming_content).decode()
+        self.assertIn("event: error", body)
         reply = (AgentConversation.objects.get(id=cid).messages
-                .filter(role="agent").order_by("created_at").last())
-        self.assertEqual(reply.content["error"]["code"], "not_deployed")
+                 .filter(role="agent").order_by("created_at").last())
+        self.assertIsNotNone(reply.content.get("error"), "兜底后消息应带 error 而非空 content")
+        self.assertEqual(reply.content["error"]["code"], "agent_error")
 
     def test_history_pagination(self):
         cid = self._create_conversation()

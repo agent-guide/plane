@@ -132,7 +132,7 @@ export function ConversationPane({
                 prev.map((m) => {
                   if (m.id === userLocalId) return { ...m, id: done.userMessageId ?? m.id };
                   if (m.id === assistantLocalId)
-                    return { ...m, id: done.messageId, kind: done.kind, content: { text: done.content.text ?? "" } };
+                    return { ...m, id: done.messageId, kind: done.kind, content: done.content };
                   return m;
                 })
               );

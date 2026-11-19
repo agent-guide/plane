@@ -50,7 +50,7 @@ export type StreamTurnOptions = {
   webSearchEnabled?: boolean;
   onToken: (token: string) => void;
   onStage?: (stage: { phase: "tool" | "plan"; label: string }) => void; // 协议 v2：进度透传
-  onDone?: (done: { messageId: string; userMessageId?: string; kind: AgentMessageKind; content: { text?: string } }) => void; // 协议 v2：定稿快照
+  onDone?: (done: { messageId: string; userMessageId?: string; kind: AgentMessageKind; content: AgentMessage["content"] }) => void; // 协议 v2：定稿快照
   onTrace?: (item: unknown) => void; // v2 网关暂无 trace 事件；接口保留
   onSourceCount?: (count: number) => void; // 同上
   onTitle?: (title: string) => void; // v2 标题由会话 title 字段承载

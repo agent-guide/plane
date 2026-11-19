@@ -293,7 +293,10 @@ def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list
                     yield _sse_frame("done", {
                         "v": 2, "messageId": reply.id, "userMessageId": user_message_id,
                         "kind": reply.kind,
-                        "content": {"text": final_text}, "stopReason": event.get("stopReason", ""),
+                        # 完整定稿快照：confirm_card 时含 confirm、flow_card 时含 card，
+                        # text 时含 text——前端据此渲染卡片，不得只给 text（否则
+                        # 确认卡场景前端定稿拿不到结构、渲染空）
+                        "content": reply.content, "stopReason": event.get("stopReason", ""),
                     })
         except GeneratorExit:
             # 客户端断开（刷新/切走/停止）：已收增量必须落库收敛（节流阈值内
@@ -312,6 +315,12 @@ def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list
                 reply.content["checkpoint"] = True
                 normalized = {**normalized, "checkpoint": True,
                               "options": ["continue", "convert", "stop"]}
+            reply.save(update_fields=["content", "updated_at"])
+            yield _sse_frame("error", {"v": 2, **normalized})
+        except Exception as exc:  # noqa: BLE001 —— 兜底：非预期异常（消费端解析/落库）
+            # 不冒泡 500、不留空消息（14:49 ACP 长输入空消息根因即此处曾无兜底）
+            normalized = _normalize_agent_error(exc)
+            reply.content = {"text": "".join(chunks), "error": normalized}
             reply.save(update_fields=["content", "updated_at"])
             yield _sse_frame("error", {"v": 2, **normalized})
         finally:
