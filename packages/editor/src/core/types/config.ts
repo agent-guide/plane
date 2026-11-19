@@ -5,6 +5,7 @@
  */
 
 // plane imports
+import type { FileUploadErrorCode } from "@plane/utils";
 import type { TExtendedFileHandler } from "@/plane-editor/types/config";
 
 export type TFileHandler = {
@@ -24,6 +25,16 @@ export type TFileHandler = {
      */
     maxFileSize: number;
   };
+  /**
+   * @description 校验失败（no-file / invalid-type / too-large）时由 app 层统一提示，
+   * 编辑器内部不再弹 alert。
+   */
+  onUploadError?: (error: FileUploadErrorCode) => void;
+  /**
+   * @description 资产引用被移除（节点删除并完成 delete 之后）回调 app 层，
+   * 用于同步清理其上传登记（如评论的 uploadedAssetIds，防"隐形附件"）。
+   */
+  onAssetRemoved?: (assetId: string) => void;
 } & TExtendedFileHandler;
 
 export type TEditorFontStyle = "sans-serif" | "serif" | "monospace";

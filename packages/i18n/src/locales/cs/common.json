@@ -761,6 +761,7 @@
     "error": "Soubor nelze připojit. Zkuste to prosím znovu.",
     "only_one_file_allowed": "Je možné nahrát pouze jeden soubor najednou.",
     "file_size_limit": "Soubor musí být menší než {size}MB.",
+    "invalid_type": "Nepodporovaný typ souboru.",
     "drag_and_drop": "Přetáhněte soubor kamkoli pro nahrání",
     "delete": "Smazat přílohu"
   },

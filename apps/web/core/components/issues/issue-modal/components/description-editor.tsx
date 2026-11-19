@@ -13,6 +13,7 @@ import { Sparkle } from "lucide-react";
 import { ETabIndices } from "@plane/constants";
 import type { EditorRefApi } from "@plane/editor";
 import { useTranslation } from "@plane/i18n";
+import { showUploadFailedToast } from "@/helpers/upload-feedback";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import type { TIssue } from "@plane/types";
 import { EFileAssetType } from "@plane/types";
@@ -222,7 +223,8 @@ export const IssueDescriptionEditor = observer(function IssueDescriptionEditor(p
                     return asset_id;
                   } catch (error) {
                     console.log("Error in uploading issue asset:", error);
-                    throw new Error("Asset upload failed. Please try again later.");
+                    showUploadFailedToast(t);
+                    throw new Error("Asset upload failed. Please try again later.", { cause: error });
                   }
                 }}
                 duplicateFile={async (assetId: string) => {

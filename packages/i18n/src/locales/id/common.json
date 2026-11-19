@@ -761,6 +761,7 @@
     "error": "File tidak dapat dilampirkan. Coba unggah lagi.",
     "only_one_file_allowed": "Hanya satu file yang dapat diunggah pada satu waktu.",
     "file_size_limit": "File harus berukuran {size}MB atau lebih kecil.",
+    "invalid_type": "Tipe file tidak didukung.",
     "drag_and_drop": "Seret dan jatuhkan di mana saja untuk mengunggah",
     "delete": "Hapus lampiran"
   },

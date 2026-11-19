@@ -5,6 +5,7 @@
  */
 
 import { useMemo } from "react";
+import { useTranslation } from "@plane/i18n";
 import { setPromiseToast, TOAST_TYPE, setToast } from "@plane/propel/toast";
 import type { TIssueServiceType } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
@@ -36,6 +37,7 @@ export const useAttachmentOperations = (
   const {
     attachment: { createAttachment, removeAttachment, getAttachmentsUploadStatusByIssueId },
   } = useIssueDetail(issueServiceType);
+  const { t } = useTranslation();
 
   const attachmentOperations: TAttachmentOperations = useMemo(
     () => ({
@@ -43,14 +45,14 @@ export const useAttachmentOperations = (
         if (!workspaceSlug || !projectId || !issueId) throw new Error("Missing required fields");
         const attachmentUploadPromise = createAttachment(workspaceSlug, projectId, issueId, file);
         setPromiseToast(attachmentUploadPromise, {
-          loading: "Uploading attachment...",
+          loading: t("file_upload.processing"),
           success: {
-            title: "Attachment uploaded",
-            message: () => "The attachment has been successfully uploaded",
+            title: t("common.success"),
+            message: () => t("file_upload.success", { fileName: file.name }),
           },
           error: {
-            title: "Attachment not uploaded",
-            message: () => "The attachment could not be uploaded",
+            title: t("common.error.label"),
+            message: () => t("attachment.error"),
           },
         });
 
@@ -74,7 +76,7 @@ export const useAttachmentOperations = (
         }
       },
     }),
-    [workspaceSlug, projectId, issueId, createAttachment, removeAttachment]
+    [workspaceSlug, projectId, issueId, createAttachment, removeAttachment, t]
   );
   const attachmentsUploadStatus = getAttachmentsUploadStatusByIssueId(issueId);
 

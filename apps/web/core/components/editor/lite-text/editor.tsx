@@ -40,6 +40,8 @@ type LiteTextEditorWrapperProps = MakeOptional<
   showSubmitButton?: boolean;
   isSubmitting?: boolean;
   showToolbarInitially?: boolean;
+  /** 资产引用被移除（附件/图片节点删除）时回调，调用方同步清理上传登记 */
+  onAssetRemoved?: (assetId: string) => void;
   variant?: "full" | "lite" | "none";
   issue_id?: string;
   parentClassName?: string;
@@ -74,6 +76,7 @@ export const LiteTextEditor = React.forwardRef(function LiteTextEditor(
     showSubmitButton = true,
     isSubmitting = false,
     showToolbarInitially = true,
+    onAssetRemoved,
     variant = "full",
     parentClassName = "",
     placeholder = t("issue.comments.placeholder"),
@@ -142,6 +145,7 @@ export const LiteTextEditor = React.forwardRef(function LiteTextEditor(
               projectId,
               uploadFile: editable ? props.uploadFile : async () => "",
               duplicateFile: editable ? props.duplicateFile : async () => "",
+              onAssetRemoved,
               workspaceId,
               workspaceSlug,
             })}

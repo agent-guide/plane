@@ -761,6 +761,7 @@
     "error": "Não foi possível anexar o arquivo. Tente enviar novamente.",
     "only_one_file_allowed": "Apenas um arquivo pode ser enviado por vez.",
     "file_size_limit": "O arquivo deve ter {size}MB ou menos.",
+    "invalid_type": "Tipo de arquivo não suportado.",
     "drag_and_drop": "Arraste e solte em qualquer lugar para enviar",
     "delete": "Excluir anexo"
   },

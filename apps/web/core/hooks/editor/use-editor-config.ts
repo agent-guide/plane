@@ -7,7 +7,10 @@
 import { useCallback } from "react";
 // plane imports
 import type { TFileHandler } from "@plane/editor";
+import { useTranslation } from "@plane/i18n";
 import { getEditorAssetDownloadSrc, getEditorAssetSrc } from "@plane/utils";
+// helpers
+import { showUploadErrorToast } from "@/helpers/upload-feedback";
 // hooks
 import { useEditorAsset } from "@/hooks/store/use-editor-asset";
 // plane web hooks
@@ -21,6 +24,8 @@ type TArgs = {
   projectId?: string;
   uploadFile: TFileHandler["upload"];
   duplicateFile: TFileHandler["duplicate"];
+  /** 资产引用被移除时回调（同步清理调用方的上传登记，防"隐形附件"） */
+  onAssetRemoved?: TFileHandler["onAssetRemoved"];
   workspaceId: string;
   workspaceSlug: string;
 };
@@ -31,10 +36,12 @@ export const useEditorConfig = () => {
   // file size
   const { maxFileSize } = useFileSize();
   const { getExtendedEditorFileHandlers } = useExtendedEditorConfig();
+  // i18n
+  const { t } = useTranslation();
 
   const getEditorFileHandlers = useCallback(
     (args: TArgs): TFileHandler => {
-      const { projectId, uploadFile, duplicateFile, workspaceId, workspaceSlug } = args;
+      const { projectId, uploadFile, duplicateFile, onAssetRemoved, workspaceId, workspaceSlug } = args;
 
       return {
         assetsUploadStatus: assetsUploadPercentage,
@@ -96,10 +103,12 @@ export const useEditorConfig = () => {
         validation: {
           maxFileSize,
         },
+        onUploadError: (error) => showUploadErrorToast(t, error, maxFileSize),
+        onAssetRemoved,
         ...getExtendedEditorFileHandlers({ projectId, workspaceSlug }),
       };
     },
-    [assetsUploadPercentage, getExtendedEditorFileHandlers, maxFileSize]
+    [assetsUploadPercentage, getExtendedEditorFileHandlers, maxFileSize, t]
   );
 
   return {

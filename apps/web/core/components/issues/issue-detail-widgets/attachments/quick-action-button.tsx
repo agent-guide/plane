@@ -10,8 +10,11 @@ import type { FileRejection } from "react-dropzone";
 import { useDropzone } from "react-dropzone";
 import { PlusIcon } from "@plane/propel/icons";
 // plane imports
+import { useTranslation } from "@plane/i18n";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import type { TIssueServiceType } from "@plane/types";
+// helpers
+import { showUploadErrorToast } from "@/helpers/upload-feedback";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 // plane web hooks
@@ -32,6 +35,8 @@ export const IssueAttachmentActionButton = observer(function IssueAttachmentActi
   const { workspaceSlug, projectId, issueId, customButton, disabled = false, issueServiceType } = props;
   // state
   const [isLoading, setIsLoading] = useState(false);
+  // i18n
+  const { t } = useTranslation();
   // store hooks
   const { setLastWidgetAction, fetchActivities } = useIssueDetail(issueServiceType);
   // file size
@@ -59,13 +64,7 @@ export const IssueAttachmentActionButton = observer(function IssueAttachmentActi
         setIsLoading(true);
         attachmentOperations
           .create(currentFile)
-          .catch(() => {
-            setToast({
-              type: TOAST_TYPE.ERROR,
-              title: "Error!",
-              message: "File could not be attached. Try uploading again.",
-            });
-          })
+          .catch(() => {})
           .finally(() => {
             handleFetchPropertyActivities();
             setLastWidgetAction("attachments");
@@ -74,17 +73,18 @@ export const IssueAttachmentActionButton = observer(function IssueAttachmentActi
         return;
       }
 
-      setToast({
-        type: TOAST_TYPE.ERROR,
-        title: "Error!",
-        message:
-          totalAttachedFiles > 1
-            ? "Only one file can be uploaded at a time."
-            : `File must be of ${maxFileSize / 1024 / 1024}MB or less in size.`,
-      });
+      if (totalAttachedFiles > 1) {
+        setToast({
+          type: TOAST_TYPE.ERROR,
+          title: t("common.error.label"),
+          message: t("attachment.only_one_file_allowed"),
+        });
+      } else {
+        showUploadErrorToast(t, "too-large", maxFileSize);
+      }
       return;
     },
-    [attachmentOperations, maxFileSize, workspaceSlug, handleFetchPropertyActivities, setLastWidgetAction]
+    [attachmentOperations, maxFileSize, workspaceSlug, handleFetchPropertyActivities, setLastWidgetAction, t]
   );
 
   const { getRootProps, getInputProps } = useDropzone({

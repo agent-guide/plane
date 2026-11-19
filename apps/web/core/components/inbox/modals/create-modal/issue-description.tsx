@@ -10,6 +10,7 @@ import { observer } from "mobx-react";
 import { ETabIndices } from "@plane/constants";
 import type { EditorRefApi } from "@plane/editor";
 import { useTranslation } from "@plane/i18n";
+import { showUploadFailedToast } from "@/helpers/upload-feedback";
 import type { TIssue } from "@plane/types";
 import { EFileAssetType } from "@plane/types";
 import { Loader } from "@plane/ui";
@@ -103,7 +104,8 @@ export const InboxIssueDescription = observer(function InboxIssueDescription(pro
           return asset_id;
         } catch (error) {
           console.log("Error in uploading work item asset:", error);
-          throw new Error("Asset upload failed. Please try again later.");
+          showUploadFailedToast(t);
+          throw new Error("Asset upload failed. Please try again later.", { cause: error });
         }
       }}
       duplicateFile={async (assetId: string) => {

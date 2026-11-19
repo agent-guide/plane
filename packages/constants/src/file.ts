@@ -6,18 +6,44 @@
 
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-export const ACCEPTED_AVATAR_IMAGE_MIME_TYPES_FOR_REACT_DROPZONE = {
-  "image/jpeg": [],
-  "image/jpg": [],
-  "image/png": [],
-  "image/webp": [],
-};
-export const ACCEPTED_COVER_IMAGE_MIME_TYPES_FOR_REACT_DROPZONE = {
-  "image/jpeg": [],
-  "image/jpg": [],
-  "image/png": [],
-  "image/webp": [],
-};
+/**
+ * 可上传类型的唯一事实来源（与后端 asset/v2.py 的 ACCEPTED_ATTACHMENT_MIME_TYPES
+ * 对齐：图片 + Office 文档 + PDF + 纯文本）。前端各处 picker/校验一律引用这里，
+ * 不再各自维护白名单。
+ */
+export const IMAGE_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+
+export const ATTACHMENT_MIME_TYPES = [
+  ...IMAGE_MIME_TYPES,
+  // PDF
+  "application/pdf",
+  // Word
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // Excel
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  // PPT
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  // 纯文本
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/json",
+  "application/xml",
+  "text/xml",
+  "text/html",
+  "text/yaml",
+];
+
+/** react-dropzone 的 accept 对象形态（avatar/cover 等图片选择器使用）。 */
+export const ACCEPTED_IMAGE_MIME_TYPES_FOR_REACT_DROPZONE = Object.fromEntries(
+  IMAGE_MIME_TYPES.map((mime) => [mime, []])
+);
+
+export const ACCEPTED_AVATAR_IMAGE_MIME_TYPES_FOR_REACT_DROPZONE = ACCEPTED_IMAGE_MIME_TYPES_FOR_REACT_DROPZONE;
+export const ACCEPTED_COVER_IMAGE_MIME_TYPES_FOR_REACT_DROPZONE = ACCEPTED_IMAGE_MIME_TYPES_FOR_REACT_DROPZONE;
 
 /**
  * Dangerous file extensions that should be blocked

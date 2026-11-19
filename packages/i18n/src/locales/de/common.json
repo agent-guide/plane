@@ -761,6 +761,7 @@
     "error": "Datei konnte nicht angehängt werden. Bitte versuchen Sie es erneut.",
     "only_one_file_allowed": "Es kann jeweils nur eine Datei hochgeladen werden.",
     "file_size_limit": "Die Datei muss kleiner als {size} MB sein.",
+    "invalid_type": "Nicht unterstützter Dateityp.",
     "drag_and_drop": "Datei hierher ziehen, um sie hochzuladen",
     "delete": "Anhang löschen"
   },

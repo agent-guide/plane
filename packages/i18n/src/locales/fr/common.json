@@ -761,6 +761,7 @@
     "error": "Le fichier n’a pas pu être joint. Essayez de le télécharger à nouveau.",
     "only_one_file_allowed": "Un seul fichier peut être téléchargé à la fois.",
     "file_size_limit": "Le fichier doit faire {size}MB ou moins.",
+    "invalid_type": "Type de fichier non pris en charge.",
     "drag_and_drop": "Glissez-déposez n’importe où pour uploader",
     "delete": "Supprimer la pièce jointe"
   },

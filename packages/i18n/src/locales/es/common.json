@@ -761,6 +761,7 @@
     "error": "No se pudo adjuntar el archivo. Intenta subirlo de nuevo.",
     "only_one_file_allowed": "Solo se puede subir un archivo a la vez.",
     "file_size_limit": "El archivo debe tener {size}MB o menos de tamaño.",
+    "invalid_type": "Tipo de archivo no compatible.",
     "drag_and_drop": "Arrastra y suelta en cualquier lugar para subir",
     "delete": "Eliminar archivo adjunto"
   },

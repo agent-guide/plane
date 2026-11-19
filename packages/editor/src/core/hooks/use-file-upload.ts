@@ -8,7 +8,7 @@ import type { Editor, NodeViewProps } from "@tiptap/core";
 import type { DragEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 // helpers
-import type { EFileError } from "@/helpers/file";
+import type { FileUploadErrorCode } from "@/helpers/file";
 import { isFileValid } from "@/helpers/file";
 // plugins
 import { insertFilesSafely } from "@/plugins/drop";
@@ -21,8 +21,9 @@ type TUploaderArgs = {
   handleProgressStatus?: (isUploading: boolean) => void;
   loadFileFromFileSystem?: (file: string) => void;
   maxFileSize: number;
-  onInvalidFile: (error: EFileError, file: File, message: string) => void;
+  onInvalidFile: (error: FileUploadErrorCode) => void;
   onUpload: (url: string, file: File) => void;
+  onError?: (error: unknown) => void;
 };
 
 export const useUploader = (args: TUploaderArgs) => {
@@ -34,6 +35,7 @@ export const useUploader = (args: TUploaderArgs) => {
     maxFileSize,
     onInvalidFile,
     onUpload,
+    onError,
   } = args;
   // states
   const [isUploading, setIsUploading] = useState(false);
@@ -46,7 +48,7 @@ export const useUploader = (args: TUploaderArgs) => {
         acceptedMimeTypes,
         file,
         maxFileSize,
-        onError: (error, message) => onInvalidFile(error, file, message),
+        onError: (error) => onInvalidFile(error),
       });
       if (!isValid) {
         handleProgressStatus?.(false);
@@ -74,8 +76,9 @@ export const useUploader = (args: TUploaderArgs) => {
           throw new Error("Something went wrong while uploading the file.");
         }
         onUpload(url, file);
-      } catch {
-        console.error("useFileUpload: Error in uploading file");
+      } catch (error) {
+        console.error("useFileUpload: Error in uploading file", error);
+        onError?.(error);
       } finally {
         handleProgressStatus?.(false);
         setIsUploading(false);
@@ -89,6 +92,7 @@ export const useUploader = (args: TUploaderArgs) => {
       maxFileSize,
       onInvalidFile,
       onUpload,
+      onError,
     ]
   );
 

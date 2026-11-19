@@ -761,6 +761,7 @@
     "error": "File could not be attached. Try uploading again.",
     "only_one_file_allowed": "Only one file can be uploaded at a time.",
     "file_size_limit": "File must be of {size}MB or less in size.",
+    "invalid_type": "Unsupported file type.",
     "drag_and_drop": "Drag and drop anywhere to upload",
     "delete": "Delete attachment"
   },

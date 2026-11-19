@@ -32,6 +32,27 @@ export const getAssetIdFromUrl = (src: string): string => {
   return assetUrl;
 };
 
+export type FileUploadErrorCode = "no-file" | "invalid-type" | "too-large";
+
+export type FileUploadValidationResult = { ok: true } | { ok: false; error: FileUploadErrorCode };
+
+/**
+ * @description 附件上传的统一前端校验（类型 + 大小），返回机器可读的结果码，
+ * 由各入口自行映射到统一的 i18n 提示。单一事实来源，编辑器与 app 层共用。
+ * 注意：file.type 为空时不拦类型（交给后端签名检测 + 扩展名回退），
+ * 避免误杀浏览器拿不到 MIME 的纯文本/Office 文档。
+ */
+export const validateFileUpload = (
+  file: File | null | undefined,
+  { acceptedMimeTypes, maxFileSize }: { acceptedMimeTypes: string[]; maxFileSize: number }
+): FileUploadValidationResult => {
+  if (!file) return { ok: false, error: "no-file" };
+  const typeMatches = !file.type || acceptedMimeTypes.length === 0 || acceptedMimeTypes.includes(file.type);
+  if (!typeMatches) return { ok: false, error: "invalid-type" };
+  if (maxFileSize > 0 && file.size > maxFileSize) return { ok: false, error: "too-large" };
+  return { ok: true };
+};
+
 /**
  * @description encode image via URL to base64
  * @param {string} url

@@ -139,7 +139,12 @@ export const useWorkItemCommentOperations = (
           return res;
         } catch (error) {
           console.log("Error in uploading comment asset:", error);
-          throw new Error(t("issue.comments.upload.error"));
+          setToast({
+            title: t("common.error.label"),
+            type: TOAST_TYPE.ERROR,
+            message: t("issue.comments.upload.error"),
+          });
+          throw new Error(t("issue.comments.upload.error"), { cause: error });
         }
       },
       duplicateCommentAsset: async (assetId, commentId) => {

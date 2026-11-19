@@ -11,8 +11,12 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "@plane/i18n";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { Button } from "@plane/propel/button";
-import { Globe, Paperclip, Send, X } from "lucide-react";
+import { Paperclip, Send, X } from "lucide-react";
+import { ATTACHMENT_MIME_TYPES } from "@plane/constants";
+import { validateFileUpload } from "@plane/utils";
 
+import { showUploadErrorToast } from "@/helpers/upload-feedback";
+import { useFileSize } from "@/hooks/use-file-size";
 import { FileService } from "@/services/file.service";
 import { EFileAssetType, type TFileSignedURLResponse } from "@plane/types";
 
@@ -41,10 +45,11 @@ export function ChatComposer({
   onSend: (text: string, attachments: PendingAttachment[], webSearch: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const { maxFileSize } = useFileSize();
   const [draft, setDraft] = useState("");
   const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([]);
   const [uploading, setUploading] = useState(0);
-  const [webSearch, setWebSearch] = useState(false);
+  const [webSearch] = useState(false); // 联网开关入口已下线，值恒 false（链路保留）
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 预填（nonce 触发，避免重复 effect）
@@ -57,6 +62,12 @@ export function ChatComposer({
     setUploading((n) => n + files.length);
     /* eslint-disable no-await-in-loop -- 串行上传有意（进度可控、防占满带宽） */
     for (const file of Array.from(files)) {
+      const validation = validateFileUpload(file, { acceptedMimeTypes: ATTACHMENT_MIME_TYPES, maxFileSize });
+      if (!validation.ok) {
+        showUploadErrorToast(t, validation.error, maxFileSize);
+        setUploading((n) => Math.max(0, n - 1));
+        continue;
+      }
       try {
         // 串行有意：进度可控、避免并发占满带宽
         const res: TFileSignedURLResponse = await chatFileService.uploadWorkspaceAsset(
@@ -68,7 +79,7 @@ export function ChatComposer({
       } catch {
         setToast({
           type: TOAST_TYPE.ERROR,
-          title: t("common.error"),
+          title: t("common.error.label"),
           message: t("agent_teams_chat_upload_failed", { name: file.name }),
         });
       } finally {
@@ -92,7 +103,7 @@ export function ChatComposer({
       {showSummaryHint && (
         <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_summary_hint")}</div>
       )}
-      <div className="rounded-xl border border-subtle bg-layer-1 px-3 pt-2 pb-1.5 focus-within:border-custom-border-200">
+      <div className="focus-within:border-custom-border-200 rounded-xl border border-subtle bg-layer-1 px-3 pt-2 pb-1.5">
         {(pendingFiles.length > 0 || uploading > 0) && (
           <div className="flex flex-wrap gap-1.5 pb-1.5">
             {pendingFiles.map((f) => (
@@ -135,6 +146,7 @@ export function ChatComposer({
               ref={fileInputRef}
               type="file"
               multiple
+              accept={ATTACHMENT_MIME_TYPES.join(",")}
               className="hidden"
               onChange={(e) => void handleFiles(e.target.files)}
             />
@@ -147,7 +159,8 @@ export function ChatComposer({
             >
               <Paperclip className="size-4" aria-hidden />
             </button>
-            <button
+            {/* 联网搜索开关：搜索工具源未部署，入口先下线（链路保留，恢复时解开本注释） */}
+            {/* <button
               type="button"
               onClick={() => setWebSearch((prev) => !prev)}
               className={`flex items-center gap-1 rounded px-1.5 py-1 text-caption-sm-medium ${
@@ -156,7 +169,7 @@ export function ChatComposer({
             >
               <Globe className="size-3.5" aria-hidden />
               {t("agent_teams_chat_web_search")}
-            </button>
+            </button> */}
           </div>
           {sending ? (
             <Button variant="secondary" size="sm" onClick={onStop}>

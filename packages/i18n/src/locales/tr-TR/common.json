@@ -761,6 +761,7 @@
     "error": "Dosya eklenemedi. Tekrar yüklemeyi deneyin.",
     "only_one_file_allowed": "Aynı anda yalnızca bir dosya yüklenebilir.",
     "file_size_limit": "Dosya boyutu {size}MB veya daha az olmalıdır.",
+    "invalid_type": "Desteklenmeyen dosya türü.",
     "drag_and_drop": "Yüklemek için herhangi bir yere sürükleyip bırakın",
     "delete": "Eki sil"
   },

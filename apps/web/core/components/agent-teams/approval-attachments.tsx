@@ -9,8 +9,14 @@
  */
 import { useRef, useState } from "react";
 import { useTranslation } from "@plane/i18n";
+import { ATTACHMENT_MIME_TYPES } from "@plane/constants";
+import { validateFileUpload } from "@plane/utils";
 // types
 import { EFileAssetType, type TFileSignedURLResponse } from "@plane/types";
+// helpers
+import { showUploadErrorToast, showUploadFailedToast } from "@/helpers/upload-feedback";
+// hooks
+import { useFileSize } from "@/hooks/use-file-size";
 // services
 import { FileService } from "@/services/file.service";
 import { registerApprovalAttachment, unregisterApprovalAttachment } from "@/services/agent-teams/orchestration.service";
@@ -36,17 +42,22 @@ export function ApprovalAttachmentUpload({
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
+  const { maxFileSize } = useFileSize();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
-  const [uploadError, setUploadError] = useState(false);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files?.length) return;
-    setUploadError(false);
     setUploadingCount((n) => n + files.length);
     const uploaded: AnswerAttachment[] = [];
     // 逐个串行上传有意为之（进度可控、避免并发占满带宽）
     for (const file of Array.from(files)) {
+      const validation = validateFileUpload(file, { acceptedMimeTypes: ATTACHMENT_MIME_TYPES, maxFileSize });
+      if (!validation.ok) {
+        showUploadErrorToast(t, validation.error, maxFileSize);
+        setUploadingCount((n) => Math.max(0, n - 1));
+        continue;
+      }
       try {
         // oxlint-disable-next-line no-await-in-loop
         const res: TFileSignedURLResponse = await fileService.uploadWorkspaceAsset(
@@ -61,7 +72,7 @@ export function ApprovalAttachmentUpload({
         // C7：上传即挂载到审批——刷新/换人不丢（失败静默，见 service 注释）
         if (approvalId) void registerApprovalAttachment(workspaceSlug, approvalId, res.asset_id);
       } catch {
-        setUploadError(true);
+        showUploadFailedToast(t);
       } finally {
         setUploadingCount((n) => Math.max(0, n - 1));
       }
@@ -110,10 +121,14 @@ export function ApprovalAttachmentUpload({
           </span>
         ))}
       </div>
-      {uploadError && (
-        <span className="text-caption-sm-regular text-danger-primary">{t("agent_teams_inbox_upload_failed")}</span>
-      )}
-      <input ref={inputRef} type="file" multiple hidden onChange={(e) => void handleFiles(e.target.files)} />
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        hidden
+        accept={ATTACHMENT_MIME_TYPES.join(",")}
+        onChange={(e) => void handleFiles(e.target.files)}
+      />
     </div>
   );
 }

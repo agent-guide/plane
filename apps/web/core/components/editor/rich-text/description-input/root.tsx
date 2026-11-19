@@ -11,6 +11,7 @@ import { Controller, useForm } from "react-hook-form";
 // plane imports
 import type { EditorRefApi, TExtensions } from "@plane/editor";
 import { useTranslation } from "@plane/i18n";
+import { showUploadFailedToast } from "@/helpers/upload-feedback";
 import type { EFileAssetType, TNameDescriptionLoader } from "@plane/types";
 import { getDescriptionPlaceholderI18n } from "@plane/utils";
 // components
@@ -274,7 +275,8 @@ export const DescriptionInput = observer(function DescriptionInput(props: Props)
               return asset_id;
             } catch (error) {
               console.log("Error in uploading asset:", error);
-              throw new Error("Asset upload failed. Please try again later.");
+              showUploadFailedToast(t);
+              throw new Error("Asset upload failed. Please try again later.", { cause: error });
             }
           }}
           duplicateFile={async (assetId: string) => {

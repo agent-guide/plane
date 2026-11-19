@@ -761,6 +761,7 @@
     "error": "无法附加文件。请重新上传。",
     "only_one_file_allowed": "一次只能上传一个文件。",
     "file_size_limit": "文件大小必须小于或等于 {size}MB。",
+    "invalid_type": "不支持的文件类型。",
     "drag_and_drop": "拖放到任意位置以上传",
     "delete": "删除附件"
   },

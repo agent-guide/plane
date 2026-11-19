@@ -13,6 +13,8 @@ import { useTranslation } from "@plane/i18n";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import type { TIssueServiceType } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
+// helpers
+import { showUploadErrorToast } from "@/helpers/upload-feedback";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 // plane web hooks
@@ -76,13 +78,7 @@ export const IssueAttachmentItemList = observer(function IssueAttachmentItemList
 
         setIsUploading(true);
         createAttachment(currentFile)
-          .catch(() => {
-            setToast({
-              type: TOAST_TYPE.ERROR,
-              title: t("toast.error"),
-              message: t("attachment.error"),
-            });
-          })
+          .catch(() => {})
           .finally(() => {
             handleFetchPropertyActivities();
             setIsUploading(false);
@@ -90,17 +86,18 @@ export const IssueAttachmentItemList = observer(function IssueAttachmentItemList
         return;
       }
 
-      setToast({
-        type: TOAST_TYPE.ERROR,
-        title: t("toast.error"),
-        message:
-          totalAttachedFiles > 1
-            ? t("attachment.only_one_file_allowed")
-            : t("attachment.file_size_limit", { size: maxFileSize / 1024 / 1024 }),
-      });
+      if (totalAttachedFiles > 1) {
+        setToast({
+          type: TOAST_TYPE.ERROR,
+          title: t("common.error.label"),
+          message: t("attachment.only_one_file_allowed"),
+        });
+      } else {
+        showUploadErrorToast(t, "too-large", maxFileSize);
+      }
       return;
     },
-    [createAttachment, maxFileSize, workspaceSlug, handleFetchPropertyActivities]
+    [createAttachment, maxFileSize, workspaceSlug, handleFetchPropertyActivities, t]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

@@ -761,6 +761,7 @@
     "error": "파일을 첨부할 수 없습니다. 다시 업로드하세요.",
     "only_one_file_allowed": "한 번에 하나의 파일만 업로드할 수 있습니다.",
     "file_size_limit": "파일 크기는 {size}MB 이하이어야 합니다.",
+    "invalid_type": "지원되지 않는 파일 형식입니다.",
     "drag_and_drop": "업로드하려면 아무 곳에나 드래그 앤 드롭하세요",
     "delete": "첨부 파일 삭제"
   },
