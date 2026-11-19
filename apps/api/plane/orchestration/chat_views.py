@@ -48,7 +48,8 @@ def _unread_flag(c: AgentConversation) -> bool:
             .exclude(kind=AgentMessage.Kind.TEXT, content__text="").exists())
 
 
-def _conversation_json(c: AgentConversation, last_message: str = "") -> dict:
+def _conversation_json(c: AgentConversation, last_message: str = "",
+                       last_error: dict | None = None) -> dict:
     from .agent_directory import resolve_agent_names
     names = resolve_agent_names([c.agent_member.agent_definition_id])
     agent_name = names.get(c.agent_member.agent_definition_id) or c.agent_member.role
@@ -64,6 +65,9 @@ def _conversation_json(c: AgentConversation, last_message: str = "") -> dict:
         "summaryCompacted": bool(c.summary),
         "lastMessageAt": c.last_message_at.isoformat() if c.last_message_at else None,
         "lastMessagePreview": last_message[:80],
+        # 最后一条消息的错误结构（text 为空的错误轮次，预览文案由前端
+        # displayErrorDetail 与会话页同源渲染；detail 归一化时已是人话）
+        "lastMessageError": last_error,
         "unread": _unread_flag(c),
         # 成员摘要（前端复用 MemberAvatar 头像渲染）
         "member": {"kind": c.agent_member.kind, "role": c.agent_member.role,
@@ -128,8 +132,14 @@ class ConversationsEndpoint(BaseAPIView):
         result = []
         for c in convs[:100]:
             last = c.messages.exclude(role="system").order_by("-created_at").first()
-            preview = ((last.content or {}).get("text") or "") if last else ""
-            result.append(_conversation_json(c, last_message=preview))
+            content = (last.content or {}) if last else {}
+            # 预览只回原始结构（text/error），显示文案由前端与会话页共用同一套
+            # 逻辑渲染（displayErrorDetail）——后端不另造第二套摘要规则（单一来源）
+            result.append(_conversation_json(
+                c,
+                last_message=str(content.get("text") or ""),
+                last_error=(content.get("error") if isinstance(content.get("error"), dict) else None),
+            ))
         return Response(result)
 
     def post(self, request, slug):
@@ -262,7 +272,9 @@ def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list
                 if event["type"] == "delta":
                     chunks.append(event["text"])
                     _persist_reply(reply, chunks)
-                    yield _sse_frame("delta", {"text": event["text"], "messageId": reply.id})
+                    yield _sse_frame("delta", {"v": 2, "text": event["text"], "messageId": reply.id})
+                elif event["type"] == "stage":
+                    yield _sse_frame("stage", {"v": 2, "phase": event.get("phase", "tool"), "label": event.get("label", "")})
                 elif event["type"] == "done":
                     final_text = "".join(chunks)
                     # 确认卡识别（L1：建卡预览 JSON 独占回复）
@@ -275,7 +287,11 @@ def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list
                     reply.streaming_offset = len(chunks)
                     reply.save(update_fields=["kind", "content", "streaming_offset", "updated_at"])
                     maybe_compact_history(conv)
-                    yield _sse_frame("done", {"messageId": reply.id, "kind": reply.kind})
+                    # 协议 v2 §四：done 带定稿快照，前端据此定稿、不再回拉
+                    yield _sse_frame("done", {
+                        "v": 2, "messageId": reply.id, "kind": reply.kind,
+                        "content": {"text": final_text}, "stopReason": event.get("stopReason", ""),
+                    })
         except GeneratorExit:
             # 客户端断开（刷新/切走/停止）：已收增量必须落库收敛（节流阈值内
             # 的 chunks 原先丢在内存 → 占位行永远空 → 前端空气泡，01-25 实证）
@@ -294,7 +310,7 @@ def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list
                 normalized = {**normalized, "checkpoint": True,
                               "options": ["continue", "convert", "stop"]}
             reply.save(update_fields=["content", "updated_at"])
-            yield _sse_frame("error", normalized)
+            yield _sse_frame("error", {"v": 2, **normalized})
         finally:
             conv.last_message_at = dj_tz.now()
             conv.save(update_fields=["last_message_at", "updated_at"])

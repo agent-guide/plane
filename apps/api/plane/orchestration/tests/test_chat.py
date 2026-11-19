@@ -123,6 +123,42 @@ class SendMessageTests(ChatTestBase):
         self.assertEqual(messages[1].role, "agent")
         self.assertEqual(messages[1].content["text"], "收到，以 480 为准录入。")
 
+    def test_stage_event_forwarded(self):
+        """协议 v2 §六：进度 stage 事件经 SSE 转发（tool_call 进度透传）。"""
+        import json as _json
+        from unittest.mock import patch
+        cid = self._create_conversation()
+        events = [{"type": "stage", "phase": "tool", "label": "正在调用 url_reader…"},
+                  {"type": "done"}]
+        with patch("plane.orchestration.chat.stream_agent_turn", side_effect=_fake_stream(events)):
+            r = self._post_message(cid)
+        body = b"".join(r.streaming_content).decode()
+        self.assertIn("event: stage", body)
+        self.assertIn("正在调用 url_reader…", body)
+
+    def test_done_carries_snapshot_and_version(self):
+        """协议 v2 §四：done 帧带定稿快照（content/stopReason）+ 版本字段 v=2。"""
+        import json as _json
+        from unittest.mock import patch
+        cid = self._create_conversation()
+        events = [{"type": "delta", "text": "正文内容"},
+                  {"type": "done", "stopReason": ""}]
+        with patch("plane.orchestration.chat.stream_agent_turn", side_effect=_fake_stream(events)):
+            r = self._post_message(cid)
+        body = b"".join(r.streaming_content).decode()
+        # 抽 done 帧的 data JSON，断言快照与版本
+        done_frame = None
+        for block in body.split("\n\n"):
+            if block.startswith("event: done"):
+                done_frame = block
+        self.assertIsNotNone(done_frame, "SSE 应含 done 帧")
+        data_line = next(l for l in done_frame.split("\n") if l.startswith("data: "))
+        payload = _json.loads(data_line[len("data: "):])
+        self.assertEqual(payload["v"], 2)
+        self.assertEqual(payload["content"]["text"], "正文内容")
+        self.assertEqual(payload["messageId"], (AgentConversation.objects.get(id=cid).messages
+                                                .filter(role="agent").last().id))
+
     def test_confirm_card_recognition(self):
         """回复为建卡 JSON → 消息落成 confirm_card（L1 确认卡）。"""
         from unittest.mock import patch

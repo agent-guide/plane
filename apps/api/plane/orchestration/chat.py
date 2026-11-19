@@ -247,7 +247,6 @@ def stream_agent_turn(*, agent_definition_id: str, prompt: str, session_hint: st
         started = _time.monotonic()
         last_event = started
         event_type = ""
-        from .worker import FINAL_MARKER
         for raw in response:
             now = _time.monotonic()
             if now - last_event > idle_timeout:
@@ -285,10 +284,23 @@ def stream_agent_turn(*, agent_definition_id: str, prompt: str, session_hint: st
                     detail=data or envelope)
             if event_type == "delta" and isinstance(envelope.get("text"), str):
                 yield {"type": "delta", "text": envelope["text"]}
-                if FINAL_MARKER in envelope["text"]:
-                    # 收到终止信号即收口（与 worker 版同语义）
-                    yield {"type": "done"}
-                    return
+            elif event_type == "tool_call" and isinstance(envelope.get("data"), dict):
+                # 进度透传（协议 v2 §六）：网关 tool_call 两种形态——
+                # 发起 {calls:[{name}]} / 结果 {name, output}，映射成 stage
+                td = envelope["data"]
+                if isinstance(td.get("calls"), list) and td["calls"]:
+                    names = "、".join(c.get("name", "工具") for c in td["calls"] if isinstance(c, dict))
+                    yield {"type": "stage", "phase": "tool", "label": f"正在调用 {names}…"}
+                elif isinstance(td.get("name"), str):
+                    yield {"type": "stage", "phase": "tool", "label": f"已完成 {td['name']}"}
+            elif event_type == "done":
+                # 网关 turn 收口（data 可能带 stop_reason）——取代旧的 FINAL_MARKER
+                # 文本标志 hack，直接认 done 事件收口
+                stop_reason = ""
+                if isinstance(envelope.get("data"), dict):
+                    stop_reason = str(envelope["data"].get("stop_reason") or "")
+                yield {"type": "done", "stopReason": stop_reason}
+                return
         yield {"type": "done"}
 
 
