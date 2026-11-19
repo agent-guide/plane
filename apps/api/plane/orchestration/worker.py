@@ -335,10 +335,12 @@ def _normalize_agent_error(exc: BaseException) -> dict:
         # 重置」）；提取不到留空，前端回退 code 映射的通用文案。
         if code == "rate_limit":
             detail_text = _extract_upstream_message(detail_text) or ""
-        # agent_error（工具调用失败等 NodeRunError 文本）同样提取具体人话
-        # （如「工具 url_reader 请求失败（8s 超时…）」），避免笼统「执行失败」。
+        # agent_error（工具调用失败等 NodeRunError 文本）提取具体人话
+        # （如「工具 url_reader 请求失败（8s 超时…）」）；提取失败保留原始
+        # detail（曾 `or ""` 把「turn failed」这类也清空 → 前端只剩笼统文案、
+        # 且丢失排障线索，11-19 实证）
         elif code == "agent_error":
-            detail_text = _extract_node_error(detail_text) or ""
+            detail_text = _extract_node_error(detail_text) or detail_text
         return {"code": code, "detail": detail_text}
 
     try:
