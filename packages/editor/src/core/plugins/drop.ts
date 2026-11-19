@@ -33,7 +33,10 @@ export const DropHandlerPlugin = (props: Props): Plugin => {
           event.preventDefault();
           const files = Array.from(event.clipboardData.files);
           const acceptedFiles = files.filter(
-            (f) => ACCEPTED_IMAGE_MIME_TYPES.includes(f.type) || ACCEPTED_ATTACHMENT_MIME_TYPES.includes(f.type)
+            (f) =>
+              // 空类型放行：交给命令层校验 + 后端扩展名回退（与 validateFileUpload 语义对齐，
+              // 否则 .md/.log 等 Finder 拖入被静默吞掉——按钮能传拖拽不行）
+              !f.type || ACCEPTED_IMAGE_MIME_TYPES.includes(f.type) || ACCEPTED_ATTACHMENT_MIME_TYPES.includes(f.type)
           );
 
           if (acceptedFiles.length) {
@@ -62,7 +65,10 @@ export const DropHandlerPlugin = (props: Props): Plugin => {
           event.preventDefault();
           const files = Array.from(event.dataTransfer.files);
           const acceptedFiles = files.filter(
-            (f) => ACCEPTED_IMAGE_MIME_TYPES.includes(f.type) || ACCEPTED_ATTACHMENT_MIME_TYPES.includes(f.type)
+            (f) =>
+              // 空类型放行：交给命令层校验 + 后端扩展名回退（与 validateFileUpload 语义对齐，
+              // 否则 .md/.log 等 Finder 拖入被静默吞掉——按钮能传拖拽不行）
+              !f.type || ACCEPTED_IMAGE_MIME_TYPES.includes(f.type) || ACCEPTED_ATTACHMENT_MIME_TYPES.includes(f.type)
           );
 
           if (acceptedFiles.length) {
@@ -116,8 +122,8 @@ export const insertFilesSafely = async (args: InsertFilesSafelyArgs) => {
         if (["image", "attachment"].includes(type)) fileType = type;
         else throw new Error("Wrong file type passed");
       } else {
-        if (ACCEPTED_IMAGE_MIME_TYPES.includes(file.type)) fileType = "image";
-        else if (ACCEPTED_ATTACHMENT_MIME_TYPES.includes(file.type)) fileType = "attachment";
+        if (file.type && ACCEPTED_IMAGE_MIME_TYPES.includes(file.type)) fileType = "image";
+        else fileType = "attachment"; // 空 MIME 一律走附件节点（命令层/后端再校验）
       }
       // insert file depending on the type at the current position
       if (fileType === "image" && !disabledExtensions?.includes("image")) {
