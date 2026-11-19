@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node server.mjs" },
-  "engines": { "node": ">=18" }
+  "scripts": {
+    "start": "node server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": { "node": ">=23" },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "@types/node": "^26.0.0"
+  }
 }

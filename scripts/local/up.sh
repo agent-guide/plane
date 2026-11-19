@@ -44,11 +44,11 @@ if ! echo 's3.bucket.list' | "$WEED" shell -master=127.0.0.1:9333 2>/dev/null | 
 ok "bucket uploads 就绪"
 
 step "③ url-mcp（:8624，链接读取 MCP 工具）"
-URL_MCP="$PWD/../../services/url-mcp/server.mjs"
+URL_MCP="$PWD/../../services/url-mcp/server.ts"
 [ -f "$URL_MCP" ] || fail "url-mcp 缺失：$URL_MCP"
 if probe_contains "http://127.0.0.1:8624/health" '"ok"\|{}'; then
   ok "url-mcp 已在运行"; else
-  stop_if_running "services/url-mcp/server.mjs" "url-mcp 残留"
+  stop_if_running "services/url-mcp/server.ts" "url-mcp 残留"
   nohup node "$URL_MCP" > /tmp/url-mcp.log 2>&1 &
   SECONDS=0; until curl -s -o /dev/null --max-time 2 http://127.0.0.1:8624/health; do
     [ $SECONDS -ge 8 ] && { fail "url-mcp 探活失败"; hint "看 /tmp/url-mcp.log"; }; sleep 1; done

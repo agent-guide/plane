@@ -16,7 +16,7 @@ stop_if_running "manage.py runserver"       "Plane API"
 stop_if_running "apps/web"                  "Plane web（pnpm dev）"
 stop_if_running "next dev --webpack -p $MGR_PORT" "agwmngr"
 stop_if_running "agw run --config"          "agent-gateway"
-stop_if_running "services/url-mcp/server.mjs" "url-mcp（链接读取 MCP）"
+stop_if_running "services/url-mcp/server.ts" "url-mcp（链接读取 MCP）"
 stop_if_running "weed server"                "SeaweedFS"
 sleep 1
 if [ $KEEP_INFRA -eq 0 ]; then
