@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node server.ts",
-    "build": "esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/index.mjs --packages=external",
+    "build": "esbuild server.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.mjs --packages=external",
     "start": "node dist/index.mjs",
     "typecheck": "tsc --noEmit"
   },

@@ -7,6 +7,7 @@
 #   api   /opt/projects/ai-platform/v2/plane/api   → 127.0.0.1:8202（systemd plane-v2-api）
 #   worker 同目录 procrastinate_worker.py          → systemd plane-v2-worker（PG 队列消费）
 #   web   /opt/projects/ai-platform/v2/plane-web    → nginx :4004 静态
+#   url-mcp 同仓 services/url-mcp → 127.0.0.1:8624（systemd url-mcp，链接读取 MCP 工具）
 # 发布纪律与 v1 deploy.sh 同源：全量打包+完整替换（不留幽灵文件）、
 # 依赖无条件同步（幂等由工具保证）、构建产物校验、探活失败即中止。
 set -euo pipefail
@@ -41,10 +42,13 @@ else
   COPYFILE_DISABLE=1 tar czf /tmp/plane-v2-web.tar.gz -C "$REPO/apps/web/build/client" .
 fi
 
-echo "==== [2/4] 打包 api ===="
+echo "==== [2/4] 打包 api + url-mcp ===="
 (cd "$REPO/apps/api" && COPYFILE_DISABLE=1 tar czf /tmp/plane-v2-api.tar.gz \
   --exclude=.venv --exclude=.env --exclude=.env.local --exclude=__pycache__ \
   --exclude=.pytest_cache --exclude=.git .)
+# url-mcp：Mac 侧 esbuild（--target=node20）出单文件产物，服务器零 npm 零构建
+(cd "$REPO/services/url-mcp" && npm run build >/dev/null && COPYFILE_DISABLE=1 tar czf /tmp/url-mcp-v2.tar.gz \
+  server.ts tool.ts tools dist package.json README.md)
 
 echo "==== [3/4] 上传 ===="
 # scp 对老 sshd 偶发「传输完成后关通道报 Connection closed」（文件已完整落
@@ -68,6 +72,8 @@ _upload() {
 }
 _upload /tmp/plane-v2-api.tar.gz
 [ "$SKIP_WEB" -eq 0 ] && _upload /tmp/plane-v2-web.tar.gz
+_upload /tmp/url-mcp-v2.tar.gz
+_upload "$REPO/scripts/systemd/url-mcp.service"  # 单元模板随包走（模板是唯一权威，不内嵌副本）
 
 echo "==== [4/4] 服务器更新（v2）===="
 ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" V2ROOT="$V2ROOT" 'bash -s' <<'REMOTE'
@@ -130,6 +136,30 @@ for _ in $(seq 1 30); do
 done
 echo "v2 api 8202: $code"
 [ "$code" = "200" ] || { echo "❌ v2 api 探活失败"; exit 1; }
+
+# --- url-mcp：全量替换 + systemd 拉起（单元模板由 sync-systemd-units.sh 管理）---
+rm -rf "$V2ROOT/url-mcp.new" && mkdir "$V2ROOT/url-mcp.new"
+tar xzf /tmp/url-mcp-v2.tar.gz -C "$V2ROOT/url-mcp.new"
+find "$V2ROOT/url-mcp.new" -name '._*' -delete 2>/dev/null || true
+[ -x /usr/local/bin/node ] || { echo "❌ 服务器缺 node（/usr/local/bin/node）"; exit 1; }
+rm -rf "$V2ROOT/url-mcp" && mv "$V2ROOT/url-mcp.new" "$V2ROOT/url-mcp"
+if [ ! -f /etc/systemd/system/url-mcp.service ]; then
+  echo "⚠ 首次部署：安装 url-mcp.service（来自仓库模板 /tmp/url-mcp.service）"
+  [ -f /tmp/url-mcp.service ] || { echo "❌ 单元模板未上传（/tmp/url-mcp.service）"; exit 1; }
+  sudo -n cp /tmp/url-mcp.service /etc/systemd/system/url-mcp.service && sudo -n systemctl daemon-reload \
+    || { echo "❌ 单元安装失败（需 passwordless sudo）——先跑 bash scripts/sync-systemd-units.sh $SERVER"; exit 1; }
+fi
+sudo -n systemctl enable url-mcp >/dev/null 2>&1
+sudo -n systemctl restart url-mcp
+# 探活（8624；工具清单应含 url_reader）
+for _ in $(seq 1 10); do
+  code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8624/health 2>/dev/null || echo 000)
+  [ "$code" = "200" ] && break
+  sleep 1
+done
+tools=$(curl -s http://127.0.0.1:8624/health 2>/dev/null | grep -o 'url_reader' | head -1)
+echo "url-mcp 8624: $code ($tools)"
+[ "$code" = "200" ] && [ "$tools" = "url_reader" ] || { echo "❌ url-mcp 探活失败"; journalctl -u url-mcp -n 15 --no-pager 2>/dev/null; exit 1; }
 REMOTE
 
 if [ "$SKIP_WEB" -eq 0 ]; then
@@ -161,3 +191,6 @@ REMOTE
 fi
 
 echo "✅ v2 栈部署完成（v1 现役栈未动）"
+echo "ℹ url_reader 平台链注册（幂等，服务器上执行；凭据按测试服 agwmngr 实际值覆盖）："
+echo "  AGWMNGR=http://127.0.0.1:4005 GW_ID=<测试服网关ID> TENANT=<测试服租户> \\"
+echo "  ADMIN_USER=<超管> ADMIN_PASS=<密码> bash scripts/bootstrap-url-reader.sh"

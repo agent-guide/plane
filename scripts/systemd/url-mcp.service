@@ -1,0 +1,15 @@
+[Unit]
+Description=url-mcp v2 (通用工具 MCP 服务：链接读取 url_reader，:8624)
+After=network.target
+
+[Service]
+User=dongqian
+WorkingDirectory=/opt/projects/ai-platform/v2/url-mcp
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PORT=8624
+ExecStart=/usr/local/bin/node dist/index.mjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
