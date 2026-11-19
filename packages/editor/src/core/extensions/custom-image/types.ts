@@ -6,6 +6,7 @@
 
 import type { Node } from "@tiptap/core";
 // types
+import type { FileUploadErrorCode } from "@plane/utils";
 import type { TFileHandler } from "@/types";
 
 export enum ECustomImageAttributeNames {
@@ -62,6 +63,7 @@ export type CustomImageExtensionOptions = {
   restoreImage: TFileHandler["restore"];
   uploadImage?: TFileHandler["upload"];
   duplicateImage?: TFileHandler["duplicate"];
+  onUploadError?: (error: FileUploadErrorCode) => void;
 };
 
 export type CustomImageExtensionStorage = {

@@ -53,7 +53,9 @@ export const TrackFileRestorationPlugin = (editor: Editor, restoreHandler: TFile
           if (pos < 0 || pos > newState.doc.content.size) return;
           if (oldFileSources[nodeType]?.has(node.attrs.src)) return;
           // update assets list storage value
-          const assetMetaData = CORE_ASSETS_META_DATA_RECORD[nodeType]?.(node.attrs);
+          const assetMetaData = CORE_ASSETS_META_DATA_RECORD[
+            nodeType as keyof typeof CORE_ASSETS_META_DATA_RECORD
+          ]?.(node.attrs);
           if (assetMetaData) {
             editor.commands.updateAssetsList?.({
               asset: assetMetaData,
@@ -69,7 +71,8 @@ export const TrackFileRestorationPlugin = (editor: Editor, restoreHandler: TFile
           const nodeType = node.type.name as keyof NodeFileMapType;
           const src = node.attrs.src;
           const nodeFileSetDetails = NODE_FILE_MAP[nodeType];
-          if (!nodeFileSetDetails) return;
+          // 无 fileSetName 的节点（如附件）不走恢复集合语义，跳过
+          if (!nodeFileSetDetails?.fileSetName) return;
           const extensionFileSetStorage = editor.storage[nodeType]?.[nodeFileSetDetails.fileSetName];
           const wasDeleted = extensionFileSetStorage?.get(src);
           if (!nodeFileSetDetails || !src) return;

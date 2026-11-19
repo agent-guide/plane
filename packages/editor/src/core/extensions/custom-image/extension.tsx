@@ -38,6 +38,7 @@ export function CustomImageExtension(props: Props) {
     addOptions() {
       const upload = "upload" in fileHandler ? fileHandler.upload : undefined;
       const duplicate = "duplicate" in fileHandler ? fileHandler.duplicate : undefined;
+      const onUploadError = "onUploadError" in fileHandler ? fileHandler.onUploadError : undefined;
       return {
         ...this.parent?.(),
         getImageDownloadSource: getAssetDownloadSrc,
@@ -45,6 +46,7 @@ export function CustomImageExtension(props: Props) {
         restoreImage: restoreImageFn,
         uploadImage: upload,
         duplicateImage: duplicate,
+        onUploadError,
       };
     },
 
@@ -74,7 +76,7 @@ export function CustomImageExtension(props: Props) {
                 acceptedMimeTypes: ACCEPTED_IMAGE_MIME_TYPES,
                 file: props.file,
                 maxFileSize: this.storage.maxFileSize,
-                onError: (_error, message) => alert(message),
+                onError: (error) => this.options.onUploadError?.(error),
               })
             ) {
               return false;

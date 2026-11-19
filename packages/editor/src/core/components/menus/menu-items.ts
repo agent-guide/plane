@@ -27,6 +27,7 @@ import {
   MinusSquare,
   Palette,
   AlignCenter,
+  FileText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { LinkIcon } from "@plane/propel/icons";
@@ -36,6 +37,7 @@ import { CORE_EXTENSIONS } from "@/constants/extension";
 import {
   insertHorizontalRule,
   insertImage,
+  insertAttachment,
   insertTableCommand,
   setLinkEditor,
   setText,
@@ -198,6 +200,14 @@ export const ImageItem = (editor: Editor): EditorMenuItem<"image"> => ({
   icon: ImageIcon,
 });
 
+export const AttachmentItem = (editor: Editor): EditorMenuItem<"attachment"> => ({
+  key: "attachment",
+  name: "Attachment",
+  isActive: () => editor?.isActive(CORE_EXTENSIONS.ATTACHMENT),
+  command: () => insertAttachment({ editor, event: "insert", pos: editor.state.selection.from }),
+  icon: FileText,
+});
+
 export const HorizontalRuleItem = (editor: Editor): EditorMenuItem<"divider"> =>
   ({
     key: "divider",
@@ -277,6 +287,7 @@ export const getEditorMenuItems = (editor: Editor | null): EditorMenuItem<TEdito
     QuoteItem(editor),
     TableItem(editor),
     ImageItem(editor),
+    AttachmentItem(editor),
     HorizontalRuleItem(editor),
     LinkItem(editor),
     TextColorItem(editor),

@@ -37,11 +37,29 @@ export const CustomAttachmentExtensionConfig: CustomAttachmentExtensionType = No
   atom: true,
 
   addAttributes() {
+    // 显式声明 parseHTML/renderHTML：确保文件名/URL/状态在「提交评论 → 回显」
+    // 的 HTML 往返中不丢失（不依赖 Tiptap 对未知属性的默认行为）。
     return {
-      [ECustomAttachmentAttributeNames.ID]: { default: null },
-      [ECustomAttachmentAttributeNames.NAME]: { default: null },
-      [ECustomAttachmentAttributeNames.URL]: { default: null },
-      [ECustomAttachmentAttributeNames.STATUS]: { default: ECustomAttachmentStatus.PENDING },
+      [ECustomAttachmentAttributeNames.ID]: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("id"),
+        renderHTML: (attributes: Record<string, unknown>) => ({ id: attributes.id }),
+      },
+      [ECustomAttachmentAttributeNames.NAME]: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("name"),
+        renderHTML: (attributes: Record<string, unknown>) => ({ name: attributes.name }),
+      },
+      [ECustomAttachmentAttributeNames.URL]: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("url"),
+        renderHTML: (attributes: Record<string, unknown>) => ({ url: attributes.url }),
+      },
+      [ECustomAttachmentAttributeNames.STATUS]: {
+        default: ECustomAttachmentStatus.PENDING,
+        parseHTML: (element: HTMLElement) => element.getAttribute("status"),
+        renderHTML: (attributes: Record<string, unknown>) => ({ status: attributes.status }),
+      },
     } as Record<
       ECustomAttachmentAttributeNames,
       { default: TCustomAttachmentAttributes[ECustomAttachmentAttributeNames] }

@@ -6,6 +6,7 @@
 
 import type { Node } from "@tiptap/core";
 // types
+import type { FileUploadErrorCode } from "@plane/utils";
 import type { TFileHandler } from "@/types";
 
 export enum ECustomAttachmentAttributeNames {
@@ -39,6 +40,7 @@ export type InsertAttachmentComponentProps = {
 export type CustomAttachmentExtensionOptions = {
   getAttachmentDownloadSource: TFileHandler["getAssetDownloadSrc"];
   uploadAttachment?: TFileHandler["upload"];
+  onUploadError?: (error: FileUploadErrorCode) => void;
 };
 
 export type CustomAttachmentExtensionStorage = {

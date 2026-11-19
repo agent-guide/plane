@@ -75,6 +75,8 @@ CUSTOM_TAGS = {
     "label",
     "input",
     "image-component",
+    # 评论/描述附件节点（P3 附件一期）：漏掉会被 nh3 剥除 → 纯附件评论被洗成空串
+    "attachment-component",
 }
 ALLOWED_TAGS = nh3.ALLOWED_TAGS | CUSTOM_TAGS
 
@@ -134,6 +136,7 @@ ATTRIBUTES = {
         "title",
     },
     "mention-component": {"id", "entity_identifier", "entity_name"},
+    "attachment-component": {"id", "name", "url", "status"},
     "th": {
         "colspan",
         "rowspan",

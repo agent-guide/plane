@@ -13,7 +13,7 @@ import { cn } from "@plane/utils";
 import { ACCEPTED_ATTACHMENT_MIME_TYPES, ACCEPTED_IMAGE_MIME_TYPES } from "@/constants/config";
 import { CORE_EXTENSIONS } from "@/constants/extension";
 // helpers
-import type { EFileError } from "@/helpers/file";
+import type { FileUploadErrorCode } from "@/helpers/file";
 // hooks
 import { useUploader, useDropZone, uploadFirstFileAndInsertRemaining } from "@/hooks/use-file-upload";
 import { insertFilesSafely } from "@/plugins/drop";
@@ -110,9 +110,12 @@ export function CustomImageUploader(props: CustomImageUploaderProps) {
     [editor]
   );
 
-  const handleInvalidFile = useCallback((_error: EFileError, _file: File, message: string) => {
-    alert(message);
-  }, []);
+  const handleInvalidFile = useCallback(
+    (error: FileUploadErrorCode) => {
+      extension.options.onUploadError?.(error);
+    },
+    [extension.options.onUploadError]
+  );
 
   // hooks
   const { isUploading: isImageBeingUploaded, uploadFile } = useUploader({

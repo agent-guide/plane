@@ -38,10 +38,12 @@ export function CustomAttachmentExtension(extensionProps: Props) {
 
     addOptions() {
       const upload = "upload" in fileHandler ? fileHandler.upload : undefined;
+      const onUploadError = "onUploadError" in fileHandler ? fileHandler.onUploadError : undefined;
       return {
         ...this.parent?.(),
         getAttachmentDownloadSource: getAssetDownloadSrc,
         uploadAttachment: upload,
+        onUploadError,
       };
     },
 
@@ -64,7 +66,7 @@ export function CustomAttachmentExtension(extensionProps: Props) {
                 acceptedMimeTypes: ACCEPTED_ATTACHMENT_MIME_TYPES,
                 file: props.file,
                 maxFileSize: this.storage.maxFileSize,
-                onError: (_error, message) => alert(message),
+                onError: (error) => this.options.onUploadError?.(error),
               })
             ) {
               return false;

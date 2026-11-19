@@ -65,13 +65,16 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
     try {
       const comment = await activityOperations.createComment(formData);
       if (comment?.id) onSubmitCallback?.(comment.id);
-      if (uploadedAssetIds.length > 0) {
+      // 附件落盘绑定必须用“新建评论的 id”——bulk 端点把该参数当 comment_id。
+      // 之前误传 entityId（= 工作卡 id）→ 外键约束失败被后端静默吞掉 → 附件
+      // 永远挂不到评论上（FileAsset.comment_id 恒 None，员工解析不到内容）。
+      if (uploadedAssetIds.length > 0 && comment?.id) {
         if (projectId) {
-          await fileService.updateBulkProjectAssetsUploadStatus(workspaceSlug, projectId.toString(), entityId, {
+          await fileService.updateBulkProjectAssetsUploadStatus(workspaceSlug, projectId.toString(), comment.id, {
             asset_ids: uploadedAssetIds,
           });
         } else {
-          await fileService.updateBulkWorkspaceAssetsUploadStatus(workspaceSlug, entityId, {
+          await fileService.updateBulkWorkspaceAssetsUploadStatus(workspaceSlug, comment.id, {
             asset_ids: uploadedAssetIds,
           });
         }
@@ -129,6 +132,7 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
                 ref={editorRef}
                 initialValue={value ?? "<p></p>"}
                 containerClassName="min-h-min"
+                editorClassName="min-h-[72px]"
                 onChange={(comment_json, comment_html) => onChange(comment_html)}
                 accessSpecifier={accessValue ?? EIssueCommentAccessSpecifier.INTERNAL}
                 handleAccessChange={onAccessChange}
@@ -137,6 +141,11 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
                   const { asset_id } = await activityOperations.uploadCommentAsset(blockId, file);
                   setUploadedAssetIds((prev) => [...prev, asset_id]);
                   return asset_id;
+                }}
+                onAssetRemoved={(assetId) => {
+                  // 编辑器里删掉附件/图片节点时同步移除登记——否则提交时仍会
+                  // bulk 绑定该资产，产生页面上看不到的"隐形附件"（员工却能读到）
+                  setUploadedAssetIds((prev) => prev.filter((id) => id !== assetId));
                 }}
                 duplicateFile={async (assetId: string) => {
                   const { asset_id } = await activityOperations.duplicateCommentAsset(assetId);

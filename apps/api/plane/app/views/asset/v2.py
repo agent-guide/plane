@@ -71,11 +71,19 @@ _EXTENSION_TO_MIME = {
 
 
 def _resolve_attachment_mime(name: str, type_: str) -> str:
-    """前端签名检测认不出的纯文本附件，按扩展名回退出 MIME（否则会因 type 空被拒）。"""
-    if type_:
-        return type_
+    """前端签名检测认不出的纯文本附件，按扩展名回退出 MIME（否则会因 type 空被拒）。
+
+    Office 文档（docx/xlsx/pptx）是 zip 容器，file-type 常把它们判成
+    application/zip / application/octet-stream——这些泛型 MIME 同样需要按扩展名
+    回退，否则会被白名单拒绝。图片等有明确签名的类型保持签名值不动。
+    """
     ext = (name or "").rsplit(".", 1)[-1].lower() if "." in (name or "") else ""
-    return _EXTENSION_TO_MIME.get(ext, "")
+    mapped = _EXTENSION_TO_MIME.get(ext)
+    # 泛型/空 MIME 一律优先信任扩展名（白名单只收已知扩展→已知 MIME，安全）
+    generic = type_ in ("", "application/zip", "application/x-zip-compressed", "application/octet-stream")
+    if mapped and generic:
+        return mapped
+    return type_
 
 
 class UserAssetsV2Endpoint(BaseAPIView):

@@ -19,7 +19,11 @@ import type { TFileNode } from "./types";
 
 const DELETE_PLUGIN_KEY = new PluginKey("delete-utility");
 
-export const TrackFileDeletionPlugin = (editor: Editor, deleteHandler: TFileHandler["delete"]): Plugin =>
+export const TrackFileDeletionPlugin = (
+  editor: Editor,
+  deleteHandler: TFileHandler["delete"],
+  onAssetRemoved?: TFileHandler["onAssetRemoved"]
+): Plugin =>
   new Plugin({
     key: DELETE_PLUGIN_KEY,
     appendTransaction: (transactions: readonly Transaction[], oldState: EditorState, newState: EditorState) => {
@@ -33,10 +37,11 @@ export const TrackFileDeletionPlugin = (editor: Editor, deleteHandler: TFileHand
         const nodeType = node.type.name as keyof NodeFileMapType;
         const nodeFileSetDetails = NODE_FILE_MAP[nodeType];
         if (nodeFileSetDetails) {
+          const src = node.attrs[nodeFileSetDetails.srcAttr ?? "src"];
           if (newFileSources[nodeType]) {
-            newFileSources[nodeType].add(node.attrs.src);
+            newFileSources[nodeType]?.add(src);
           } else {
-            newFileSources[nodeType] = new Set([node.attrs.src]);
+            newFileSources[nodeType] = new Set([src]);
           }
         }
       });
@@ -46,27 +51,32 @@ export const TrackFileDeletionPlugin = (editor: Editor, deleteHandler: TFileHand
       // iterate through all the nodes in the old state
       oldState.doc.descendants((node) => {
         const nodeType = node.type.name as keyof NodeFileMapType;
-        const isAValidNode = NODE_FILE_MAP[nodeType];
+        const nodeFileSetDetails = NODE_FILE_MAP[nodeType];
         // if the node doesn't match, then return as no point in checking
-        if (!isAValidNode) return;
+        if (!nodeFileSetDetails) return;
+        const src = node.attrs[nodeFileSetDetails.srcAttr ?? "src"];
         // Check if the node has been deleted or replaced
-        if (!newFileSources[nodeType]?.has(node.attrs.src)) {
+        if (!newFileSources[nodeType]?.has(src)) {
           removedFiles.push(node as TFileNode);
         }
       });
 
       removedFiles.forEach(async (node) => {
         const nodeType = node.type.name as keyof NodeFileMapType;
-        const src = node.attrs.src;
         const nodeFileSetDetails = NODE_FILE_MAP[nodeType];
+        const src = node.attrs[nodeFileSetDetails?.srcAttr ?? "src"];
         if (!nodeFileSetDetails || !src) return;
         try {
-          editor.storage[nodeType]?.[nodeFileSetDetails.fileSetName]?.set(src, true);
+          if (nodeFileSetDetails.fileSetName) {
+            editor.storage[nodeType]?.[nodeFileSetDetails.fileSetName]?.set(src, true);
+          }
           // update assets list storage value
           editor.commands.updateAssetsList?.({
             idToRemove: node.attrs.id,
           });
           await deleteHandler(src);
+          // 通知 app 层同步移除其上传登记（如评论的 uploadedAssetIds，防"隐形附件"）
+          onAssetRemoved?.(src);
         } catch (error) {
           console.error("Error deleting file via delete utility plugin:", error);
         }

@@ -4,16 +4,17 @@
  * See the LICENSE file for details.
  */
 
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, X } from "lucide-react";
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 // plane imports
 import { cn } from "@plane/utils";
 // constants
 import { ACCEPTED_ATTACHMENT_MIME_TYPES } from "@/constants/config";
 // helpers
-import type { EFileError } from "@/helpers/file";
+import type { FileUploadErrorCode } from "@/helpers/file";
 // hooks
 import { useUploader, useDropZone, uploadFirstFileAndInsertRemaining } from "@/hooks/use-file-upload";
 // local imports
@@ -75,18 +76,37 @@ export function CustomAttachmentNodeView(props: Props) {
     [extension.options, attachmentId, updateAttributes]
   );
 
-  const handleInvalidFile = useCallback((_error: EFileError, _file: File, message: string) => {
-    alert(message);
-  }, []);
+  const handleInvalidFile = useCallback(
+    (error: FileUploadErrorCode) => {
+      extension.options.onUploadError?.(error);
+    },
+    [extension.options.onUploadError]
+  );
+
+  const handleProgressStatus = useCallback(
+    (isUploading: boolean) => {
+      editor.storage.utility.uploadInProgress = isUploading;
+    },
+    [editor]
+  );
 
   const maxFileSize = (editor.storage.attachment as { maxFileSize?: number } | undefined)?.maxFileSize ?? 0;
+
+  // 上传失败时自删占位节点（否则失败后残留一个"选择文件"的空白附件块）
+  const removeNode = useCallback(() => {
+    const pos = getPos();
+    if (pos === undefined) return;
+    editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+  }, [editor, getPos, node.nodeSize]);
 
   const { isUploading, uploadFile } = useUploader({
     acceptedMimeTypes: ACCEPTED_ATTACHMENT_MIME_TYPES,
     editorCommand: uploadAttachmentEditorCommand,
+    handleProgressStatus,
     maxFileSize,
     onInvalidFile: handleInvalidFile,
     onUpload,
+    onError: removeNode,
   });
 
   const { draggedInside, onDrop, onDragEnter, onDragLeave } = useDropZone({
@@ -156,7 +176,8 @@ export function CustomAttachmentNodeView(props: Props) {
   );
 
   return (
-    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- 编辑器节点外壳须为 contentEditable=false 的 div 块容器，语义 button 会引入嵌套交互问题
+    <NodeViewWrapper key={node.attrs[ECustomAttachmentAttributeNames.ID]}>
+    {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- 编辑器节点外壳须为 contentEditable=false 的 div 块容器，语义 button 会引入嵌套交互问题 */}
     <div
       role="button"
       /* 编辑器节点外壳需 contentEditable=false 的块容器，语义 button 标签
@@ -199,6 +220,20 @@ export function CustomAttachmentNodeView(props: Props) {
           Download
         </a>
       )}
+      {editor.isEditable && !isUploading && (
+        <button
+          type="button"
+          aria-label="Remove attachment"
+          title="Remove attachment"
+          className="ml-auto shrink-0 rounded p-0.5 text-tertiary hover:bg-layer-3-hover hover:text-danger-primary"
+          onClick={(e) => {
+            e.stopPropagation();
+            removeNode();
+          }}
+        >
+          <X className="size-3.5" aria-hidden />
+        </button>
+      )}
       <input
         className="size-0 overflow-hidden"
         ref={fileInputRef}
@@ -209,5 +244,6 @@ export function CustomAttachmentNodeView(props: Props) {
         multiple
       />
     </div>
+    </NodeViewWrapper>
   );
 }
