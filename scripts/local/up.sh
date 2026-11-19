@@ -44,15 +44,25 @@ if ! echo 's3.bucket.list' | "$WEED" shell -master=127.0.0.1:9333 2>/dev/null | 
 ok "bucket uploads 就绪"
 
 step "③ url-mcp（:8624，链接读取 MCP 工具）"
-URL_MCP="$PWD/../../services/url-mcp/server.ts"
+URL_MCP_DIR="$PWD/../../services/url-mcp"
+URL_MCP="$URL_MCP_DIR/server.ts"
 [ -f "$URL_MCP" ] || fail "url-mcp 缺失：$URL_MCP"
+# node ≥23 直跑 TS（零构建）；<23（如测试服 node 20）先 esbuild 出产物再跑
+NODE_MAJOR=$(node -p 'Number(process.versions.node.split(".")[0])')
+URL_MCP_RUN="$URL_MCP"
+if [ "$NODE_MAJOR" -lt 23 ]; then
+  hint "node ${NODE_MAJOR} <23，走构建产物形态（esbuild）"
+  (cd "$URL_MCP_DIR" && npm ci --silent >/dev/null 2>&1 && npm run build >/dev/null) \
+    || fail "url-mcp 构建失败（cd services/url-mcp && npm run build 看报错）"
+  URL_MCP_RUN="$URL_MCP_DIR/dist/index.mjs"
+fi
 if probe_contains "http://127.0.0.1:8624/health" '"ok"\|{}'; then
   ok "url-mcp 已在运行"; else
-  stop_if_running "services/url-mcp/server.ts" "url-mcp 残留"
-  nohup node "$URL_MCP" > /tmp/url-mcp.log 2>&1 &
+  stop_if_running "services/url-mcp" "url-mcp 残留"
+  nohup node "$URL_MCP_RUN" > /tmp/url-mcp.log 2>&1 &
   SECONDS=0; until curl -s -o /dev/null --max-time 2 http://127.0.0.1:8624/health; do
     [ $SECONDS -ge 8 ] && { fail "url-mcp 探活失败"; hint "看 /tmp/url-mcp.log"; }; sleep 1; done
-  ok "url-mcp 已启动"; fi
+  ok "url-mcp 已启动（$([ "$NODE_MAJOR" -lt 23 ] && echo 构建产物 || echo TS 直跑)）"; fi
 
 step "④ agent-gateway（:${GW_DATA_PORT} / :${GW_ADMIN_PORT}）"
 [ -x "$GW_DIR/agw" ] || fail "网关二进制缺失 —— cd $GW_DIR && git checkout v0.8.0-preview.1 && make build"
