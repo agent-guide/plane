@@ -130,16 +130,22 @@ export function ConversationPane({
                 rafRef.current = null;
                 tokenBufRef.current = "";
               }
-              // 协议 v2：done 快照定稿——替换乐观占位（user/assistant 的 local id
-              // 换成真实 id），kind/content 用快照；不再回拉 listMessages
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id === userLocalId) return { ...m, id: done.userMessageId ?? m.id };
-                  if (m.id === assistantLocalId)
-                    return { ...m, id: done.messageId, kind: done.kind, content: done.content };
-                  return m;
-                })
-              );
+              // 协议 v2：done 快照定稿——user 乐观条目换真实 id；assistant 定稿
+              // 消息以快照构造后**追加**（此前误写「替换 assistantLocalId」——
+              // assistant 占位只存在于 streaming state、从未插入 messages，替换
+              // 永不命中 → 气泡消失无定稿、刷新才见，11-19 实证修复）
+              setMessages((prev) => {
+                const next = prev.map((m) =>
+                  m.id === userLocalId ? { ...m, id: done.userMessageId ?? m.id } : m);
+                if (!next.some((m) => m.id === done.messageId)) {
+                  next.push({
+                    id: done.messageId, role: "agent", kind: done.kind,
+                    content: done.content, attachments: [], streamingOffset: 0,
+                    createdAt: new Date().toISOString(),
+                  });
+                }
+                return next;
+              });
               setStreaming(null);
             },
             onError: (normalized) => setStreaming((prev) => (prev ? { ...prev, error: normalized } : prev)),
@@ -153,17 +159,21 @@ export function ConversationPane({
       } catch (err) {
         if ((err as Error).name === "AbortError") {
           // 停止：本地用 partial 定稿「已中断」，不回拉（后端 GeneratorExit 落库
-          // 供下次进入恢复；本次显示以前端本地 partial 为准）
+          // 供下次进入恢复；本次显示以前端本地 partial 为准）——定稿条目
+          // 以追加落账（assistant 占位不在 messages，与 onDone 同因）
           let partial = "";
           setStreaming((current) => {
             partial = current?.text ?? "";
             return null;
           });
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantLocalId ? { ...m, content: { text: partial, interrupted: true } } : m
-            )
-          );
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: assistantLocalId, role: "agent", kind: "text",
+              content: { text: partial, interrupted: true },
+              attachments: [], streamingOffset: 0, createdAt: new Date().toISOString(),
+            },
+          ]);
         } else {
           // 失败收敛：partial + 错误折成一条历史消息（不留悬挂空气泡）
           setStreaming((current) => {
