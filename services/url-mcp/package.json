@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.ts",
+    "dev": "node server.ts",
+    "build": "esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/index.mjs --packages=external",
+    "start": "node dist/index.mjs",
     "typecheck": "tsc --noEmit"
   },
-  "engines": { "node": ">=23" },
+  "engines": { "node": ">=20" },
   "devDependencies": {
+    "esbuild": "^0.27.0",
     "typescript": "^6.0.0",
     "@types/node": "^26.0.0"
   }
