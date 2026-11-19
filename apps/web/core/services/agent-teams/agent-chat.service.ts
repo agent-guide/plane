@@ -20,6 +20,8 @@ export interface AgentConversation {
   summaryCompacted: boolean;
   lastMessageAt: string | null;
   lastMessagePreview: string;
+  /** 最后一条消息的错误结构（预览与会话页共用 displayErrorDetail 渲染） */
+  lastMessageError?: { code: string; detail?: string } | null;
   unread: boolean;
   member?: { kind: string; role: string; displayName: string; enabled: boolean };
 }
@@ -47,7 +49,8 @@ export interface AgentMessage {
 
 export type ChatStreamEvent =
   | { type: "delta"; text: string; messageId: string }
-  | { type: "done"; messageId: string; kind: AgentMessageKind }
+  | { type: "stage"; phase: "tool" | "plan"; label: string }
+  | { type: "done"; messageId: string; userMessageId?: string; kind: AgentMessageKind; content: { text?: string }; stopReason?: string }
   | { type: "error"; code: string; detail?: string; checkpoint?: boolean; options?: string[] };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -109,8 +112,8 @@ export async function confirmCard(
   messageId: string,
   action: "confirm" | "cancel",
   projectId: string
-): Promise<{ state: string; issueId?: string }> {
-  return request<{ state: string; issueId?: string }>(
+): Promise<{ state: string; issueId?: string; confirmedCard?: AgentMessage; flowCard?: AgentMessage }> {
+  return request<{ state: string; issueId?: string; confirmedCard?: AgentMessage; flowCard?: AgentMessage }>(
     `/api/workspaces/${workspaceSlug}/agent-teams/conversations/${conversationId}/messages/${messageId}/confirm/`,
     {
       method: "POST",
@@ -176,7 +179,16 @@ export async function sendMessage(
       try {
         const obj = JSON.parse(data);
         if (type === "delta") onEvent({ type: "delta", text: obj.text ?? "", messageId: obj.messageId });
-        else if (type === "done") onEvent({ type: "done", messageId: obj.messageId, kind: obj.kind });
+        else if (type === "stage") onEvent({ type: "stage", phase: obj.phase ?? "tool", label: obj.label ?? "" });
+        else if (type === "done")
+          onEvent({
+            type: "done",
+            messageId: obj.messageId,
+            userMessageId: obj.userMessageId,
+            kind: obj.kind,
+            content: obj.content ?? {},
+            stopReason: obj.stopReason,
+          });
         else if (type === "error")
           onEvent({
             type: "error",
@@ -197,7 +209,7 @@ export async function shareMessageToCard(
   conversationId: string,
   messageId: string,
   issueId: string
-): Promise<{ commentId: string; issueId: string; issueName: string }> {
+): Promise<{ commentId: string; issueId: string; issueName: string; sharedMessage?: AgentMessage }> {
   const response = await fetch(
     `/api/workspaces/${workspaceSlug}/agent-teams/conversations/${conversationId}/messages/${messageId}/share/`,
     {

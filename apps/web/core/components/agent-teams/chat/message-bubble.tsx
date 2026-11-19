@@ -143,12 +143,19 @@ export function StreamingBubble({
   streaming,
   onCheckpoint,
 }: {
-  streaming: { text: string; error?: StreamError };
+  streaming: { text: string; stage?: { phase: "tool" | "plan"; label: string } | null; error?: StreamError };
   onCheckpoint: (option: "continue" | "convert" | "stop") => void;
 }) {
   const { t } = useTranslation();
   return (
     <div className="max-w-[85%] min-w-0 self-start break-words rounded-2xl rounded-bl-md border border-subtle bg-layer-2 px-4 py-3">
+      {/* 协议 v2 进度：单行当前步骤态（「正在…」），正文流式其下 */}
+      {streaming.stage?.label && (
+        <div className="mb-2 flex items-center gap-1.5 text-caption-sm-regular text-tertiary">
+          <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-accent-primary" />
+          {streaming.stage.label}
+        </div>
+      )}
       {streaming.text ? (
         <MarkdownBody text={streaming.text} />
       ) : streaming.error ? (

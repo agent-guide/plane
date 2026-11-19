@@ -20,6 +20,7 @@ import {
   sendMessage,
   type AgentConversation,
   type AgentMessage,
+  type AgentMessageKind,
   type ChatStreamEvent,
 } from "./agent-chat.service";
 
@@ -37,6 +38,7 @@ export type ChatSession = {
   unread: boolean;
   summaryCompacted: boolean;
   lastMessagePreview: string;
+  lastMessageError?: { code: string; detail?: string } | null;
   lastMessageAt: string | null;
   member?: { kind: string; role: string; displayName: string; enabled: boolean };
 };
@@ -47,6 +49,8 @@ export type StreamTurnOptions = {
   signal?: AbortSignal;
   webSearchEnabled?: boolean;
   onToken: (token: string) => void;
+  onStage?: (stage: { phase: "tool" | "plan"; label: string }) => void; // 协议 v2：进度透传
+  onDone?: (done: { messageId: string; userMessageId?: string; kind: AgentMessageKind; content: { text?: string } }) => void; // 协议 v2：定稿快照
   onTrace?: (item: unknown) => void; // v2 网关暂无 trace 事件；接口保留
   onSourceCount?: (count: number) => void; // 同上
   onTitle?: (title: string) => void; // v2 标题由会话 title 字段承载
@@ -65,6 +69,7 @@ function toSession(c: AgentConversation): ChatSession {
     unread: c.unread,
     summaryCompacted: c.summaryCompacted,
     lastMessagePreview: c.lastMessagePreview,
+    lastMessageError: c.lastMessageError,
     lastMessageAt: c.lastMessageAt,
     member: c.member,
   };
@@ -122,6 +127,9 @@ export const chatService = {
       attachmentIds,
       (event: ChatStreamEvent) => {
         if (event.type === "delta") opts.onToken(event.text);
+        else if (event.type === "stage") opts.onStage?.({ phase: event.phase, label: event.label });
+        else if (event.type === "done")
+          opts.onDone?.({ messageId: event.messageId, userMessageId: event.userMessageId, kind: event.kind, content: event.content });
         else if (event.type === "error") opts.onError?.(event);
       },
       opts.signal,
@@ -144,7 +152,7 @@ export const chatService = {
     messageId: string,
     action: "confirm" | "cancel",
     projectId?: string
-  ): Promise<{ state: string; issueId?: string }> {
+  ): Promise<{ state: string; issueId?: string; confirmedCard?: AgentMessage; flowCard?: AgentMessage }> {
     return confirmCardApi(workspaceSlug, sessionId, messageId, action, projectId ?? "");
   },
 };

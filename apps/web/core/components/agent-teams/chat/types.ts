@@ -10,11 +10,13 @@ import type { ChatMessage, ChatSession } from "@/services/agent-teams/chat.servi
 
 export type { AgentMessage, ChatMessage, ChatSession };
 
-/** 流式中的员工回复（首字前的等待态 / 增量 / 错误）。 */
+/** 流式中的员工回复（首字前的等待态 / 增量 / 阶段进度 / 错误）。 */
 export type StreamingAssistant = {
   id: string;
   text: string;
   sourceCount: number;
+  /** 协议 v2 进度透传：当前阶段（单行「正在…」），done 后清空 */
+  stage?: { phase: "tool" | "plan"; label: string } | null;
   error?: StreamError;
 };
 

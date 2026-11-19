@@ -233,12 +233,13 @@ class ConversationMessagesEndpoint(BaseAPIView):
         if not text and not attachment_ids:
             return Response({"error": "empty message"}, status=400)
         # 用户消息落库（先于 turn——对话历史与全量重传语义的锚点）
-        AgentMessage.objects.create(
+        user_msg = AgentMessage.objects.create(
             conversation=conv, role=AgentMessage.Role.USER, kind=AgentMessage.Kind.TEXT,
             content={"text": text}, attachments=attachment_ids)
         conv.last_message_at = dj_tz.now()
         conv.save(update_fields=["last_message_at", "updated_at"])
         return _stream_agent_reply(conv, text, attachment_ids,
+                                   user_message_id=str(user_msg.id),
                                    web_search=bool(request.data.get("web_search")))
 
 
@@ -246,7 +247,7 @@ _REPLY_PERSIST_EVERY = 8  # 增量落库节流（每 N 个 delta 刷一次游标
 
 
 def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list[str],
-                        web_search: bool = False):
+                        user_message_id: str = "", web_search: bool = False):
     """拉起员工 turn 并 SSE 流式返回；回复增量写库（断线续传锚点）。"""
     from .chat import build_chat_prompt, stream_agent_turn, maybe_compact_history
     from .execution_context import answer_attachment_results
@@ -287,9 +288,11 @@ def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list
                     reply.streaming_offset = len(chunks)
                     reply.save(update_fields=["kind", "content", "streaming_offset", "updated_at"])
                     maybe_compact_history(conv)
-                    # 协议 v2 §四：done 带定稿快照，前端据此定稿、不再回拉
+                    # 协议 v2 §四：done 带定稿快照（含 user 消息真实 id，供前端
+                    # 替换乐观占位），前端据此定稿、不再回拉
                     yield _sse_frame("done", {
-                        "v": 2, "messageId": reply.id, "kind": reply.kind,
+                        "v": 2, "messageId": reply.id, "userMessageId": user_message_id,
+                        "kind": reply.kind,
                         "content": {"text": final_text}, "stopReason": event.get("stopReason", ""),
                     })
         except GeneratorExit:
@@ -394,7 +397,8 @@ class ConversationConfirmEndpoint(BaseAPIView):
         if action == "cancel":
             m.content = {**m.content, "confirm": {**m.content["confirm"], "state": "cancelled"}}
             m.save(update_fields=["content", "updated_at"])
-            return Response({"id": m.id, "state": "cancelled"})
+            # 协议 v2 §五：操作响应定点返回更新后的单条消息，前端定点更新不回拉
+            return Response({"confirmedCard": _message_json(m), "state": "cancelled"})
 
         if action != "confirm":
             return Response({"error": "action must be confirm or cancel"}, status=400)
@@ -430,14 +434,17 @@ class ConversationConfirmEndpoint(BaseAPIView):
         m.content = {**m.content, "confirm": {**card, "state": "confirmed",
                                               "issueId": str(issue.id)}}
         m.save(update_fields=["content", "updated_at"])
-        AgentMessage.objects.create(
+        flow_msg = AgentMessage.objects.create(
             conversation=conv, role=AgentMessage.Role.AGENT,
             kind=AgentMessage.Kind.FLOW_CARD,
             content={"text": "", "card": {"issueId": str(issue.id), "projectId": str(project.id),
                                           "title": issue.name, "status": "已自动开始执行"}})
         conv.last_message_at = dj_tz.now()
         conv.save(update_fields=["last_message_at", "updated_at"])
-        return Response({"id": m.id, "state": "confirmed", "issueId": str(issue.id)})
+        # 协议 v2 §五：操作响应定点返回受影响消息快照（确认卡 + 新流程卡），
+        # 前端定点更新不回拉
+        return Response({"confirmedCard": _message_json(m), "flowCard": _message_json(flow_msg),
+                         "state": "confirmed", "issueId": str(issue.id)})
 
 
 class ConversationShareEndpoint(BaseAPIView):
@@ -480,5 +487,6 @@ class ConversationShareEndpoint(BaseAPIView):
                           "title": issue.name, "at": _tz.now().isoformat()})
         m.content = {**m.content, "sharedTo": shared_to}
         m.save(update_fields=["content", "updated_at"])
+        # 协议 v2 §五：操作响应定点返回更新后的原消息（含 sharedTo 回执），前端定点更新
         return Response({"commentId": str(comment.id), "issueId": str(issue.id),
-                         "issueName": issue.name})
+                         "issueName": issue.name, "sharedMessage": _message_json(m)})
