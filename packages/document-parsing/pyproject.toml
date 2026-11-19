@@ -1,0 +1,15 @@
+[project]
+name = "document-parsing"
+version = "0.1.0"
+description = "文档解析单一权威源：pdf/docx/xlsx/pptx/html/文本类 → 纯文本（Plane 编排域注入与 doc-mcp parse_document 工具共用）"
+requires-python = ">=3.11"
+# 解析库由各消费方按需安装（本包零强制依赖，保持轻量）：
+# plane apps/api 在 requirements/base.txt 已钉版本；doc-mcp 在自身 requirements 钉
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["document_parsing*"]

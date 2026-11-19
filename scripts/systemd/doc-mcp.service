@@ -1,0 +1,15 @@
+[Unit]
+Description=doc-mcp v2 (文档解析 MCP 服务：parse_document，:8625)
+After=network.target
+
+[Service]
+User=dongqian
+WorkingDirectory=/opt/projects/ai-platform/v2/doc-mcp
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PORT=8625
+ExecStart=/opt/projects/ai-platform/v2/doc-mcp/.venv/bin/python server.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

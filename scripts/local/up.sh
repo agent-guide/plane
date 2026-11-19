@@ -64,19 +64,41 @@ if probe_contains "http://127.0.0.1:8624/health" '"ok"\|{}'; then
     [ $SECONDS -ge 8 ] && { fail "url-mcp 探活失败"; hint "看 /tmp/url-mcp.log"; }; sleep 1; done
   ok "url-mcp 已启动（$([ "$NODE_MAJOR" -lt 23 ] && echo 构建产物 || echo TS 直跑)）"; fi
 
-step "④ agent-gateway（:${GW_DATA_PORT} / :${GW_ADMIN_PORT}）"
+step "④ doc-mcp（:8625，文档解析 MCP 工具 parse_document）"
+DOC_MCP_DIR="$PWD/../../services/doc-mcp"
+[ -f "$DOC_MCP_DIR/server.py" ] || fail "doc-mcp 缺失：$DOC_MCP_DIR"
+# Python 服务：venv 自持（缺则建，uv cpython3.12 → 系统 python3 回退）
+if [ ! -x "$DOC_MCP_DIR/.venv/bin/python" ]; then
+  PY312=$(ls "$HOME"/.local/share/uv/python/cpython-3.12*/bin/python3.12 2>/dev/null | head -1)
+  ("${PY312:-python3}" -m venv "$DOC_MCP_DIR/.venv" \
+    && "$DOC_MCP_DIR/.venv/bin/pip" install -q --upgrade pip \
+    && "$DOC_MCP_DIR/.venv/bin/pip" install -q -r "$DOC_MCP_DIR/requirements.txt") \
+    || fail "doc-mcp venv 构建失败（cd services/doc-mcp 手动跑 requirements）"
+fi
+if probe_contains "http://127.0.0.1:8625/health" '"ok"'; then
+  ok "doc-mcp 已在运行"; else
+  stop_if_running "services/doc-mcp" "doc-mcp 残留"
+  nohup "$DOC_MCP_DIR/.venv/bin/python" "$DOC_MCP_DIR/server.py" > /tmp/doc-mcp.log 2>&1 &
+  SECONDS=0; until curl -s -o /dev/null --max-time 2 http://127.0.0.1:8625/health; do
+    [ $SECONDS -ge 8 ] && { fail "doc-mcp 探活失败"; hint "看 /tmp/doc-mcp.log"; }; sleep 1; done
+  ok "doc-mcp 已启动"; fi
+
+step "⑤ agent-gateway（:${GW_DATA_PORT} / :${GW_ADMIN_PORT}）"
 [ -x "$GW_DIR/agw" ] || fail "网关二进制缺失 —— cd $GW_DIR && git checkout v0.8.0-preview.1 && make build"
 if probe_contains "http://localhost:$GW_ADMIN_PORT/admin/health" '"status"' -u "$GW_ADMIN_USER:$GW_ADMIN_PASSWORD"; then
   ok "gateway 已在运行"; else
   stop_if_running "agw run --config" "gateway 残留"
-  (cd "$GW_DIR" && mkdir -p data && nohup ./agw run --config Caddyfile.local > /tmp/agw.log 2>&1 &)
+  # PATH 必须含 ~/.local/bin：ACP 员工 turn 时网关 spawn opencode（装在那里），
+  # 缺了则 spawn 找不到二进制、turn 毫秒级 502「turn failed」（11-19 实证，
+  # 曾误诊为契约漂移）
+  (cd "$GW_DIR" && mkdir -p data && PATH="$HOME/.local/bin:$PATH" nohup ./agw run --config Caddyfile.local > /tmp/agw.log 2>&1 &)
   SECONDS=0; until probe_contains "http://localhost:$GW_ADMIN_PORT/admin/health" '"status"' -u "$GW_ADMIN_USER:$GW_ADMIN_PASSWORD"; do
     [ $SECONDS -ge 15 ] && { fail "gateway 探活失败"; hint "看 /tmp/agw.log；Caddyfile.local 未生成则重跑 gen-env.sh"; }; sleep 1; done
   ok "gateway 已启动"; fi
 
 # ── Airflow 必须早于 api/worker：worker/发布路径读 ORCHESTRATION_AIRFLOW_* ──
 if [ $SKIP_AF -eq 0 ]; then
-step "⑤ Airflow 三件套 + token 签回（:${AIRFLOW_PORT}）"
+step "⑥ Airflow 三件套 + token 签回（:${AIRFLOW_PORT}）"
 export AIRFLOW_HOME=$AIRFLOW_HOME_DIR
 export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="sqlite:////$AIRFLOW_HOME_DIR/airflow.db"
 export AIRFLOW__CORE__EXECUTOR=LocalExecutor
@@ -103,7 +125,7 @@ grep -q '^ORCHESTRATION_AIRFLOW_TOKEN=' "$API_DIR/.env" || echo "ORCHESTRATION_A
 ok "ORCHESTRATION_AIRFLOW_TOKEN 已签回 .env"
 fi
 
-step "⑥ Plane API（:${API_PORT}）+ worker"
+step "⑦ Plane API（:${API_PORT}）+ worker"
 # 强制重启 api（不跳过已运行实例）：.env 可能在本次 up 前被 gen-env/provision 改过，
 # 跳过会让 api 带旧 env 运行（Docker 主机名/空 token 类漂移根源，2026-11-17 实证）。
 # dev server 重启代价 ~10s，稳定性优先。
@@ -120,7 +142,7 @@ sleep 3; pgrep -f procrastinate_worker.py >/dev/null || fail "worker 启动失�
 ok "编排 worker 已启动（Procrastinate 单实例）"
 
 if [ $SKIP_WEB -eq 0 ]; then
-step "⑦ Plane web（:${WEB_PORT}）"
+step "⑧ Plane web（:${WEB_PORT}）"
 if probe_http 200 "http://localhost:$WEB_PORT/"; then ok "web 已在运行"; else
   stop_if_running "apps/web" "web"
   (cd "$WEB_DIR" && nohup pnpm dev > /tmp/plane-web.log 2>&1 &)
@@ -129,7 +151,7 @@ if probe_http 200 "http://localhost:$WEB_PORT/"; then ok "web 已在运行"; els
   ok "web 已启动"; fi
 fi
 
-step "⑧ agwmngr（:${MGR_PORT}）"
+step "⑨ agwmngr（:${MGR_PORT}）"
 if probe_contains "http://127.0.0.1:$MGR_PORT/api/admin/health" 'ok\|{}'; then ok "agwmngr 已在运行"; else
   stop_if_running "next dev --webpack -p $MGR_PORT" "agwmngr"
   (cd "$MGR_DIR" && nohup node node_modules/next/dist/bin/next dev --webpack -p $MGR_PORT > /tmp/agwmngr.log 2>&1 &)
@@ -137,6 +159,6 @@ if probe_contains "http://127.0.0.1:$MGR_PORT/api/admin/health" 'ok\|{}'; then o
     [ $SECONDS -ge 40 ] && { fail "agwmngr 探活失败"; hint "看 /tmp/agwmngr.log；首次需 bun install + .env.local（gen-env.sh）"; }; sleep 2; done
   ok "agwmngr 已启动"; fi
 
-step "⑨ 状态汇总"
+step "⑩ 状态汇总"
 bash ./check.sh || true
 echo; echo "  ✅ up 完成。冒烟：bash scripts/local/smoke.sh"

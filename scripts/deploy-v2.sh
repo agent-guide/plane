@@ -42,13 +42,18 @@ else
   COPYFILE_DISABLE=1 tar czf /tmp/plane-v2-web.tar.gz -C "$REPO/apps/web/build/client" .
 fi
 
-echo "==== [2/4] 打包 api + url-mcp ===="
+echo "==== [2/4] 打包 api + url-mcp + doc-mcp ===="
 (cd "$REPO/apps/api" && COPYFILE_DISABLE=1 tar czf /tmp/plane-v2-api.tar.gz \
   --exclude=.venv --exclude=.env --exclude=.env.local --exclude=__pycache__ \
   --exclude=.pytest_cache --exclude=.git .)
 # url-mcp：Mac 侧 esbuild（--target=node20）出单文件产物，服务器零 npm 零构建
 (cd "$REPO/services/url-mcp" && npm run build >/dev/null && COPYFILE_DISABLE=1 tar czf /tmp/url-mcp-v2.tar.gz \
   server.ts tool.ts tools dist package.json README.md)
+# doc-mcp：Python 服务源 + 共享解析包（apps/api 的 -e 依赖也指向 packages/，
+# 远端解到 $V2ROOT/packages/ 供两边共用——单一权威源跨机保持）
+COPYFILE_DISABLE=1 tar czf /tmp/doc-mcp-v2.tar.gz -C "$REPO/services/doc-mcp" \
+  server.py ssrf.py tests requirements.txt README.md
+COPYFILE_DISABLE=1 tar czf /tmp/document-parsing-v2.tar.gz -C "$REPO/packages/document-parsing" .
 
 echo "==== [3/4] 上传 ===="
 # scp 对老 sshd 偶发「传输完成后关通道报 Connection closed」（文件已完整落
@@ -73,6 +78,9 @@ _upload() {
 _upload /tmp/plane-v2-api.tar.gz
 [ "$SKIP_WEB" -eq 0 ] && _upload /tmp/plane-v2-web.tar.gz
 _upload /tmp/url-mcp-v2.tar.gz
+_upload /tmp/doc-mcp-v2.tar.gz
+_upload /tmp/document-parsing-v2.tar.gz
+_upload "$REPO/scripts/systemd/doc-mcp.service"
 _upload "$REPO/scripts/systemd/url-mcp.service"  # 单元模板随包走（模板是唯一权威，不内嵌副本）
 
 echo "==== [4/4] 服务器更新（v2）===="
@@ -160,6 +168,45 @@ done
 tools=$(curl -s http://127.0.0.1:8624/health 2>/dev/null | grep -o 'url_reader' | head -1)
 echo "url-mcp 8624: $code ($tools)"
 [ "$code" = "200" ] && [ "$tools" = "url_reader" ] || { echo "❌ url-mcp 探活失败"; journalctl -u url-mcp -n 15 --no-pager 2>/dev/null; exit 1; }
+
+# --- doc-mcp：全量替换 + 共享解析包（$V2ROOT/packages，apps/api 的 -e 依赖同源）
+mkdir -p "$V2ROOT/packages/document-parsing"
+tar xzf /tmp/document-parsing-v2.tar.gz -C "$V2ROOT/packages/document-parsing"
+find "$V2ROOT/packages/document-parsing" -name '._*' -delete 2>/dev/null || true
+rm -rf "$V2ROOT/doc-mcp.new" && mkdir "$V2ROOT/doc-mcp.new"
+tar xzf /tmp/doc-mcp-v2.tar.gz -C "$V2ROOT/doc-mcp.new"
+find "$V2ROOT/doc-mcp.new" -name '._*' -delete 2>/dev/null || true
+# venv 保留（.venv 不在 tar 内）：先挪出来再原子替换
+[ -d "$V2ROOT/doc-mcp/.venv" ] && mv "$V2ROOT/doc-mcp/.venv" "$V2ROOT/doc-mcp.new/.venv"
+rm -rf "$V2ROOT/doc-mcp" && mv "$V2ROOT/doc-mcp.new" "$V2ROOT/doc-mcp"
+# venv 缺失或 requirements 变更（以 stamp 判）则重建
+STAMP="$V2ROOT/doc-mcp/.venv/.req-stamp"
+REQHASH="$(md5sum "$V2ROOT/doc-mcp/requirements.txt" | cut -d' ' -f1)"
+if [ ! -x "$V2ROOT/doc-mcp/.venv/bin/python" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$REQHASH" ]; then
+  echo "⚠ doc-mcp venv 重建（缺或依赖变更）"
+  PY3=$(ls "$HOME"/.local/share/uv/python/cpython-3.12*/bin/python3.12 2>/dev/null | head -1)
+  PY3=${PY3:-python3}
+  "$PY3" -m venv "$V2ROOT/doc-mcp/.venv" \
+    && "$V2ROOT/doc-mcp/.venv/bin/pip" install -q --upgrade pip \
+    && "$V2ROOT/doc-mcp/.venv/bin/pip" install -q -r "$V2ROOT/doc-mcp/requirements.txt" \
+    || { echo "❌ doc-mcp venv 构建失败"; exit 1; }
+  echo "$REQHASH" > "$STAMP"
+fi
+if [ ! -f /etc/systemd/system/doc-mcp.service ]; then
+  echo "⚠ 首次部署：安装 doc-mcp.service（来自上传模板）"
+  sudo -n cp /tmp/doc-mcp.service /etc/systemd/system/doc-mcp.service && sudo -n systemctl daemon-reload \
+    || { echo "❌ 单元安装失败（需 passwordless sudo）——先跑 sync-systemd-units.sh"; exit 1; }
+fi
+sudo -n systemctl enable doc-mcp >/dev/null 2>&1
+sudo -n systemctl restart doc-mcp
+for _ in $(seq 1 10); do
+  dcode=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8625/health 2>/dev/null || echo 000)
+  [ "$dcode" = "200" ] && break
+  sleep 1
+done
+dtools=$(curl -s http://127.0.0.1:8625/health 2>/dev/null | grep -o 'parse_document' | head -1)
+echo "doc-mcp 8625: $dcode ($dtools)"
+[ "$dcode" = "200" ] && [ "$dtools" = "parse_document" ] || { echo "❌ doc-mcp 探活失败"; journalctl -u doc-mcp -n 15 --no-pager 2>/dev/null; exit 1; }
 REMOTE
 
 if [ "$SKIP_WEB" -eq 0 ]; then

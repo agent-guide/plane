@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: document-parsing
+Version: 0.1.0
+Summary: 文档解析单一权威源：pdf/docx/xlsx/pptx/html/文本类 → 纯文本（Plane 编排域注入与 doc-mcp parse_document 工具共用）
+Requires-Python: >=3.11

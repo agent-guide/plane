@@ -1,0 +1,7 @@
+pyproject.toml
+document_parsing/__init__.py
+document_parsing/_parse.py
+document_parsing.egg-info/PKG-INFO
+document_parsing.egg-info/SOURCES.txt
+document_parsing.egg-info/dependency_links.txt
+document_parsing.egg-info/top_level.txt

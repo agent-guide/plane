@@ -16,7 +16,7 @@ SSH_PORT="${SSH_PORT:-51022}"
 REMOTE_USER="${REMOTE_USER:-dongqian}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-UNITS=(plane-v2-api plane-v2-worker agwmngr-v2 agent-gateway agw-hostd seaweedfs url-mcp)
+UNITS=(plane-v2-api plane-v2-worker agwmngr-v2 agent-gateway agw-hostd seaweedfs url-mcp doc-mcp)
 echo "==== systemd 单元同步 → $REMOTE_USER@$SERVER (diff-only=$DIFF_ONLY) ===="
 for unit in "${UNITS[@]}"; do
   src="$HERE/systemd/$unit.service"
@@ -26,7 +26,7 @@ done
 
 ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" DIFF_ONLY="$DIFF_ONLY" 'bash -s' <<'REMOTE'
 set -uo pipefail
-for unit in plane-v2-api plane-v2-worker agwmngr-v2 agent-gateway agw-hostd seaweedfs url-mcp; do
+for unit in plane-v2-api plane-v2-worker agwmngr-v2 agent-gateway agw-hostd seaweedfs url-mcp doc-mcp; do
   dst="/etc/systemd/system/$unit.service"
   if [ ! -f "$dst" ]; then
     echo "$unit: 服务器缺失（新服务，将安装）"
@@ -44,7 +44,7 @@ for unit in plane-v2-api plane-v2-worker agwmngr-v2 agent-gateway agw-hostd seaw
   sudo -n systemctl daemon-reload 2>/dev/null || echo "  ⚠ daemon-reload 需 sudo"
 done
 echo "---- 服务状态（需重启的单元请确认时机后手动重启或重跑部署）----"
-for unit in plane-v2-api plane-v2-worker agwmngr-v2 agent-gateway agw-hostd seaweedfs url-mcp; do
+for unit in plane-v2-api plane-v2-worker agwmngr-v2 agent-gateway agw-hostd seaweedfs url-mcp doc-mcp; do
   state=$(systemctl is-active "$unit" 2>/dev/null || echo missing)
   enabled=$(systemctl is-enabled "$unit" 2>/dev/null || echo no)
   echo "$unit: $state (enabled=$enabled)"

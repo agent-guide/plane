@@ -112,6 +112,7 @@ step "⑥ url_reader 平台链（连接器 → offering → 租户工具，幂�
 # 工具侧路线（link-and-file-artifacts-design §一）：url-mcp 服务由 up.sh ③ 拉起，
 # 这里只做网关注册与目录登记；员工绑定是改稿动作，脚本仅报告（bootstrap ④）
 bash ../bootstrap-url-reader.sh || fail "url_reader 平台链注册失败（url-mcp 是否在跑？up.sh ③）"
+bash ../bootstrap-doc-parser.sh || fail "parse_document 平台链注册失败（doc-mcp 是否在跑？up.sh ④）"
 
 step "⑦ 回填 plane api env（AGWMNGR_*）"
 grep -v '^AGWMNGR_TENANT_TOKEN=\|^AGWMNGR_TENANT_ID=' "$API_DIR/.env" > "$API_DIR/.env.n" && mv "$API_DIR/.env.n" "$API_DIR/.env"
