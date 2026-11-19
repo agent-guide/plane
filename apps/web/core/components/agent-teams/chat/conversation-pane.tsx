@@ -91,7 +91,11 @@ export function ConversationPane({
         {
           id: userLocalId, role: "user", kind: "text",
           content: { text },
-          attachments: attachments.map((f) => ({ id: f.id, name: f.name })),
+          attachments: attachments.map((f) => ({
+            id: f.id,
+            name: f.name,
+            downloadUrl: `/api/assets/v2/workspaces/${workspaceSlug}/download/${f.id}/`,
+          })),
           streamingOffset: 0, createdAt: now,
         },
       ]);

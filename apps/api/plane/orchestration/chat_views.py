@@ -75,24 +75,35 @@ def _conversation_json(c: AgentConversation, last_message: str = "",
     }
 
 
-def _attachment_objects(ids: list, name_map: dict | None = None) -> list[dict]:
-    """附件 id 列表 → [{id, name}]。name_map 缺省时查 FileAsset（单条消息场景）。"""
+def _attachment_objects(ids: list, name_map: dict | None = None,
+                        workspace_slug: str = "") -> list[dict]:
+    """附件 id 列表 → [{id, name, downloadUrl}]。name_map 缺省时查 FileAsset（单条消息场景）。
+
+    downloadUrl 是下载端点相对路径（前端点击时走该端点拿 presigned URL，
+    302 重定向下载）——下发端点路径而非 presigned URL，避免每条消息生成
+    短期签名且过期即失效（11-19 补齐会话附件下载缺口）。
+    """
     if not ids:
         return []
     if name_map is None:
         from plane.db.models import FileAsset
         assets = FileAsset.objects.filter(id__in=ids)
         name_map = {str(a.id): (a.attributes or {}).get("name") or str(a.id) for a in assets}
-    return [{"id": str(aid), "name": name_map.get(str(aid), str(aid))} for aid in ids]
+    return [{
+        "id": str(aid),
+        "name": name_map.get(str(aid), str(aid)),
+        "downloadUrl": f"/api/assets/v2/workspaces/{workspace_slug}/download/{aid}/",
+    } for aid in ids]
 
 
-def _message_json(m: AgentMessage, name_map: dict | None = None) -> dict:
+def _message_json(m: AgentMessage, name_map: dict | None = None,
+                  workspace_slug: str = "") -> dict:
     return {
         "id": m.id,
         "role": m.role,
         "kind": m.kind,
         "content": m.content,
-        "attachments": _attachment_objects(m.attachments or [], name_map),
+        "attachments": _attachment_objects(m.attachments or [], name_map, workspace_slug),
         "streamingOffset": m.streaming_offset,
         "createdAt": m.created_at.isoformat(),
     }
@@ -222,7 +233,7 @@ class ConversationMessagesEndpoint(BaseAPIView):
             from plane.db.models import FileAsset
             assets = FileAsset.objects.filter(id__in=all_ids)
             name_map = {str(a.id): (a.attributes or {}).get("name") or str(a.id) for a in assets}
-        return Response([_message_json(m, name_map) for m in messages][::-1])
+        return Response([_message_json(m, name_map, slug) for m in messages][::-1])
 
     def post(self, request, slug, conversation_id):
         conv = _load_conversation(request, slug, conversation_id)
@@ -407,7 +418,7 @@ class ConversationConfirmEndpoint(BaseAPIView):
             m.content = {**m.content, "confirm": {**m.content["confirm"], "state": "cancelled"}}
             m.save(update_fields=["content", "updated_at"])
             # 协议 v2 §五：操作响应定点返回更新后的单条消息，前端定点更新不回拉
-            return Response({"confirmedCard": _message_json(m), "state": "cancelled"})
+            return Response({"confirmedCard": _message_json(m, workspace_slug=slug), "state": "cancelled"})
 
         if action != "confirm":
             return Response({"error": "action must be confirm or cancel"}, status=400)
@@ -452,7 +463,7 @@ class ConversationConfirmEndpoint(BaseAPIView):
         conv.save(update_fields=["last_message_at", "updated_at"])
         # 协议 v2 §五：操作响应定点返回受影响消息快照（确认卡 + 新流程卡），
         # 前端定点更新不回拉
-        return Response({"confirmedCard": _message_json(m), "flowCard": _message_json(flow_msg),
+        return Response({"confirmedCard": _message_json(m, workspace_slug=slug), "flowCard": _message_json(flow_msg, workspace_slug=slug),
                          "state": "confirmed", "issueId": str(issue.id)})
 
 
@@ -498,4 +509,4 @@ class ConversationShareEndpoint(BaseAPIView):
         m.save(update_fields=["content", "updated_at"])
         # 协议 v2 §五：操作响应定点返回更新后的原消息（含 sharedTo 回执），前端定点更新
         return Response({"commentId": str(comment.id), "issueId": str(issue.id),
-                         "issueName": issue.name, "sharedMessage": _message_json(m)})
+                         "issueName": issue.name, "sharedMessage": _message_json(m, workspace_slug=slug)})

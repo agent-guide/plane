@@ -52,9 +52,14 @@ export function MessageBubble({
         {message.attachments?.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {message.attachments.map((a) => (
-              <span key={a.id} className="rounded bg-layer-3/60 px-1.5 py-0.5 text-caption-sm-regular">
+              <a
+                key={a.id}
+                href={a.downloadUrl}
+                className="rounded bg-layer-3/60 px-1.5 py-0.5 text-body-sm-regular text-secondary transition-colors hover:bg-layer-3 hover:text-accent-primary"
+                title={a.name}
+              >
                 📎 {a.name}
-              </span>
+              </a>
             ))}
           </div>
         )}
