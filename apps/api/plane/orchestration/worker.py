@@ -242,6 +242,68 @@ def _error_detail(payload: dict | None, text: str) -> str:
     return (message or text)[:800]
 
 
+def _extract_upstream_message(text: str) -> str | None:
+    """从上游原始错误里提取最内层的人类可读 message（去技术噪声）。
+
+    glm-ccchat 等上游的限流/报错会嵌套多层 JSON（含 URL/状态码/error
+    结构）；递归解析取最内层 message，再剥掉 [错误码]/[request_id] 之类的
+    技术 token，只留人话（如「已达到 5 小时的使用上限…重置」）。提取不到
+    返回 None，前端回退 code 映射的通用文案。
+    """
+    import re as _re
+
+    collected: list[str] = []
+
+    def _walk(obj):
+        if isinstance(obj, dict):
+            m = obj.get("message")
+            if isinstance(m, str) and m.strip():
+                collected.append(m.strip())
+            for v in obj.values():
+                _walk(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                _walk(v)
+
+    # text 可能是纯 JSON，也可能带 "POST url: 200 OK {...}" 前缀
+    try:
+        _walk(json.loads(text))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        start, end = text.find("{"), text.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                _walk(json.loads(text[start:end + 1]))
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+
+    if not collected:
+        return None
+    deepest = collected[-1]
+    # 剥 [code]/[request_id] 等技术 token，只留人话段
+    parts = _re.findall(r"\[([^\[\]]+)\]", deepest)
+    human = [p for p in parts if not _re.fullmatch(r"[0-9A-Fa-f]+", p)]
+    return human[0] if human else None
+
+
+def _extract_node_error(text: str) -> str | None:
+    """从 eino NodeRunError 文本提取工具失败的具体人话。
+
+    url-mcp 等工具的错误 message 是「请求失败（8s 超时…）：英文技术错误」，
+    eino 包成 [NodeRunError] failed to stream tool call …: tool "name": …。
+    这里提取 tool 名 + 中文人话，剥掉英文技术尾与 node path。
+    """
+    import re as _re
+
+    m = _re.search(r'tool "([^"]+)"[：:]\s*(.+)', text)
+    if not m:
+        return None
+    tool, msg = m.group(1), m.group(2).strip()
+    msg = msg.split("：")[0].strip()  # 中文冒号前是人话，后是英文技术错误
+    if not msg:
+        return None
+    return f"工具「{tool}」{msg}"
+
+
 def _normalize_agent_error(exc: BaseException) -> dict:
     """把 agent 调用异常映射为稳定的对客户端错误码。
 
@@ -262,7 +324,22 @@ def _normalize_agent_error(exc: BaseException) -> dict:
             detail_text = str(d)
         else:
             detail_text = text
-        return {"code": code, "detail": (detail_text.strip() or text)[:800]}
+        detail_text = (detail_text.strip() or text)[:800]
+        # 上游 429 被网关归一化成 turn_failed/agent_error，detail 仍带
+        # "429"/"rate_limit" 痕迹——兜底识别，让人话落到 rate_limit（11-18）。
+        if code == "agent_error":
+            lower_detail = detail_text.lower()
+            if "429" in lower_detail or ("rate" in lower_detail and "limit" in lower_detail):
+                code = "rate_limit"
+        # rate_limit 的 detail 提取具体人话 message（如「已达到 5 小时上限…
+        # 重置」）；提取不到留空，前端回退 code 映射的通用文案。
+        if code == "rate_limit":
+            detail_text = _extract_upstream_message(detail_text) or ""
+        # agent_error（工具调用失败等 NodeRunError 文本）同样提取具体人话
+        # （如「工具 url_reader 请求失败（8s 超时…）」），避免笼统「执行失败」。
+        elif code == "agent_error":
+            detail_text = _extract_node_error(detail_text) or ""
+        return {"code": code, "detail": detail_text}
 
     try:
         payload = json.loads(text)
@@ -275,7 +352,7 @@ def _normalize_agent_error(exc: BaseException) -> dict:
         upstream_type = str(payload.get("error_type", "")).lower()
 
     if upstream_type in {"rate_limit", "rate_limited"}:
-        return {"code": "rate_limit", "detail": _error_detail(payload, text)}
+        return {"code": "rate_limit", "detail": _extract_upstream_message(_error_detail(payload, text)) or ""}
     if upstream_type == "timeout":
         return {"code": "timeout", "detail": _error_detail(payload, text)}
     if upstream_type == "empty_reply":
@@ -287,7 +364,7 @@ def _normalize_agent_error(exc: BaseException) -> dict:
 
     # 兼容旧 raise RuntimeError/HTTP 文本链路，直到上游全面带结构化错误。
     if "429" in lower or ("rate" in lower and ("limit" in lower or "quota" in lower)):
-        return {"code": "rate_limit", "detail": _error_detail(payload, text)}
+        return {"code": "rate_limit", "detail": _extract_upstream_message(_error_detail(payload, text)) or ""}
     if "idle timeout" in lower or "total timeout" in lower:
         return {"code": "timeout", "detail": _error_detail(payload, text)}
     if "empty" in lower and ("reply" in lower or "output" in lower or "stream" in lower):

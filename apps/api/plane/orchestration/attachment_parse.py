@@ -12,12 +12,34 @@ pdfplumber 拉 pandas，部署体积过重；本模块覆盖业务实际需要�
 from __future__ import annotations
 
 import io
+import re
+
+
+def _html_to_text(raw: str) -> str:
+    """HTML 源码 → 正文文本（去 script/style/注释/标签，保留段落换行）。
+
+    与 url-mcp 的 extractHtml 同口径：网页保存件（.html）直接 decode 会带进
+    几十条 <link>/<script> 资源 URL，agent 会误当成用户给的链接去读；这里抽
+    正文，只留页面可读内容。
+    """
+    raw = re.sub(r"<script[\s\S]*?</script>", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"<style[\s\S]*?</style>", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"<!--[\s\S]*?-->", "", raw)
+    raw = re.sub(r"<br\s*/?>", "\n", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"</(p|div|li|h[1-6]|tr|td|section)>", "\n", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"<[^>]+>", "", raw)
+    raw = (raw.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<")
+              .replace("&gt;", ">").replace("&quot;", '"').replace("&#39;", "'"))
+    raw = re.sub(r"[ \t]+\n", "\n", raw)
+    raw = re.sub(r"\n{3,}", "\n\n", raw)
+    return raw.strip()
 
 
 def parse_attachment_bytes(filename: str, data: bytes) -> str:
     """按扩展名解析附件字节为纯文本。
 
-    - 文本类（txt/md/csv/html/json/xml/log）：直接按文本读（utf-8 → gbk → latin-1 回退）
+    - 文本类（txt/md/csv/json/xml/log）：直接按文本读（utf-8 → gbk → latin-1 回退）
+    - html/htm：抽正文文本（去 script/style/标签与资源 URL），不直接返源码
     - pdf：pypdf 提取文本（扫描件 pdf 提不出文本，返回空——由调用方标注「图片需人工」）
     - docx：python-docx 段落文本
     - xlsx/xls：openpyxl 逐表转文本（行内单元格以 ``|`` 分隔）
@@ -28,7 +50,15 @@ def parse_attachment_bytes(filename: str, data: bytes) -> str:
     """
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
-    if ext in {"txt", "md", "markdown", "csv", "html", "htm", "json", "xml", "log", "yaml", "yml"}:
+    if ext in {"html", "htm"}:
+        for enc in ("utf-8", "gbk", "latin-1"):
+            try:
+                return _html_to_text(data.decode(enc))
+            except UnicodeDecodeError:
+                continue
+        return _html_to_text(data.decode("utf-8", errors="replace"))
+
+    if ext in {"txt", "md", "markdown", "csv", "json", "xml", "log", "yaml", "yml"}:
         for enc in ("utf-8", "gbk", "latin-1"):
             try:
                 return data.decode(enc)

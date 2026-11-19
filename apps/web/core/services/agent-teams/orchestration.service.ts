@@ -493,6 +493,28 @@ export type AgentErrorCode =
   | "configuration_error"
   | "agent_error";
 
+/** 稳定错误码 → 人话文案 key（会话气泡 + 运行时面板共用，D1 口径）。 */
+export const AGENT_ERROR_MESSAGE_KEYS: Record<AgentErrorCode, string> = {
+  rate_limit: "agent_teams_error_rate_limit",
+  timeout: "agent_teams_error_timeout",
+  empty_reply: "agent_teams_error_empty_reply",
+  not_deployed: "agent_teams_error_not_deployed",
+  configuration_error: "agent_teams_error_configuration_error",
+  agent_error: "agent_teams_error_agent_error",
+};
+
+/** rate_limit / agent_error 的 detail 由后端提取成具体人话（如「限额…重置」、
+ * 「工具 url_reader 请求失败（8s 超时…）」），可优先展示；其余 code 的 detail
+ * 是排障文本，返回空由调用方回退 code 映射文案。会话气泡与运行时面板共用。 */
+export function displayErrorDetail(code: AgentErrorCode, detail?: string | null): string {
+  const extractable = code === "rate_limit" || code === "agent_error";
+  if (!extractable || !detail) return "";
+  // 旧数据（后端提取逻辑上线前落库）的 detail 是原始技术串，含 URL/NodeRunError/
+  // JSON 特征；提取后的人话不含这些，据此兜底过滤，避免技术串泄到气泡。
+  if (/(https?:\/\/|NodeRunError|\{)/.test(detail)) return "";
+  return detail;
+}
+
 export interface OrchestrationTimelineEvent {
   id: string;
   kind: "execution" | "node" | "approval";

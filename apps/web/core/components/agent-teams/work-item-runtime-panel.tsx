@@ -32,6 +32,8 @@ import Link from "next/link";
 // services
 import {
   orchestrationService,
+  AGENT_ERROR_MESSAGE_KEYS,
+  displayErrorDetail,
   type AgentErrorCode,
   type OrchestrationRuntimeArtifact,
   type OrchestrationTimelineEvent,
@@ -48,14 +50,6 @@ type WorkItemRuntimePanelProps = {
 
 const TERMINAL = new Set(["completed", "cancelled", "failed"]);
 const STEP_ACTIVE = new Set(["running", "pending", "queued"]);
-const AGENT_ERROR_MESSAGE_KEYS: Record<AgentErrorCode, string> = {
-  rate_limit: "agent_teams_error_rate_limit",
-  timeout: "agent_teams_error_timeout",
-  empty_reply: "agent_teams_error_empty_reply",
-  not_deployed: "agent_teams_error_not_deployed",
-  configuration_error: "agent_teams_error_configuration_error",
-  agent_error: "agent_teams_error_agent_error",
-};
 const AGENT_TEAM_ERROR_CODES = new Set<AgentErrorCode>(["not_deployed", "configuration_error"]);
 
 /** 步骤（叙事流的行单位）：同一节点的事件归并成一步。 */
@@ -392,11 +386,11 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     const rawContent = (step.artifact?.content ?? step.output)?.trim();
     const hasAgentError = step.status === "failed" && step.errorCode;
     const errorMessage = hasAgentError ? t(AGENT_ERROR_MESSAGE_KEYS[step.errorCode as AgentErrorCode]) : "";
-    const content = hasAgentError ? (errorMessage || step.errorCode) : rawContent;
+    const specificDetail = displayErrorDetail(step.errorCode as AgentErrorCode, step.errorDetail);
+    const content = hasAgentError ? (specificDetail || errorMessage || step.errorCode) : rawContent;
     if (!content) return null;
-    // 原始报错只留 worker 日志与节点记录（DB），不进 UI（D1 口径 11-16 定：
-    // 用户只见人话 + 引导动作；errorDetail 字段后端照带，前端不渲染，
-    // 将来若做管理员诊断视图再恢复）
+    // D1 口径：用户只见人话（code 映射，rate_limit/agent_error 优先展示后端
+    // 提取的具体 detail）+ 引导动作；原始技术报错只留 worker 日志与 DB 记录
     const expanded = expandedSteps.has(step.key);
     const isLong = content.length > 80 || content.split("\n").length > 2;
     return (

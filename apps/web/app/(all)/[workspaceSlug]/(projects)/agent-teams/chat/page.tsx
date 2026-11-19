@@ -16,7 +16,6 @@ import { observer } from "mobx-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "@plane/i18n";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Button } from "@plane/propel/button";
 import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
 import { MessageSquare, Users } from "lucide-react";
 
@@ -37,7 +36,6 @@ import {
 } from "@/components/agent-teams/chat/types";
 import chatService from "@/services/agent-teams/chat.service";
 import { shareMessageToCard } from "@/services/agent-teams/agent-chat.service";
-import { orchestrationService } from "@/services/agent-teams/orchestration.service";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 
 function AgentTeamsChatPage() {
@@ -148,7 +146,9 @@ function AgentTeamsChatPage() {
         ...prev,
         {
           id: `local_${Date.now()}_u`, role: "user", kind: "text",
-          content: { text }, attachments: attachmentIds, streamingOffset: 0, createdAt: now,
+          content: { text },
+          attachments: attachments.map((f) => ({ id: f.id, name: f.name })),
+          streamingOffset: 0, createdAt: now,
         },
       ]);
       setStreaming({ id: `local_${Date.now()}_a`, text: "", sourceCount: 0 });
@@ -282,20 +282,6 @@ function AgentTeamsChatPage() {
     [workspaceSlug, activeId, shareMessage, t]
   );
 
-  // 附件名映射（乐观与历史统一渲染）
-  const [attachmentNames, setAttachmentNames] = useState<Record<string, string>>({});
-  const handleSendWrapped = useCallback(
-    (text: string, attachments: PendingAttachment[], webSearch: boolean) => {
-      setAttachmentNames((prev) => {
-        const next = { ...prev };
-        for (const a of attachments) next[a.id] = a.name;
-        return next;
-      });
-      void handleSend(text, attachments, webSearch);
-    },
-    [handleSend]
-  );
-
   return (
     <>
       <PageHead title={pageTitle} />
@@ -375,7 +361,6 @@ function AgentTeamsChatPage() {
                         key={message.id}
                         message={message}
                         busy={confirmBusy === message.id}
-                        attachmentNames={attachmentNames}
                         onConfirmCard={handleConfirmCard}
                         onCheckpoint={handleCheckpoint}
                         onShare={(m) => void openShare(m)}
@@ -392,7 +377,7 @@ function AgentTeamsChatPage() {
                     sending={sending}
                     showSummaryHint={Boolean(active.summaryCompacted) && summaryHintShownFor !== active.id}
                     onStop={handleStop}
-                    onSend={handleSendWrapped}
+                    onSend={handleSend}
                     prefill={prefill}
                   />
                 </>

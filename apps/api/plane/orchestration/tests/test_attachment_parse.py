@@ -23,6 +23,24 @@ class ParseAttachmentBytesTest(TestCase):
         self.assertEqual(parse_attachment_bytes("a.md", "# 标题\n正文".encode("utf-8")), "# 标题\n正文")
         self.assertEqual(parse_attachment_bytes("a.csv", "a,b\n1,2\n".encode("utf-8")), "a,b\n1,2\n")
 
+    def test_html_extracts_body_without_resource_urls(self):
+        # 网页保存件带 <link>/<script> 资源 URL——须抽正文，否则 agent 误当链接去读
+        html = (
+            "<!DOCTYPE html><html><head>"
+            '<link rel="stylesheet" href="http://223.105.56.202:4004/assets/app.css">'
+            '<script src="http://223.105.56.202:4004/app.js"></script>'
+            "</head><body>"
+            "<h1>出口报关单</h1><p>境内收发货人：912473XNKR4774</p>"
+            '<a href="http://223.105.56.202:4004/v2-e2e/browse/ENTRYAPI-17/">链接</a>'
+            "</body></html>"
+        )
+        out = parse_attachment_bytes("a.html", html.encode("utf-8"))
+        self.assertIn("出口报关单", out)
+        self.assertIn("境内收发货人：912473XNKR4774", out)
+        self.assertNotIn("http://223.105.56.202", out)
+        self.assertNotIn("<script", out)
+        self.assertNotIn("<h1>", out)
+
     def test_docx_paragraphs(self):
         import docx
         d = docx.Document()

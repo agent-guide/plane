@@ -71,13 +71,24 @@ def _conversation_json(c: AgentConversation, last_message: str = "") -> dict:
     }
 
 
-def _message_json(m: AgentMessage) -> dict:
+def _attachment_objects(ids: list, name_map: dict | None = None) -> list[dict]:
+    """附件 id 列表 → [{id, name}]。name_map 缺省时查 FileAsset（单条消息场景）。"""
+    if not ids:
+        return []
+    if name_map is None:
+        from plane.db.models import FileAsset
+        assets = FileAsset.objects.filter(id__in=ids)
+        name_map = {str(a.id): (a.attributes or {}).get("name") or str(a.id) for a in assets}
+    return [{"id": str(aid), "name": name_map.get(str(aid), str(aid))} for aid in ids]
+
+
+def _message_json(m: AgentMessage, name_map: dict | None = None) -> dict:
     return {
         "id": m.id,
         "role": m.role,
         "kind": m.kind,
         "content": m.content,
-        "attachments": m.attachments,
+        "attachments": _attachment_objects(m.attachments or [], name_map),
         "streamingOffset": m.streaming_offset,
         "createdAt": m.created_at.isoformat(),
     }
@@ -193,7 +204,15 @@ class ConversationMessagesEndpoint(BaseAPIView):
             anchor = conv.messages.filter(id=before).first()
             if anchor:
                 qs = qs.filter(created_at__lt=anchor.created_at)
-        return Response([_message_json(m) for m in qs[:50]][::-1])
+        messages = list(qs[:50])
+        # 批量查附件名，避免逐条 N+1（历史消息 attachments 只存 id）
+        name_map = None
+        all_ids = [aid for m in messages for aid in (m.attachments or [])]
+        if all_ids:
+            from plane.db.models import FileAsset
+            assets = FileAsset.objects.filter(id__in=all_ids)
+            name_map = {str(a.id): (a.attributes or {}).get("name") or str(a.id) for a in assets}
+        return Response([_message_json(m, name_map) for m in messages][::-1])
 
     def post(self, request, slug, conversation_id):
         conv = _load_conversation(request, slug, conversation_id)

@@ -12,12 +12,12 @@ import { Button } from "@plane/propel/button";
 import { MessageSquarePlus } from "lucide-react";
 
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
+import { AGENT_ERROR_MESSAGE_KEYS, displayErrorDetail, type AgentErrorCode } from "@/services/agent-teams/orchestration.service";
 import type { ChatMessage, StreamError } from "./types";
 
 export function MessageBubble({
   message,
   busy,
-  attachmentNames,
   onConfirmCard,
   onCheckpoint,
   onShare,
@@ -26,8 +26,6 @@ export function MessageBubble({
   message: ChatMessage;
   /** 确认卡处理中（禁用按钮） */
   busy: boolean;
-  /** 附件 id → 显示名（乐观消息与历史消息统一渲染） */
-  attachmentNames: Record<string, string>;
   onConfirmCard: (messageId: string, action: "confirm" | "cancel") => void;
   onCheckpoint: (option: "continue" | "convert" | "stop") => void;
   onShare: (message: ChatMessage) => void;
@@ -53,9 +51,9 @@ export function MessageBubble({
         {message.content?.text}
         {message.attachments?.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
-            {message.attachments.map((aid) => (
-              <span key={aid} className="rounded bg-layer-3/60 px-1.5 py-0.5 text-caption-sm-regular">
-                📎 {attachmentNames[aid] ?? aid.slice(0, 6)}
+            {message.attachments.map((a) => (
+              <span key={a.id} className="rounded bg-layer-3/60 px-1.5 py-0.5 text-caption-sm-regular">
+                📎 {a.name}
               </span>
             ))}
           </div>
@@ -221,9 +219,14 @@ function ErrorBody({
   onCheckpoint: (option: "continue" | "convert" | "stop") => void;
 }) {
   const { t } = useTranslation();
+  // 稳定错误码 → 文案；rate_limit 的 detail 已被后端提取成具体人话（如「限额…
+  // 重置」），优先展示——其余 code 的 detail 是排障文本，不渲染（D1 口径，与
+  // work-item-runtime-panel 同源）。
+  const messageKey = (AGENT_ERROR_MESSAGE_KEYS as Record<string, string>)[error.code] ?? "agent_teams_chat_error";
+  const message = displayErrorDetail(error.code as AgentErrorCode, error.detail) || t(messageKey);
   return (
     <div className="mt-2 flex flex-col gap-2">
-      <div className="text-caption-sm-regular text-secondary">{error.detail || t("agent_teams_chat_error")}</div>
+      <div className="text-body-sm-regular text-secondary">{message}</div>
       {error.checkpoint && (
         <div className="flex flex-col gap-1 rounded bg-layer-3 p-2">
           <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_checkpoint_title")}</div>

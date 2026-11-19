@@ -40,7 +40,7 @@ export interface AgentMessage {
     confirm?: { title: string; description: string; workflowHint?: string; state?: string; issueId?: string };
     card?: { issueId: string; projectId?: string; title: string; status: string };
   };
-  attachments: string[];
+  attachments: { id: string; name: string }[];
   streamingOffset: number;
   createdAt: string;
 }
