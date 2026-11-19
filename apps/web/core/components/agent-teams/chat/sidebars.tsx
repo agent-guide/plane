@@ -11,6 +11,7 @@ import { useTranslation } from "@plane/i18n";
 import { ArrowLeft } from "lucide-react";
 
 import { MemberAvatar, TeamAvatar } from "@/components/agent-teams/member-avatar";
+import { displayErrorDetail, type AgentErrorCode } from "@/services/agent-teams/orchestration.service";
 import type { ChatSession } from "./types";
 import { groupSessionsByTeam } from "./types";
 
@@ -124,7 +125,11 @@ export function ConversationSidebar({
                   <span className="flex min-w-0 flex-grow flex-col gap-0.5">
                     <span className="truncate text-body-xs-medium">{session.title}</span>
                     <span className="truncate text-caption-sm-regular text-tertiary">
-                      {session.lastMessagePreview || session.teamName}
+                      {/* 预览与会话页同源（displayErrorDetail）：错误轮次 text 为空，
+                          共用同一套文案规则，改一处两边同步变 */}
+                      {session.lastMessageError
+                        ? displayErrorDetail(session.lastMessageError.code as AgentErrorCode, session.lastMessageError.detail) || session.teamName
+                        : session.lastMessagePreview || session.teamName}
                     </span>
                   </span>
                 </button>
