@@ -76,10 +76,10 @@ if [ -n "$OFF_ID" ]; then
 else
   if [ -n "$CHECK_ONLY" ]; then status "MISS" "目录未登记"; else
     RES=$(api -X POST -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings" \
-      -d "{\"category\":\"tool\",\"name\":\"parse_document\",\"description\":\"Parse document content (pdf/docx/xlsx/pptx/html/text) to plain text\",\"kind\":\"gateway-backed\",\"source_gateway_id\":\"$GW_ID\",\"upstream_stable_id\":\"$STABLE_ID\",\"availability\":{\"mode\":\"tenant-allowlist\",\"tenant_ids\":[\"$TENANT\"]}}")
+      -d "{\"category\":\"tool\",\"name\":\"parse_document\",\"description\":\"Parse document content (pdf/docx/xlsx/pptx/html/text) to plain text\",\"kind\":\"gateway-backed\",\"source_gateway_id\":\"$GW_ID\",\"upstream_stable_id\":\"$STABLE_ID\",\"availability\":{\"tenant_ids\":[\"$TENANT\"]}}")
     OFF_ID=$(echo "$RES" | jsonget "d['offeringId']")
-    api -X POST "$AGWMNGR/api/platform/v1/catalog/offerings/$OFF_ID/approve" >/dev/null \
-      && status "OK" "已登记并审批（${OFF_ID}）" || { status "FAIL" "审批失败"; exit 1; }
+    # agwmngr v7+ 目录治理简化：approve 端点已移除，创建即生效
+    [ -n "$OFF_ID" ] && status "OK" "已登记（${OFF_ID}，创建即生效）" || { status "FAIL" "登记失败"; exit 1; }
   fi
 fi
 [ -n "$OFF_ID" ] || OFF_ID="(unknown)"
