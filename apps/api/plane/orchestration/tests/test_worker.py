@@ -147,9 +147,11 @@ class OutboxConsumerTests(TestCase):
 
 class NormalizeAgentErrorTests(TestCase):
     def test_rate_limit_from_http_error(self):
+        # 11-19 口径：rate_limit 的 detail 只保留能提取到的上游人话 message；
+        # 提取不到（非嵌套 JSON 的裸英文串）留空，前端回退 code 映射的通用限额文案
         err = _normalize_agent_error(AgentTurnError("rate_limit", "agent turn rejected: HTTP 429", detail={"error_type": "rate_limited", "message": "quota exhausted"}))
         self.assertEqual(err['code'], 'rate_limit')
-        self.assertEqual(err['detail'], 'quota exhausted')
+        self.assertEqual(err['detail'], '')
 
     def test_timeout(self):
         err = _normalize_agent_error(AgentTurnError("timeout", "agent turn idle timeout: no SSE event for 240s"))
@@ -172,9 +174,11 @@ class NormalizeAgentErrorTests(TestCase):
         self.assertEqual(err['detail'], 'gateway hiccup')
 
     def test_unknown_structured_error_stays_agent_error(self):
+        # 11-19 口径：agent_error 的 detail 只认 NodeRunError 类人话；网关
+        # 归一化的英文笼统串（turn failed）留空，防漏到用户气泡
         err = _normalize_agent_error(AgentTurnError("turn_failed", "agent turn error", detail={"error_type": "turn_failed", "message": "turn failed"}))
         self.assertEqual(err['code'], 'agent_error')
-        self.assertEqual(err['detail'], 'turn failed')
+        self.assertEqual(err['detail'], '')
 
 
 class AgentInvokeFailureCallbackTests(OutboxConsumerTests):

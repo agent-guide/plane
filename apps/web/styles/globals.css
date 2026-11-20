@@ -168,3 +168,29 @@
     0 0 4px --alpha(var(--background-color-accent-primary) / 40%) !important;
   will-change: transform, opacity;
 }
+
+/* 会话流式正文：尾部光标（ChatGPT/Claude.ai 现行做法）——流式间隙长时
+   仍能判断「还在输出中」，光标消失即定稿。CSS 画细条（非 ▍ 字符：全宽
+   块字形视觉笨重）、低透明度、缓动呼吸而非硬闪（11-20 UI 反馈）。 */
+@keyframes agentCaretBreathe {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.agent-streaming-text > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.7;
+  vertical-align: -0.08em;
+  animation: agentCaretBreathe 1.1s ease-in-out infinite;
+}

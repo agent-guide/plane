@@ -247,6 +247,7 @@ def stream_agent_turn(*, agent_definition_id: str, prompt: str, session_hint: st
         started = _time.monotonic()
         last_event = started
         event_type = ""
+        _acp_tool_titles: dict[str, str] = {}
         for raw in response:
             now = _time.monotonic()
             if now - last_event > idle_timeout:
@@ -285,14 +286,43 @@ def stream_agent_turn(*, agent_definition_id: str, prompt: str, session_hint: st
             if event_type == "delta" and isinstance(envelope.get("text"), str):
                 yield {"type": "delta", "text": envelope["text"]}
             elif event_type == "tool_call" and isinstance(envelope.get("data"), dict):
-                # 进度透传（协议 v2 §六）：网关 tool_call 两种形态——
-                # 发起 {calls:[{name}]} / 结果 {name, output}，映射成 stage
+                # 进度透传（协议 v2 §六）。网关 tool_call 按 runtime 分两种形态：
+                # - builtin：发起 {calls:[{name}]} / 结果 {name, output}
+                # - ACP（sessionUpdate 协议）：{sessionUpdate: "tool_call"/"tool_call_update",
+                #   toolCallId, title("agwmngr_serviceN_<工具名>"), status: pending/
+                #   in_progress/completed/failed}——title 需剥网关服务前缀成用户可读名
                 td = envelope["data"]
                 if isinstance(td.get("calls"), list) and td["calls"]:
                     names = "、".join(c.get("name", "工具") for c in td["calls"] if isinstance(c, dict))
                     yield {"type": "stage", "phase": "tool", "label": f"正在调用 {names}…"}
                 elif isinstance(td.get("name"), str):
                     yield {"type": "stage", "phase": "tool", "label": f"已完成 {td['name']}"}
+                elif isinstance(td.get("sessionUpdate"), str):
+                    su = td["sessionUpdate"]
+                    if su in ("tool_call", "tool_call_update"):
+                        # title 只在发起/in_progress 帧带；completed 帧按
+                        # toolCallId 回查（真实流实证：completed 只有 status+content）
+                        raw_title = str(td.get("title") or "")
+                        if raw_title.startswith("agwmngr_service"):
+                            raw_title = raw_title.split("_", 2)[-1]
+                        # bash 等本地工具的 title 是完整命令——进度行只露开头，
+                        # 截断防整段脚本灌进气泡（含换行压成单行）
+                        if len(raw_title) > 24:
+                            raw_title = " ".join(raw_title.split())[:24] + "…"
+                        call_id = str(td.get("toolCallId") or "")
+                        if raw_title:
+                            _acp_tool_titles[call_id] = raw_title
+                        title = raw_title or _acp_tool_titles.get(call_id, "")
+                        status = td.get("status")
+                        # 截断过的 title 已带尾省略号，不再叠「…」
+                        suffix = "" if title.endswith("…") else "…"
+                        if su == "tool_call" or status == "in_progress":
+                            if title:
+                                yield {"type": "stage", "phase": "tool", "label": f"正在调用 {title}{suffix}"}
+                        elif status == "completed":
+                            if title:
+                                yield {"type": "stage", "phase": "tool", "label": f"已完成 {title}"}
+                        # failed：不发 stage——错误经 result.error 路径呈现，进度行不重复报错
             elif event_type == "done":
                 # 网关 turn 收口（data 可能带 stop_reason）——取代旧的 FINAL_MARKER
                 # 文本标志 hack，直接认 done 事件收口

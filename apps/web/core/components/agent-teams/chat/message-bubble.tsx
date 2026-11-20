@@ -12,7 +12,11 @@ import { Button } from "@plane/propel/button";
 import { MessageSquarePlus } from "lucide-react";
 
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
-import { AGENT_ERROR_MESSAGE_KEYS, displayErrorDetail, type AgentErrorCode } from "@/services/agent-teams/orchestration.service";
+import {
+  AGENT_ERROR_MESSAGE_KEYS,
+  displayErrorDetail,
+  type AgentErrorCode,
+} from "@/services/agent-teams/orchestration.service";
 import type { ChatMessage, StreamError } from "./types";
 
 export function MessageBubble({
@@ -47,7 +51,7 @@ export function MessageBubble({
 
   if (message.role === "user") {
     return (
-      <div className="max-w-[80%] min-w-0 self-end break-words rounded-2xl rounded-br-md bg-accent-subtle px-4 py-2.5 text-body-sm-regular text-primary">
+      <div className="max-w-[80%] min-w-0 self-end rounded-2xl rounded-br-md bg-accent-subtle px-4 py-2.5 text-body-sm-regular break-words text-primary">
         {message.content?.text}
         {message.attachments?.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
@@ -73,72 +77,74 @@ export function MessageBubble({
 
   return (
     <div className="group flex max-w-[85%] min-w-0 flex-col items-start self-start">
-    <div className="min-w-0 w-full break-words self-start rounded-2xl rounded-bl-md border border-subtle bg-layer-2 px-4 py-3">
-      {message.kind === "confirm_card" && confirm ? (
-        <ConfirmCardBody confirm={confirm} busy={busy} onConfirm={onConfirmCard} messageId={message.id} />
-      ) : message.kind === "flow_card" && card ? (
-        <div className="flex flex-col gap-1">
-          <span className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_flow_created")}</span>
+      <div className="w-full min-w-0 self-start rounded-2xl rounded-bl-md border border-subtle bg-layer-2 px-4 py-3 break-words">
+        {message.kind === "confirm_card" && confirm ? (
+          <ConfirmCardBody confirm={confirm} busy={busy} onConfirm={onConfirmCard} messageId={message.id} />
+        ) : message.kind === "flow_card" && card ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_flow_created")}</span>
+            <button
+              type="button"
+              onClick={() => onOpenCard(card.projectId ?? "", card.issueId)}
+              className="text-left text-body-sm-medium text-accent-primary hover:underline"
+            >
+              {card.title}
+            </button>
+            <span className="text-caption-sm-regular text-tertiary">{card.status}</span>
+          </div>
+        ) : (
+          <>
+            {message.content?.text ? (
+              <MarkdownBody text={message.content.text} />
+            ) : !error && !message.content?.interrupted ? (
+              <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_empty_reply")}</div>
+            ) : null}
+            {message.content?.interrupted && (
+              <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_interrupted")}</div>
+            )}
+            {error && <ErrorBody error={error} onCheckpoint={onCheckpoint} />}
+            {message.content?.sharedTo && message.content.sharedTo.length > 0 && (
+              <div className="mt-3 flex max-w-full flex-col gap-1.5 border-t border-subtle pt-2.5">
+                {message.content.sharedTo.map((sh) => (
+                  <button
+                    key={sh.issueId}
+                    type="button"
+                    onClick={() => onOpenCard(sh.projectId, sh.issueId)}
+                    title={sh.title}
+                    className="flex max-w-full items-center gap-1.5 self-start rounded-full bg-layer-3/60 px-2.5 py-1 text-caption-sm-regular text-tertiary transition-colors hover:bg-layer-3 hover:text-accent-primary"
+                  >
+                    <span aria-hidden className="shrink-0">
+                      ↗
+                    </span>
+                    <span className="truncate">{t("agent_teams_chat_shared_to", { name: sh.title })}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      {/* 操作行：气泡外部下方（ChatGPT/Claude 同款）——不占气泡空间、
+        不扰动 markdown 底部间距；hover 整行浮现 */}
+      {message.content?.text && (
+        <div className="flex items-center gap-3 pt-2 pl-1 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             type="button"
-            onClick={() => onOpenCard(card.projectId ?? "", card.issueId)}
-            className="text-left text-body-sm-medium text-accent-primary hover:underline"
+            onClick={handleCopy}
+            className="text-caption-sm-regular text-tertiary hover:text-secondary"
           >
-            {card.title}
+            {copied ? t("agent_teams_chat_copied") : t("agent_teams_chat_copy")}
           </button>
-          <span className="text-caption-sm-regular text-tertiary">{card.status}</span>
+          <button
+            type="button"
+            onClick={() => onShare(message)}
+            className="flex items-center gap-0.5 text-caption-sm-regular text-tertiary hover:text-secondary"
+          >
+            <MessageSquarePlus className="size-3" aria-hidden />
+            {t("agent_teams_chat_share")}
+          </button>
         </div>
-      ) : (
-        <>
-          {message.content?.text ? (
-            <MarkdownBody text={message.content.text} />
-          ) : !error && !message.content?.interrupted ? (
-            <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_empty_reply")}</div>
-          ) : null}
-          {message.content?.interrupted && (
-            <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_interrupted")}</div>
-          )}
-          {error && <ErrorBody error={error} onCheckpoint={onCheckpoint} />}
-          {message.content?.sharedTo && message.content.sharedTo.length > 0 && (
-            <div className="mt-3 flex max-w-full flex-col gap-1.5 border-t border-subtle pt-2.5">
-              {message.content.sharedTo.map((sh) => (
-                <button
-                  key={sh.issueId}
-                  type="button"
-                  onClick={() => onOpenCard(sh.projectId, sh.issueId)}
-                  title={sh.title}
-                  className="flex max-w-full items-center gap-1.5 self-start rounded-full bg-layer-3/60 px-2.5 py-1 text-caption-sm-regular text-tertiary transition-colors hover:bg-layer-3 hover:text-accent-primary"
-                >
-                  <span aria-hidden className="shrink-0">↗</span>
-                  <span className="truncate">{t("agent_teams_chat_shared_to", { name: sh.title })}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </>
       )}
-    </div>
-    {/* 操作行：气泡外部下方（ChatGPT/Claude 同款）——不占气泡空间、
-        不扰动 markdown 底部间距；hover 整行浮现 */}
-    {message.content?.text && (
-      <div className="flex items-center gap-3 pt-2 pl-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="text-caption-sm-regular text-tertiary hover:text-secondary"
-        >
-          {copied ? t("agent_teams_chat_copied") : t("agent_teams_chat_copy")}
-        </button>
-        <button
-          type="button"
-          onClick={() => onShare(message)}
-          className="flex items-center gap-0.5 text-caption-sm-regular text-tertiary hover:text-secondary"
-        >
-          <MessageSquarePlus className="size-3" aria-hidden />
-          {t("agent_teams_chat_share")}
-        </button>
-      </div>
-    )}
     </div>
   );
 }
@@ -153,16 +159,31 @@ export function StreamingBubble({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="max-w-[85%] min-w-0 self-start break-words rounded-2xl rounded-bl-md border border-subtle bg-layer-2 px-4 py-3">
-      {/* 协议 v2 进度：单行当前步骤态（「正在…」），正文流式其下 */}
+    <div className="max-w-[85%] min-w-0 self-start rounded-2xl rounded-bl-md border border-subtle bg-layer-2 px-4 py-3 break-words">
+      {/* 协议 v2 进度：单行当前步骤态（「正在…」），正文流式其下。
+          呼吸感：环状 spinner（持续活动感，弱于跳动点）+ 更宽的间距/留白，
+          与正文的视觉重心拉开层级（11-20 UI 反馈） */}
       {streaming.stage?.label && (
-        <div className="mb-2 flex items-center gap-1.5 text-caption-sm-regular text-tertiary">
-          <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-accent-primary" />
-          {streaming.stage.label}
+        <div className="mb-3 flex items-center gap-2 pb-1 text-caption-sm-regular text-tertiary">
+          <svg aria-hidden className="size-3 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path
+              className="opacity-75"
+              d="M22 12a10 10 0 0 1-10 10"
+              stroke="currentColor"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="min-w-0 truncate">{streaming.stage.label}</span>
         </div>
       )}
       {streaming.text ? (
-        <MarkdownBody text={streaming.text} />
+        // 流式期：尾部闪烁光标（globals.css .agent-streaming-text）标识
+        // 「仍在输出」——间隙长时用户不会误判已结束，定稿后随气泡换轨消失
+        <div className="agent-streaming-text">
+          <MarkdownBody text={streaming.text} />
+        </div>
       ) : streaming.error ? (
         <ErrorBody error={streaming.error} onCheckpoint={onCheckpoint} />
       ) : (
@@ -172,7 +193,11 @@ export function StreamingBubble({
             <span
               key={i}
               className="size-1.5 animate-bounce rounded-full"
-              style={{ background: "var(--text-color-tertiary)", animationDelay: `${i * 150}ms`, animationDuration: "0.9s" }}
+              style={{
+                background: "var(--text-color-tertiary)",
+                animationDelay: `${i * 150}ms`,
+                animationDuration: "0.9s",
+              }}
             />
           ))}
         </div>
@@ -187,7 +212,9 @@ function MarkdownBody({ text }: { text: string }) {
   return <MarkdownPreview content={text} className="text-body-sm-regular" />;
 }
 
-/** 确认卡（L1 建卡预览）：确认创建走闸门链；取消作废；已决态只读。 */
+/** 确认卡（L1 建卡预览）：确认创建走闸门链；取消作废；已决态只读。
+ *  排版对标审批卡惯例（钉钉审批/Linear）：状态徽标 → 标题 → 与正文同
+ *  字号、次级色的说明区 → 分隔线上的操作区（11-20 UI 反馈）。 */
 function ConfirmCardBody({
   confirm,
   busy,
@@ -200,16 +227,30 @@ function ConfirmCardBody({
   onConfirm: (messageId: string, action: "confirm" | "cancel") => void;
 }) {
   const { t } = useTranslation();
+  const settled = Boolean(confirm.state);
   return (
-    <div className="flex flex-col gap-2">
-      <div className="text-body-sm-medium">{confirm.title}</div>
+    <div className="flex w-full flex-col gap-3">
+      {/* 眉头：状态徽标（待确认=主题色 / 已决=中性灰） */}
+      <div className="flex flex-col gap-2">
+        <span
+          className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-caption-sm-medium ${
+            settled ? "bg-layer-3 text-tertiary" : "bg-accent-primary/10 text-accent-primary"
+          }`}
+        >
+          {settled ? t("agent_teams_chat_confirm_settled") : t("agent_teams_chat_confirm_pending")}
+        </span>
+        <div className="text-body-sm-medium">{confirm.title}</div>
+      </div>
+      {/* 说明区：与正文字号一致（text-body-sm），用次级色和标题拉开层级——
+          无底色块（11-20 反馈：弱底色圆角块显笨重） */}
       {confirm.description && (
-        <div className="whitespace-pre-wrap text-caption-sm-regular text-secondary">{confirm.description}</div>
+        <div className="text-body-sm-regular leading-relaxed whitespace-pre-wrap text-secondary">
+          {confirm.description}
+        </div>
       )}
-      {confirm.state ? (
-        <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_confirm_settled")}</div>
-      ) : (
-        <div className="flex gap-2">
+      {/* 操作区：分隔线上方留白；已决态不渲染按钮 */}
+      {!settled && (
+        <div className="flex items-center gap-2 border-t border-subtle pt-3">
           <Button variant="primary" size="sm" disabled={busy} onClick={() => onConfirm(messageId, "confirm")}>
             {t("agent_teams_chat_confirm_title")}
           </Button>
