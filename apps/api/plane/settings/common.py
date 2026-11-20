@@ -141,7 +141,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "crum.CurrentRequestUserMiddleware",
-    "django.middleware.gzip.GZipMiddleware",
+    "plane.settings.gzip.SSEBypassGZipMiddleware",
     "plane.middleware.request_body_size.RequestBodySizeLimitMiddleware",
     "plane.middleware.logger.APITokenLogMiddleware",
     "plane.middleware.logger.RequestLoggerMiddleware",
@@ -463,15 +463,17 @@ EMAIL_LOG_RETENTION_DAYS = _retention_days("EMAIL_LOG_RETENTION_DAYS", 7)
 # Instance Changelog URL
 INSTANCE_CHANGELOG_URL = os.environ.get("INSTANCE_CHANGELOG_URL", "")
 
+# 附件统一口径：图片 + Office 文档 + PDF + 纯文本（与业务附件解析能力对齐，
+# 与 packages/constants 的 ATTACHMENT_MIME_TYPES 及 asset/v2.py 白名单一致）。
+# 卡片「附加」与评论/会话/审批同口径——音视频/压缩包/字体等不再接受（员工读不懂、
+# 只作人类存档的原始文件请走其他通道）。
 ATTACHMENT_MIME_TYPES = [
     # Images
     "image/jpeg",
+    "image/jpg",
     "image/png",
-    "image/gif",
-    "image/svg+xml",
     "image/webp",
-    "image/tiff",
-    "image/bmp",
+    "image/gif",
     # Documents
     "application/pdf",
     "application/msword",
@@ -480,77 +482,15 @@ ATTACHMENT_MIME_TYPES = [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-powerpoint",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    # 纯文本
     "text/plain",
     "text/markdown",
-    "application/rtf",
-    "application/vnd.oasis.opendocument.spreadsheet",
-    "application/vnd.oasis.opendocument.text",
-    "application/vnd.oasis.opendocument.presentation",
-    "application/vnd.oasis.opendocument.graphics",
-    # Microsoft Visio
-    "application/vnd.visio",
-    # Netpbm format
-    "image/x-portable-graymap",
-    "image/x-portable-bitmap",
-    "image/x-portable-pixmap",
-    # Open Office Bae
-    "application/vnd.oasis.opendocument.database",
-    # Audio
-    "audio/mpeg",
-    "audio/wav",
-    "audio/ogg",
-    "audio/midi",
-    "audio/x-midi",
-    "audio/aac",
-    "audio/flac",
-    "audio/x-m4a",
-    # Video
-    "video/mp4",
-    "video/mpeg",
-    "video/ogg",
-    "video/webm",
-    "video/quicktime",
-    "video/x-msvideo",
-    "video/x-ms-wmv",
-    # Archives
-    "application/zip",
-    "application/x-rar",
-    "application/x-rar-compressed",
-    "application/x-tar",
-    "application/gzip",
-    "application/x-zip",
-    "application/x-zip-compressed",
-    "application/x-7z-compressed",
-    "application/x-compressed",
-    "application/x-compressed-tar",
-    "application/x-compressed-tar-gz",
-    "application/x-compressed-tar-bz2",
-    "application/x-compressed-tar-zip",
-    "application/x-compressed-tar-7z",
-    "application/x-compressed-tar-rar",
-    "application/x-compressed-tar-zip",
-    # 3D Models
-    "model/gltf-binary",
-    "model/gltf+json",
-    "application/octet-stream",  # for .obj files, but be cautious
-    # Fonts
-    "font/ttf",
-    "font/otf",
-    "font/woff",
-    "font/woff2",
-    # Other
-    "text/css",
-    "text/javascript",
-    "application/json",
-    "text/xml",
     "text/csv",
+    "application/json",
     "application/xml",
-    # SQL
-    "application/x-sql",
-    # Gzip
-    "application/x-gzip",
-    # Markdown
-    "text/markdown",
+    "text/xml",
+    "text/html",
+    "text/yaml",
 ]
 
 # MIME types that browsers can execute as scripts when served inline.
