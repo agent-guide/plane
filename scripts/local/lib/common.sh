@@ -1,40 +1,61 @@
 #!/bin/bash
 # 本地栈脚本共用库（up/down/check/provision source）——随 scripts/local/ 整体入库。
-# 2026-11-20 重建：原文件随 force-add 漏库，此版按四个脚本的引用面重建，
-# 端口/路径对齐本仓现行本地栈（见 docs/v2/new-machine-onboarding.md）。
+#
+# 机器相关值（凭据/网关 ID/仓库目录/airflow 路径）一律从 scripts/local/.env
+# 读取（gitignored，每台机各一份，由 gen-env.sh 按 env.example 生成）；
+# 二进制路径优先 command -v 探测、探测不到回退 .env 显式覆盖。本文件只放
+# 公共逻辑 + 两台机一致的端口默认值，不落任何秘密或机器绝对路径。
+# （2026-11-20 修正：上一版把 shadow 机的绝对路径与凭据硬编码入库，双机冲突。）
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ── 机器相关配置：source 本机 .env（gitignored）──
+if [ -f "$_SCRIPT_DIR/../.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$_SCRIPT_DIR/../.env"
+  set +a
+fi
+
+# ── 仓库根/子目录（代码布局两台机一致）──
+REPO_ROOT="$(cd "$_SCRIPT_DIR/../../.." && pwd)"
 API_DIR="$REPO_ROOT/apps/api"
 WEB_DIR="$REPO_ROOT/apps/web"
-GW_DIR="$HOME/Desktop/shu/agent-gateway"
-MGR_DIR="$HOME/Desktop/shu/experts-frontend/agwmngr"
 URL_MCP_DIR="$REPO_ROOT/services/url-mcp"
 DOC_MCP_DIR="$REPO_ROOT/services/doc-mcp"
 
-PG_PORT=5432
-REDIS_PORT=6379
-API_PORT=8001
-WEB_PORT=3000
-GW_ADMIN_PORT=8019
-GW_ID="gw-local"   # agwmngr 注册的网关 ID
-MGR_PORT=3300
-AIRFLOW_PORT=8090
-AIRFLOW_HOME_DIR="$HOME/Desktop/shu/airflow-home"   # 本机实际位置（up.sh 原值 $HOME/airflow-home）
-AF="$HOME/Desktop/shu/airflow-venv/bin/airflow"
+# ── 仓库/工具目录（机器相关，.env 可覆盖，缺省按约定）──
+GW_DIR="${GW_DIR:-$HOME/Desktop/shu/agent-gateway}"
+MGR_DIR="${MGR_DIR:-$HOME/Desktop/shu/agwmngr}"
+AIRFLOW_HOME_DIR="${AIRFLOW_HOME_DIR:-$HOME/airflow-local}"
+AF="${AF:-$AIRFLOW_HOME_DIR/.venv/bin/airflow}"
 
-# 凭据（本地开发约定；生产/测试服绝不使用）
-PSQL="/Users/shadow/pgsql/bin/psql"   # 本机自编译 PG 客户端（PATH 无 psql）
-REDIS_CLI="/Users/shadow/plane-data/redis/redis-7.2.12/src/redis-cli"  # 同上
-DB_URL="$(grep -E '^DATABASE_URL=' "$API_DIR/.env" | cut -d= -f2-)"
+# ── 端口（env.example 统一口径，缺省兜底）──
+PG_PORT="${PG_PORT:-5432}"
+REDIS_PORT="${REDIS_PORT:-6379}"
+API_PORT="${API_PORT:-8001}"
+WEB_PORT="${WEB_PORT:-3000}"
+GW_ADMIN_PORT="${GW_ADMIN_PORT:-8019}"
+MGR_PORT="${MGR_PORT:-3300}"
+AIRFLOW_PORT="${AIRFLOW_PORT:-8090}"
 
-GW_ADMIN_USER="admin"
-GW_ADMIN_PASSWORD="dummy"
-# plane→agwmngr 平台链凭据（从 api .env 提取，避免双处维护）
-TENANT_ID="$(grep -E '^AGWMNGR_TENANT_ID=' "$API_DIR/.env" | cut -d= -f2-)"
-TENANT_TOKEN="$(grep -E '^AGWMNGR_TENANT_TOKEN=' "$API_DIR/.env" | cut -d= -f2-)"
+# ── 网关注册 ID / 凭据 / 租户（.env 提供；缺则空，探活 fail-closed）──
+GW_ID="${GW_ID:-}"
+GW_ADMIN_USER="${GW_ADMIN_USER:-}"
+GW_ADMIN_PASSWORD="${GW_ADMIN_PASSWORD:-}"
+MGR_ADMIN_USER="${MGR_ADMIN_USER:-}"
+MGR_ADMIN_PASSWORD="${MGR_ADMIN_PASSWORD:-}"
+TENANT_ID="${TENANT_ID:-}"
+TENANT_TOKEN="${TENANT_TOKEN:-}"
 
-MGR_ADMIN_USER="localadmin"
-MGR_ADMIN_PASSWORD="localdev123"
+# ── 二进制：优先 PATH 探测，探测不到回退 .env 显式路径 ──
+PSQL="${PSQL:-$(command -v psql 2>/dev/null || true)}"
+REDIS_CLI="${REDIS_CLI:-$(command -v redis-cli 2>/dev/null || true)}"
+
+# ── 业务库 URL（从 plane api .env 提取，不硬编码）──
+# 取最后一行：api .env 里 .env.example 基底带一个未展开的 ${POSTGRES_*} 模板
+# DATABASE_URL，gen-env.sh 生成段在末尾再写一行具体值——tail 拿到具体值。
+DB_URL="${DB_URL:-$(grep -E '^DATABASE_URL=' "$API_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2-)}"
 
 step() { echo "==== $* ===="; }
 ok()   { echo "  ✅ $*"; }
