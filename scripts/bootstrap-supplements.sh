@@ -110,7 +110,7 @@ if [ -n "$OFF_ID" ]; then
 else
   if [ -n "$CHECK_ONLY" ]; then status "MISS" "目录未登记"; else
     RES=$(api -X POST -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings" \
-      -d "{\"category\":\"tool\",\"name\":\"fetch_supplements\",\"description\":\"Query user supplements added during task execution\",\"kind\":\"gateway-backed\",\"source_gateway_id\":\"$GW_ID\",\"upstream_stable_id\":\"$STABLE_ID\",\"availability\":{\"mode\":\"tenant-allowlist\",\"tenant_ids\":[\"$TENANT\"]}}")
+      -d "{\"category\":\"tool\",\"name\":\"fetch_supplements\",\"description\":\"Query user supplements added during task execution\",\"kind\":\"gateway-backed\",\"source_gateway_id\":\"$GW_ID\",\"upstream_stable_id\":\"$STABLE_ID\",\"availability\":{\"tenant_ids\":[\"$TENANT\"]}}")
     OFF_ID=$(echo "$RES" | jsonget "d['offeringId']")
     api -X POST "$AGWMNGR/api/platform/v1/catalog/offerings/$OFF_ID/approve" >/dev/null \
       && status "OK" "已登记并审批（offering $OFF_ID）" || { status "FAIL" "审批失败"; exit 1; }
