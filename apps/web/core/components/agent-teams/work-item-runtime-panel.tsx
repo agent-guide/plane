@@ -122,7 +122,9 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   // 同时清空上一轮作答残留的文字（新一轮问题不该带出旧输入）
   // 仅按审批 id 变化重置；依赖 attachments 会让本地增删被轮询刷新覆盖
   useEffect(() => {
-    setAnswerAttachments((summary?.pendingApproval?.attachments ?? []).map((a) => ({ id: a.id, name: a.name })));
+    setAnswerAttachments(
+      (summary?.pendingApproval?.attachments ?? []).map((a) => ({ id: a.id, name: a.name, status: "done" }))
+    );
     setTextAnswer("");
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- 报告锚点在依赖数组行
   }, [summary?.pendingApproval?.id]);
@@ -387,7 +389,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     const hasAgentError = step.status === "failed" && step.errorCode;
     const errorMessage = hasAgentError ? t(AGENT_ERROR_MESSAGE_KEYS[step.errorCode as AgentErrorCode]) : "";
     const specificDetail = displayErrorDetail(step.errorCode as AgentErrorCode, step.errorDetail);
-    const content = hasAgentError ? (specificDetail || errorMessage || step.errorCode) : rawContent;
+    const content = hasAgentError ? specificDetail || errorMessage || step.errorCode : rawContent;
     if (!content) return null;
     // D1 口径：用户只见人话（code 映射，rate_limit/agent_error 优先展示后端
     // 提取的具体 detail）+ 引导动作；原始技术报错只留 worker 日志与 DB 记录
@@ -545,7 +547,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                               answering={answering}
                               textAnswer={textAnswer}
                               onTextChange={setTextAnswer}
-                              attachmentIds={answerAttachments.map((a) => a.id)}
+                              attachmentIds={answerAttachments.filter((a) => a.status === "done").map((a) => a.id)}
                               attachmentSlot={
                                 <ApprovalAttachmentUpload
                                   workspaceSlug={workspaceSlug}

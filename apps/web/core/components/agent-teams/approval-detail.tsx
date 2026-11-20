@@ -50,7 +50,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
   // C7：选中审批时从服务端挂载恢复附件列表（刷新/重进不丢）
   // 仅按审批 id 变化重置；依赖 attachments 会让本地增删被轮询刷新覆盖
   useEffect(() => {
-    setAttachments((selected?.attachments ?? []).map((a) => ({ id: a.id, name: a.name })));
+    setAttachments((selected?.attachments ?? []).map((a) => ({ id: a.id, name: a.name, status: "done" })));
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- 报告锚点在依赖数组行
   }, [selected?.id]);
 
@@ -172,7 +172,7 @@ export const AgentApprovalDetailPane = observer(function AgentApprovalDetailPane
           answering={answering}
           textAnswer={textAnswer}
           onTextChange={setTextAnswer}
-          attachmentIds={attachments.map((a) => a.id)}
+          attachmentIds={attachments.filter((a) => a.status === "done").map((a) => a.id)}
           attachmentSlot={
             <ApprovalAttachmentUpload
               workspaceSlug={workspaceSlug}

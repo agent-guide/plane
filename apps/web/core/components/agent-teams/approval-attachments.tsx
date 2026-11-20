@@ -16,10 +16,7 @@ import { FileService } from "@/services/file.service";
 import { registerApprovalAttachment, unregisterApprovalAttachment } from "@/services/agent-teams/orchestration.service";
 import { EFileAssetType, type TFileSignedURLResponse } from "@plane/types";
 
-export interface AnswerAttachment {
-  id: string;
-  name: string;
-}
+export type AnswerAttachment = AttachmentFile;
 
 const fileService = new FileService();
 
@@ -40,10 +37,8 @@ export function ApprovalAttachmentUpload({
 
   return (
     <AttachmentInput
-      value={attachments.map((a): AttachmentFile => ({ id: a.id, name: a.name, status: "done" }))}
-      onChange={(files) =>
-        onAttachmentsChange(files.filter((f) => f.status === "done").map((f) => ({ id: f.id, name: f.name })))
-      }
+      value={attachments}
+      onChange={onAttachmentsChange}
       onUpload={async (file, onProgress) => {
         try {
           const res: TFileSignedURLResponse = await fileService.uploadWorkspaceAsset(
