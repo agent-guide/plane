@@ -10,7 +10,7 @@ import { useTranslation } from "@plane/i18n";
 import { LinkIcon, CopyIcon, EditIcon, TrashIcon } from "@plane/propel/icons";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { Tooltip } from "@plane/propel/tooltip";
-import type { TIssueServiceType } from "@plane/types";
+import type { TIssueLink, TIssueServiceType } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
 // ui
 import { CustomMenu } from "@plane/ui";
@@ -22,7 +22,10 @@ import { usePlatformOS } from "@/hooks/use-platform-os";
 import type { TLinkOperationsModal } from "./create-update-link-modal";
 
 type TIssueLinkItem = {
-  linkId: string;
+  linkId?: string;
+  /** 外部数据模式（新建态草稿）：直接给链接数据，配合 onRemove */
+  link?: { id: string; url: string; title?: string };
+  onRemove?: (id: string) => void;
   linkOperations: TLinkOperationsModal;
   isNotAllowed: boolean;
   issueServiceType?: TIssueServiceType;
@@ -30,7 +33,7 @@ type TIssueLinkItem = {
 
 export const IssueLinkItem = observer(function IssueLinkItem(props: TIssueLinkItem) {
   // props
-  const { linkId, linkOperations, isNotAllowed, issueServiceType = EIssueServiceType.ISSUES } = props;
+  const { linkId, link: externalLink, onRemove, linkOperations, isNotAllowed, issueServiceType = EIssueServiceType.ISSUES } = props;
   // hooks
   const { t } = useTranslation();
   const {
@@ -39,7 +42,15 @@ export const IssueLinkItem = observer(function IssueLinkItem(props: TIssueLinkIt
     link: { getLinkById },
   } = useIssueDetail(issueServiceType);
   const { isMobile } = usePlatformOS();
-  const linkDetail = getLinkById(linkId);
+
+  const storeLink = linkId ? getLinkById(linkId) : undefined;
+  const linkDetail = storeLink ?? (externalLink ? {
+    id: externalLink.id,
+    url: externalLink.url,
+    title: externalLink.title ?? "",
+    metadata: {},
+    created_at: new Date().toISOString(),
+  } : undefined);
   if (!linkDetail) return <></>;
 
   // const Icon = getIconForLink(linkDetail.url);
@@ -48,7 +59,8 @@ export const IssueLinkItem = observer(function IssueLinkItem(props: TIssueLinkIt
 
   const toggleIssueLinkModal = (modalToggle: boolean) => {
     toggleIssueLinkModalStore(modalToggle);
-    setIssueLinkData(linkDetail);
+    // 仅在 store 模式（无 externalLink）触发，此时 linkDetail 必为 TIssueLink
+    setIssueLinkData(linkDetail as TIssueLink);
   };
   return (
     <>
@@ -102,19 +114,22 @@ export const IssueLinkItem = observer(function IssueLinkItem(props: TIssueLinkIt
             closeOnSelect
             disabled={isNotAllowed}
           >
+            {!externalLink && (
+              <CustomMenu.MenuItem
+                className="flex items-center gap-2"
+                onClick={() => {
+                  toggleIssueLinkModal(true);
+                }}
+              >
+                <EditIcon className="h-3 w-3 stroke-[1.5] text-secondary" />
+                {t("common.actions.edit")}
+              </CustomMenu.MenuItem>
+            )}
             <CustomMenu.MenuItem
               className="flex items-center gap-2"
               onClick={() => {
-                toggleIssueLinkModal(true);
-              }}
-            >
-              <EditIcon className="h-3 w-3 stroke-[1.5] text-secondary" />
-              {t("common.actions.edit")}
-            </CustomMenu.MenuItem>
-            <CustomMenu.MenuItem
-              className="flex items-center gap-2"
-              onClick={() => {
-                linkOperations.remove(linkDetail.id);
+                if (externalLink && onRemove) onRemove(externalLink.id);
+                else linkOperations.remove(linkDetail.id);
               }}
             >
               <TrashIcon className="h-3 w-3" />

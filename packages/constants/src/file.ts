@@ -26,6 +26,13 @@ export const ATTACHMENT_MIME_TYPES = [
   // PPT
   "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  // RTF（浏览器可能报 text/rtf 或 application/rtf，两者都收）
+  "application/rtf",
+  "text/rtf",
+  // OpenDocument
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
   // 纯文本
   "text/plain",
   "text/markdown",

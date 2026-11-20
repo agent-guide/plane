@@ -86,3 +86,4 @@ drf-spectacular==0.29.0
 nh3==0.2.18
 # 文档解析单一权威源（编排域注入与 doc-mcp 共用；本地包，-e 相对 apps/api）
 -e ../../packages/document-parsing
+olefile==0.47

@@ -31,6 +31,7 @@ import {
 // components
 import {
   IssueDefaultProperties,
+  type LinkDraft,
   IssueDescriptionEditor,
   IssueParentTag,
   IssueProjectSelect,
@@ -52,6 +53,8 @@ export interface IssueFormProps {
   issueTitleRef: React.MutableRefObject<HTMLInputElement | null>;
   isCreateMoreToggleEnabled: boolean;
   onAssetUpload: (assetId: string) => void;
+  onAssetRemove?: (assetId: string) => void;
+  onLinksChange?: (links: LinkDraft[]) => void;
   onCreateMoreToggleChange: (value: boolean) => void;
   onChange?: (formData: Partial<TIssue> | null) => void;
   onClose: () => void;
@@ -78,6 +81,8 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
     data,
     issueTitleRef,
     onAssetUpload,
+    onAssetRemove,
+    onLinksChange,
     onChange,
     onClose,
     onSubmit,
@@ -449,13 +454,10 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                   id={data?.id}
                   projectId={projectId}
                   workspaceSlug={workspaceSlug?.toString()}
-                  selectedParentIssue={selectedParentIssue}
-                  startDate={watch("start_date")}
-                  targetDate={watch("target_date")}
-                  parentId={watch("parent_id")}
-                  isDraft={isDraft}
                   handleFormChange={handleFormChange}
-                  setSelectedParentIssue={setSelectedParentIssue}
+                  onAssetUpload={onAssetUpload}
+                  onAssetRemove={onAssetRemove}
+                  onLinksChange={onLinksChange}
                 />
               </div>
               {showActionButtons && (

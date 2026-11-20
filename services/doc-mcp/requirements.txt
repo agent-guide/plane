@@ -5,3 +5,5 @@ openpyxl==3.1.2
 python-pptx==1.0.2
 # 文档解析单一权威源（本地包）
 -e ../../packages/document-parsing
+# .doc/.ppt 兜底引擎（LibreOffice 不可用时）
+olefile==0.47

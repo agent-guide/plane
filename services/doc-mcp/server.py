@@ -38,6 +38,8 @@ MIME_BY_EXT = {
     "html": "text/html", "htm": "text/html", "md": "text/markdown", "markdown": "text/markdown",
     "txt": "text/plain", "csv": "text/csv", "json": "application/json", "xml": "application/xml",
     "log": "text/plain", "yaml": "application/yaml", "yml": "application/yaml",
+    # 旧版 Office 二进制格式：LibreOffice headless 优先、olefile 兜底（_parse.py）
+    "doc": "application/msword", "ppt": "application/vnd.ms-powerpoint",
 }
 SUPPORTED_EXTS = set(MIME_BY_EXT) | {"xls"}
 
@@ -133,7 +135,7 @@ TOOLS = [{
     # 工具描述是 prompt 工程的一部分：明确「何时调/何时不调」，防误用
     #（曾因 url_reader 描述未排除附件导致 agent 误调，11-19 教训）。
     "description": (
-        "把文档内容解析成纯文本（支持 pdf/docx/xlsx/pptx/html/md/txt/csv/json/xml/log）。"
+        "把文档内容解析成纯文本（支持 pdf/docx/xlsx/pptx/html/md/txt/csv/json/xml/log/doc/ppt）。"
         "仅当「通过工具主动拿到了文档内容、且它没有被解析成文本」时调用——例如邮件附件"
         "（base64 或下载链接）、其他工具返回的文件内容。用户上传的附件内容已随消息自动"
         "注入，不需要调用本工具。不支持图片 OCR。内网地址会被安全策略拒绝。"

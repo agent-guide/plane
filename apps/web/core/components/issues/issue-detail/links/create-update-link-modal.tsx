@@ -137,7 +137,13 @@ export const IssueLinkCreateUpdateModal = observer(function IssueLinkCreateUpdat
           <Button variant="secondary" size="lg" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button variant="primary" size="lg" type="submit" loading={isSubmitting}>
+          <Button
+            variant="primary"
+            size="lg"
+            type="button"
+            loading={isSubmitting}
+            onClick={handleSubmit(handleFormSubmit)}
+          >
             {`${
               preloadedData?.id
                 ? isSubmitting

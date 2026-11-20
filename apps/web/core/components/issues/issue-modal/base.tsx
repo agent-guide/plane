@@ -31,6 +31,7 @@ import { CreateIssueToastActionItems } from "../create-issue-toast-action-items"
 import { DraftIssueLayout } from "./draft-issue-layout";
 import { IssueFormRoot } from "./form";
 import type { IssueFormProps } from "./form";
+import type { LinkDraft } from "./components/default-properties";
 import type { IssuesModalProps } from "./modal";
 
 export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueModalBase(props: IssuesModalProps) {
@@ -65,6 +66,7 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [description, setDescription] = useState<string | undefined>(undefined);
   const [uploadedAssetIds, setUploadedAssetIds] = useState<string[]>([]);
+  const [linkDrafts, setLinkDrafts] = useState<LinkDraft[]>([]);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   // store hooks
   const { t } = useTranslation();
@@ -74,7 +76,10 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   const { issues } = useIssues(storeType);
   const { issues: projectIssues } = useIssues(EIssuesStoreType.PROJECT);
   const { issues: draftIssues } = useIssues(EIssuesStoreType.WORKSPACE_DRAFT);
-  const { fetchIssue } = useIssueDetail();
+  const {
+    fetchIssue,
+    link: { createLink },
+  } = useIssueDetail();
   const { allowedProjectIds, handleCreateUpdatePropertyValues, handleCreateSubWorkItem } = useIssueModal();
   const { getProjectByIdentifier } = useProject();
   // current store details
@@ -193,6 +198,23 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
           }
         );
         setUploadedAssetIds([]);
+      }
+
+      // 新建/编辑暂存的链接：建卡（或编辑保存）后统一落库；草稿态无 issue 不落
+      if (!is_draft_issue && response?.id && linkDrafts.length > 0) {
+        for (const draft of linkDrafts) {
+          try {
+            // 逐个串行落库（草稿条数少，避免并发；与附件 bulk 绑定同策略）
+            // eslint-disable-next-line no-await-in-loop
+            await createLink(workspaceSlug.toString(), response.project_id ?? payload.project_id ?? "", response.id, {
+              title: draft.title,
+              url: draft.url,
+            });
+          } catch {
+            // 链接落库失败不阻断建卡（尽力而为，与附件 bulk 绑定同策略）
+          }
+        }
+        setLinkDrafts([]);
       }
 
       if (!response) throw new Error();
@@ -383,6 +405,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   const handleFormChange = (formData: Partial<TIssue> | null) => setChangesMade(formData);
 
   const handleUpdateUploadedAssetIds = (assetId: string) => setUploadedAssetIds((prev) => [...prev, assetId]);
+  const handleRemoveUploadedAssetIds = (assetId: string) => setUploadedAssetIds((prev) => prev.filter((id) => id !== assetId));
+  const handleLinksChange = (links: LinkDraft[]) => setLinkDrafts(links);
 
   const handleDuplicateIssueModal = (value: boolean) => setIsDuplicateModalOpen(value);
 
@@ -398,6 +422,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
       module_ids: data?.module_ids ? data?.module_ids : moduleId ? [moduleId.toString()] : null,
     },
     onAssetUpload: handleUpdateUploadedAssetIds,
+    onAssetRemove: handleRemoveUploadedAssetIds,
+    onLinksChange: handleLinksChange,
     onClose: handleClose,
     onSubmit: (payload) => handleFormSubmit(payload, isDraft),
     projectId: activeProjectId,

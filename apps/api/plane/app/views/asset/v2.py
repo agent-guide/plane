@@ -27,25 +27,11 @@ from plane.utils.path_validator import sanitize_filename
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from plane.throttles.asset import AssetRateThrottle
 
-# 评论/描述附件可接受的 MIME（图片 + 文档类，P3 附件一期）。文档类上传后经
+# 评论/描述附件可接受的 MIME：单一事实来源 = settings.ATTACHMENT_MIME_TYPES
+# （图片 + 文档类，与卡片「附加」同口径）。文档类上传后经
 # orchestration.attachment_parse 解析成文本注入员工 prompt。用户头像/封面等
 # 仍走 UserAssetsV2Endpoint 的图片白名单，不受此影响。
-ACCEPTED_ATTACHMENT_MIME_TYPES = [
-    # 图片
-    "image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif",
-    # Office 文档
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    # 纯文本
-    "text/plain", "text/markdown", "text/csv", "application/json",
-    # 结构化文本（attachment_parse 文本类同源支持：直接按文本读）
-    "application/xml", "text/xml", "text/html", "text/yaml",
-]
+ACCEPTED_ATTACHMENT_MIME_TYPES = settings.ATTACHMENT_MIME_TYPES
 
 # 签名检测认不出（file-type 对 txt/md/csv 恒空、对部分 Office 文档也可能
 # 拿不到 [Content_Types].xml 特征）时，按扩展名回退映射。覆盖白名单全部
@@ -73,14 +59,24 @@ _EXTENSION_TO_MIME = {
 def _resolve_attachment_mime(name: str, type_: str) -> str:
     """前端签名检测认不出的纯文本附件，按扩展名回退出 MIME（否则会因 type 空被拒）。
 
-    Office 文档（docx/xlsx/pptx）是 zip 容器，file-type 常把它们判成
-    application/zip / application/octet-stream——这些泛型 MIME 同样需要按扩展名
-    回退，否则会被白名单拒绝。图片等有明确签名的类型保持签名值不动。
+    - 新 Office（docx/xlsx/pptx）是 zip 容器，file-type 判成 application/zip /
+      application/octet-stream
+    - 旧 Office（doc/xls/ppt）是 OLE2 复合文档，file-type 判成 application/x-cfb
+    这些泛型/容器 MIME 一律按扩展名回退，否则会被白名单拒绝。图片等有明确
+    签名的类型保持签名值不动。
     """
     ext = (name or "").rsplit(".", 1)[-1].lower() if "." in (name or "") else ""
     mapped = _EXTENSION_TO_MIME.get(ext)
-    # 泛型/空 MIME 一律优先信任扩展名（白名单只收已知扩展→已知 MIME，安全）
-    generic = type_ in ("", "application/zip", "application/x-zip-compressed", "application/octet-stream")
+    # 泛型/容器 MIME 一律优先信任扩展名（白名单只收已知扩展→已知 MIME，安全）
+    generic = type_ in (
+        "",
+        "application/zip",
+        "application/x-zip-compressed",
+        "application/octet-stream",
+        # OLE2 复合文档容器（旧版 Word/Excel/PPT 的签名检测结果）
+        "application/x-cfb",
+        "application/vnd.ms-office",
+    )
     if mapped and generic:
         return mapped
     return type_
@@ -784,6 +780,16 @@ class ProjectBulkAssetEndpoint(BaseAPIView):
         if asset.entity_type == FileAsset.EntityTypeContext.ISSUE_DESCRIPTION:
             # For some cases, the bulk api is called after the issue is deleted creating
             # an integrity error
+            try:
+                assets.update(issue_id=entity_id, project_id=project_id)
+            except IntegrityError:
+                pass
+
+        if asset.entity_type in (
+            FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
+            FileAsset.EntityTypeContext.DRAFT_ISSUE_ATTACHMENT,
+        ):
+            # 新建工作项「先上传 → 建卡 → 关联」：卡片附件在保存时批量挂到新卡
             try:
                 assets.update(issue_id=entity_id, project_id=project_id)
             except IntegrityError:

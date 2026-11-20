@@ -482,6 +482,13 @@ ATTACHMENT_MIME_TYPES = [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-powerpoint",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    # RTF（Mac TextEdit 常见，LibreOffice 原生支持；浏览器可能报 text/rtf）
+    "application/rtf",
+    "text/rtf",
+    # OpenDocument（LibreOffice 原生格式）
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+    "application/vnd.oasis.opendocument.presentation",
     # 纯文本
     "text/plain",
     "text/markdown",

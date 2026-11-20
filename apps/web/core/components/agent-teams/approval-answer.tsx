@@ -1,22 +1,29 @@
 /**
  * Copyright © 2026 agent-guide contributors
  * SPDX-License-Identifier: AGPL-3.0-only
+ * See the LICENSE file in the repository root for more details.
  *
  * Agent Teams extension — 审批作答区（收件箱详情/工作卡执行面板共用）。
- * 三形态：自由文本补录 / 自定义选项 / 批准-驳回。按钮排布对齐平台弹层
- * 惯例（横排、auto 宽、右对齐提交），杜绝纵向容器把按钮拉成整行细条。
+ * 三形态：自由文本补录 / 自定义选项 / 批准-驳回。
+ *
+ * 交互对标 HITL 确认区成熟实践（GitHub Actions 审批 / n8n 手动审批）：
+ * - 通过=主按钮、驳回/终止=危险描边按钮（权重分层）
+ * - 驳回/终止必填理由（防误触、可审计）；通过可不填
+ * - 作答进行中走按钮 spinner（非「…」占位）
+ * - 文本域最小高度 3 行、Enter 提交（仅无选项的自由文本形态）/ Shift+Enter 换行
  */
 import type { ReactNode } from "react";
 import { useTranslation } from "@plane/i18n";
 import { Button } from "@plane/propel/button";
 import { TextArea } from "@plane/ui";
-import { cn } from "@plane/utils";
 
 export interface ApprovalAnswerPayload {
   freeText: boolean;
   options: { label: string; value: string; terminal?: boolean }[];
   /** 人工审批节点（通过/驳回）：纯按钮，文字/附件无下游消费不加输入区 */
   humanNode?: boolean;
+  /** 画布自定义选项（按画布渲染，驳回=终止） */
+  customOptions?: boolean;
 }
 
 export function ApprovalAnswerArea({
@@ -43,24 +50,50 @@ export function ApprovalAnswerArea({
   const options = approval.options ?? [];
   const attachmentCount = attachmentIds?.length ?? 0;
 
-  // confirm：通过/驳回按钮 + 原因/修正值框（freeText 与 options 并存）
+  const hasReason = textAnswer.trim().length > 0;
+
+  // 驳回/终止必填理由；通过（非 terminal）不强制。
+  const optionDisabled = (value: string, terminal?: boolean) => answering !== "" || (!!terminal && !hasReason);
+
+  const textArea = (submitOnEnter?: () => void) => (
+    <TextArea
+      value={textAnswer}
+      onChange={(e) => onTextChange(e.target.value)}
+      onKeyDown={
+        submitOnEnter
+          ? (e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submitOnEnter();
+              }
+            }
+          : undefined
+      }
+      placeholder={t("agent_teams_inbox_answer_placeholder")}
+      rows={3}
+      className="min-h-[72px] w-full text-[13px]"
+    />
+  );
+
+  const attachHint = approval.freeText ? (
+    <p className="text-[13px] text-tertiary">{t("agent_teams_inbox_answer_attach_hint")}</p>
+  ) : null;
+
+  // 形态一：自由文本 + 选项（confirm：补录 + 通过/驳回选择并存）
   if (approval.freeText && options.length > 0) {
     return (
       <div className="flex flex-col gap-2">
-        <TextArea
-          value={textAnswer}
-          onChange={(e) => onTextChange(e.target.value)}
-          placeholder={t("agent_teams_inbox_answer_placeholder")}
-          className="w-full"
-        />
+        {textArea()}
         {attachmentSlot}
+        {attachHint}
         <div className="flex flex-wrap gap-2">
           {options.map((option) => (
             <Button
               key={option.value}
-              variant={option.terminal ? "secondary" : "primary"}
+              variant={option.terminal ? "error-outline" : "primary"}
               size="sm"
-              disabled={answering !== ""}
+              loading={answering === option.value}
+              disabled={optionDisabled(option.value, option.terminal)}
               onClick={() =>
                 onAnswer(
                   option.terminal ? "rejected" : "approved",
@@ -70,7 +103,7 @@ export function ApprovalAnswerArea({
                 )
               }
             >
-              {answering === option.value ? "…" : option.label}
+              {option.label}
             </Button>
           ))}
         </div>
@@ -78,36 +111,30 @@ export function ApprovalAnswerArea({
     );
   }
 
+  // 形态二：纯自由文本（补录任意内容，无选项）
   if (approval.freeText) {
     return (
       <div className="flex flex-col gap-2">
-        <TextArea
-          value={textAnswer}
-          onChange={(e) => onTextChange(e.target.value)}
-          placeholder={t("agent_teams_inbox_answer_placeholder")}
-          className="w-full"
-        />
+        {textArea(() => onAnswer("approved", textAnswer.trim(), "text", attachmentIds ?? []))}
         {attachmentSlot}
+        {attachHint}
         <div className="flex items-center justify-end">
           <Button
             variant="primary"
             size="sm"
-            disabled={answering !== "" || (!textAnswer.trim() && !attachmentCount)}
+            loading={answering === "text"}
+            disabled={answering !== "" || (!hasReason && !attachmentCount)}
             onClick={() => onAnswer("approved", textAnswer.trim(), "text", attachmentIds ?? [])}
           >
-            {answering === "text" ? "…" : t("agent_teams_inbox_submit")}
+            {t("agent_teams_inbox_submit")}
           </Button>
         </div>
       </div>
     );
   }
 
+  // 形态三：仅选项（选项式问询 / 人工审批通过-驳回），可补备注与附件
   if (options.length > 0) {
-    // agent 的选项式问询可补文字/附件（组合自由——只点选项、只传附件、
-    // 或选项+补充说明均可；提交把文字与附件随选项一并带上）。
-    // 人工审批节点（humanNode）：默认形态=通过/驳回两键+备注/附件
-    //（驳回即退回上游重做）；画布自定义选项（customOptions）按画布渲染、
-    // 驳回=终止。
     return (
       <div className="flex flex-col gap-2">
         <TextArea
@@ -116,12 +143,12 @@ export function ApprovalAnswerArea({
           placeholder={t(
             approval.humanNode ? "agent_teams_inbox_confirm_note_placeholder" : "agent_teams_inbox_answer_placeholder"
           )}
-          className="w-full"
+          rows={3}
+      className="min-h-[72px] w-full text-[13px]"
         />
         {attachmentSlot}
         <div className="flex flex-wrap gap-2">
           {options.map((option) => {
-            // 人工节点默认动作：后端存 ASCII 语义标签，用户文案按 value 走 i18n
             const isDefaultHumanAction =
               approval.humanNode &&
               !approval.customOptions &&
@@ -134,9 +161,10 @@ export function ApprovalAnswerArea({
             return (
               <Button
                 key={option.value}
-                variant={option.terminal ? "secondary" : "primary"}
+                variant={option.terminal ? "error-outline" : "primary"}
                 size="sm"
-                disabled={answering !== ""}
+                loading={answering === option.value}
+                disabled={optionDisabled(option.value, option.terminal)}
                 title={
                   approval.humanNode && option.terminal && !approval.customOptions
                     ? t("agent_teams_inbox_confirm_reject_hint")
@@ -151,7 +179,7 @@ export function ApprovalAnswerArea({
                   )
                 }
               >
-                {answering === option.value ? "…" : label}
+                {label}
               </Button>
             );
           })}
@@ -160,20 +188,22 @@ export function ApprovalAnswerArea({
     );
   }
 
+  // 兜底：纯通过/驳回（无文案、无选项）
   return (
     <div className="flex gap-2">
       <Button
         variant="primary"
         size="sm"
+        loading={answering === "approve"}
         disabled={answering !== ""}
         onClick={() => onAnswer("approved", "", "approve")}
-        className={cn(answering === "approve" && "opacity-60")}
       >
         {t("agent_teams_panel_approve")}
       </Button>
       <Button
-        variant="secondary"
+        variant="error-outline"
         size="sm"
+        loading={answering === "reject"}
         disabled={answering !== ""}
         onClick={() => onAnswer("rejected", "", "reject")}
       >

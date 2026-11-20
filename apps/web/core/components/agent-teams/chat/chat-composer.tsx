@@ -4,19 +4,16 @@
  * See the LICENSE file in the repository root for more details.
  *
  * GPT 形态一体化输入区：容器内 上附件chips/中文本/下工具栏（附件+联网在左、
- * 发送/停止在右）。输入态（草稿/待发附件/联网开关）组件自持；发送与上传
- * 通过回调上抛。上传失败显式 toast（不静默）。
+ * 发送/停止在右）。输入态（草稿/待发附件）组件自持；发送与上传通过回调上抛。
+ * 附件区复用统一 AttachmentInput（类型图标+文件名+大小+进度+删除，成熟 chip）。
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "@plane/i18n";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { Button } from "@plane/propel/button";
-import { Paperclip, Send, X } from "lucide-react";
-import { ATTACHMENT_MIME_TYPES } from "@plane/constants";
-import { validateFileUpload } from "@plane/utils";
+import { Paperclip, Send } from "lucide-react";
 
-import { showUploadErrorToast } from "@/helpers/upload-feedback";
-import { useFileSize } from "@/hooks/use-file-size";
+import { AttachmentInput, type AttachmentFile } from "@/components/attachments/attachment-input";
 import { FileService } from "@/services/file.service";
 import { EFileAssetType, type TFileSignedURLResponse } from "@plane/types";
 
@@ -45,57 +42,26 @@ export function ChatComposer({
   onSend: (text: string, attachments: PendingAttachment[], webSearch: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const { maxFileSize } = useFileSize();
   const [draft, setDraft] = useState("");
-  const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([]);
-  const [uploading, setUploading] = useState(0);
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [webSearch] = useState(false); // 联网开关入口已下线，值恒 false（链路保留）
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pickerRef = useRef<(() => void) | undefined>(undefined);
 
   // 预填（nonce 触发，避免重复 effect）
   useEffect(() => {
     if (prefill?.text) setDraft((prev) => (prev ? prev : prefill.text));
   }, [prefill?.nonce, prefill?.text]);
 
-  const handleFiles = async (files: FileList | null) => {
-    if (!files?.length) return;
-    setUploading((n) => n + files.length);
-    /* eslint-disable no-await-in-loop -- 串行上传有意（进度可控、防占满带宽） */
-    for (const file of Array.from(files)) {
-      const validation = validateFileUpload(file, { acceptedMimeTypes: ATTACHMENT_MIME_TYPES, maxFileSize });
-      if (!validation.ok) {
-        showUploadErrorToast(t, validation.error, maxFileSize);
-        setUploading((n) => Math.max(0, n - 1));
-        continue;
-      }
-      try {
-        // 串行有意：进度可控、避免并发占满带宽
-        const res: TFileSignedURLResponse = await chatFileService.uploadWorkspaceAsset(
-          workspaceSlug,
-          { entity_identifier: "", entity_type: EFileAssetType.COMMENT_DESCRIPTION },
-          file
-        );
-        setPendingFiles((prev) => [...prev, { id: res.asset_id, name: file.name }]);
-      } catch {
-        setToast({
-          type: TOAST_TYPE.ERROR,
-          title: t("common.error.label"),
-          message: t("agent_teams_chat_upload_failed", { name: file.name }),
-        });
-      } finally {
-        setUploading((n) => Math.max(0, n - 1));
-      }
-    }
-    /* eslint-enable no-await-in-loop */
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
   const submit = () => {
     const text = draft.trim();
-    if (!text && pendingFiles.length === 0) return;
-    onSend(text, pendingFiles, webSearch);
+    if (!text && attachments.length === 0) return;
+    onSend(
+      text,
+      attachments.filter((a) => a.status === "done").map((a) => ({ id: a.id, name: a.name })),
+      webSearch
+    );
     setDraft("");
-    setPendingFiles([]);
+    setAttachments([]);
   };
 
   return (
@@ -104,28 +70,36 @@ export function ChatComposer({
         <div className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_summary_hint")}</div>
       )}
       <div className="focus-within:border-custom-border-200 rounded-xl border border-subtle bg-layer-1 px-3 pt-2 pb-1.5">
-        {(pendingFiles.length > 0 || uploading > 0) && (
-          <div className="flex flex-wrap gap-1.5 pb-1.5">
-            {pendingFiles.map((f) => (
-              <span
-                key={f.id}
-                className="flex items-center gap-1 rounded bg-layer-3 px-1.5 py-0.5 text-caption-sm-regular text-secondary"
-              >
-                {f.name}
-                <button
-                  type="button"
-                  onClick={() => setPendingFiles((prev) => prev.filter((x) => x.id !== f.id))}
-                  className="text-tertiary hover:text-secondary"
-                >
-                  <X className="size-3" aria-hidden />
-                </button>
-              </span>
-            ))}
-            {uploading > 0 && (
-              <span className="text-caption-sm-regular text-tertiary">{t("agent_teams_chat_uploading")}</span>
-            )}
-          </div>
-        )}
+        <AttachmentInput
+          value={attachments}
+          onChange={setAttachments}
+          hideButton
+          pickerRef={pickerRef}
+          onUpload={async (file, onProgress) => {
+            try {
+              const res: TFileSignedURLResponse = await chatFileService.uploadWorkspaceAsset(
+                workspaceSlug,
+                { entity_identifier: "", entity_type: EFileAssetType.COMMENT_DESCRIPTION },
+                file,
+                (progressEvent) => onProgress?.(Math.round((progressEvent.progress ?? 0) * 100))
+              );
+              return { id: res.asset_id, size: file.size };
+            } catch (error) {
+              setToast({
+                type: TOAST_TYPE.ERROR,
+                title: t("common.error.label"),
+                message: t("agent_teams_chat_upload_failed", { name: file.name }),
+              });
+              throw error;
+            }
+          }}
+          onRemove={({ id }) => {
+            void chatFileService.deleteWorkspaceAsset(workspaceSlug, id).catch(() => {});
+          }}
+          attachLabel={t("agent_teams_chat_attach")}
+          uploadingLabel={t("agent_teams_chat_uploading")}
+          disabled={sending || disabled}
+        />
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -142,31 +116,17 @@ export function ChatComposer({
         />
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-1">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={ATTACHMENT_MIME_TYPES.join(",")}
-              className="hidden"
-              onChange={(e) => void handleFiles(e.target.files)}
-            />
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => pickerRef.current?.()}
               disabled={sending || disabled}
               title={t("agent_teams_chat_attach")}
-              className="rounded p-1.5 text-tertiary hover:bg-layer-2-hover hover:text-secondary disabled:opacity-50"
+              className="rounded p-1.5 text-tertiary transition-colors hover:bg-layer-2-hover hover:text-secondary disabled:opacity-50"
             >
               <Paperclip className="size-4" aria-hidden />
             </button>
-            {/* 联网搜索开关：搜索工具源未部署，入口先下线（链路保留，恢复时解开本注释） */}
-            {/* <button
-              type="button"
-              onClick={() => setWebSearch((prev) => !prev)}
-              className={`flex items-center gap-1 rounded px-1.5 py-1 text-caption-sm-medium ${
-                webSearch ? "bg-accent-subtle text-accent-primary" : "text-tertiary hover:text-secondary"
-              }`}
-            >
+            {/* 联网搜索开关：搜索工具源未部署，入口先下线（链路保留，恢复时解开本注释）
+            <button type="button" className="...">
               <Globe className="size-3.5" aria-hidden />
               {t("agent_teams_chat_web_search")}
             </button> */}
@@ -180,7 +140,7 @@ export function ChatComposer({
               variant="primary"
               size="sm"
               appendIcon={<Send />}
-              disabled={disabled || (!draft.trim() && pendingFiles.length === 0)}
+              disabled={disabled || (!draft.trim() && attachments.filter((a) => a.status === "done").length === 0)}
               onClick={submit}
             >
               {t("agent_teams_chat_send")}

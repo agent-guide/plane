@@ -165,12 +165,12 @@ export function CustomAttachmentNodeView(props: Props) {
   const isUploaded = status === ECustomAttachmentStatus.UPLOADED;
 
   const chip = (
-    <div className="flex items-center gap-1.5">
-      <FileText className="size-3.5 shrink-0 text-tertiary" />
+    <div className="flex items-center gap-1">
+      <FileText className="size-3 shrink-0 text-tertiary" />
       {isUploading ? (
         <span className="text-xs truncate text-tertiary">Uploading…</span>
       ) : (
-        <span className="text-xs truncate text-secondary">{fileName ?? "Select a file"}</span>
+        <span className="text-[13px] truncate text-secondary">{fileName ?? "Select a file"}</span>
       )}
     </div>
   );
@@ -186,7 +186,7 @@ export function CustomAttachmentNodeView(props: Props) {
       tabIndex={editor.isEditable && !isUploaded ? 0 : -1}
       aria-label={fileName ? `Attachment ${fileName}` : "Select an attachment"}
       className={cn(
-        "attachment-upload-component my-1 flex cursor-default items-center justify-start gap-1.5 rounded-md border border-subtle bg-layer-2 px-2.5 py-1.5 text-tertiary transition-all duration-200 ease-in-out",
+        "attachment-upload-component my-0.5 flex cursor-default items-center justify-start gap-1 rounded-md border border-subtle bg-layer-2 px-2 py-1 text-tertiary transition-all duration-200 ease-in-out",
         {
           "border-subtle hover:bg-layer-3-hover": editor.isEditable && !isUploaded,
           "cursor-pointer hover:bg-layer-3-hover hover:text-secondary": editor.isEditable && !isUploaded,
@@ -214,7 +214,7 @@ export function CustomAttachmentNodeView(props: Props) {
         <a
           href={downloadUrl}
           download={fileName ?? undefined}
-          className="text-xs ml-auto shrink-0 text-accent-secondary hover:underline"
+          className="text-[11px] ml-auto shrink-0 text-accent-secondary hover:underline"
           onClick={(e) => e.stopPropagation()}
         >
           Download
@@ -231,7 +231,7 @@ export function CustomAttachmentNodeView(props: Props) {
             removeNode();
           }}
         >
-          <X className="size-3.5" aria-hidden />
+          <X className="size-3" aria-hidden />
         </button>
       )}
       <input

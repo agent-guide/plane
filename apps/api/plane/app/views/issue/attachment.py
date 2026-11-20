@@ -99,7 +99,11 @@ class IssueAttachmentV2Endpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def post(self, request, slug, project_id, issue_id):
         name = sanitize_filename(request.data.get("name")) or "unnamed"
-        type = request.data.get("type", False)
+        # 与评论/描述附件同源：签名检测为空的纯文本（.md/.txt/.log 等）按扩展名回退，
+        # 否则空 type 被直接拒——卡片「附加」与评论附件口径一致。
+        from plane.app.views.asset.v2 import _resolve_attachment_mime
+
+        type = _resolve_attachment_mime(name, request.data.get("type", ""))
         size = int(request.data.get("size", settings.FILE_SIZE_LIMIT))
 
         if not type or type not in settings.ATTACHMENT_MIME_TYPES:
