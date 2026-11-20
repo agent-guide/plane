@@ -170,6 +170,18 @@ echo "url-mcp 8624: $code ($tools)"
 [ "$code" = "200" ] && [ "$tools" = "url_reader" ] || { echo "❌ url-mcp 探活失败"; journalctl -u url-mcp -n 15 --no-pager 2>/dev/null; exit 1; }
 
 # --- doc-mcp：全量替换 + 共享解析包（$V2ROOT/packages，apps/api 的 -e 依赖同源）
+# .doc/.ppt 高质量引擎 LibreOffice 是系统级依赖（非 pip）：幂等安装/探活，
+# 缺失不阻断部署（olefile 兜底可用），但显式提示降级。
+if command -v soffice >/dev/null 2>&1; then
+  echo "soffice: 已安装（$(soffice --version 2>/dev/null | head -1 | cut -d' ' -f2)）"
+else
+  echo "⚠ soffice 未安装，.doc/.ppt 走 olefile 兜底（中文可能带噪音）"
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo -n apt-get install -y -q libreoffice-writer libreoffice-impress \
+      && echo "已安装 libreoffice-writer/impress" \
+      || echo "（自动安装失败——手动: sudo apt-get install libreoffice-writer libreoffice-impress）"
+  fi
+fi
 mkdir -p "$V2ROOT/packages/document-parsing"
 tar xzf /tmp/document-parsing-v2.tar.gz -C "$V2ROOT/packages/document-parsing"
 find "$V2ROOT/packages/document-parsing" -name '._*' -delete 2>/dev/null || true
@@ -238,6 +250,9 @@ REMOTE
 fi
 
 echo "✅ v2 栈部署完成（v1 现役栈未动）"
-echo "ℹ url_reader 平台链注册（幂等，服务器上执行；凭据按测试服 agwmngr 实际值覆盖）："
+echo "ℹ url_reader / parse_document 平台链注册（幂等，服务器上执行；两个都跑——"
+echo "  含 ①b 网关私有 MCP 路由，ACP 型 agent 挂工具的前置；凭据按测试服实际值覆盖）："
 echo "  AGWMNGR=http://127.0.0.1:4005 GW_ID=<测试服网关ID> TENANT=<测试服租户> \\"
 echo "  ADMIN_USER=<超管> ADMIN_PASS=<密码> bash scripts/bootstrap-url-reader.sh"
+echo "  AGWMNGR=http://127.0.0.1:4005 GW_ID=<测试服网关ID> TENANT=<测试服租户> \\"
+echo "  ADMIN_USER=<超管> ADMIN_PASS=<密码> bash scripts/bootstrap-doc-parser.sh"

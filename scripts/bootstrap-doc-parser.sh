@@ -48,6 +48,24 @@ EOF
   fi
 fi
 
+# ── ①b 网关私有 MCP 路由 ──────────────────────────────────────────────
+# ACP 型 agent 的工具映射（acp-resource-directory）要求每个 connector 恰好一条
+# require_virtual_key 私有路由；builtin 型不受影响但共用无妨。
+echo "①b 网关私有 MCP 路由 /tools/doc-parser"
+ROUTE_ID="mcp-doc-parser"; ROUTE_PATH="/tools/doc-parser"
+ROUTES=$(api "$AGWMNGR/api/platform/v1/gateways/$GW_ID/infrastructure/mcp/routes" || echo '{"items":[]}')
+HAVE_ROUTE=$(echo "$ROUTES" | jsonget "str(any(r.get('id')=='$ROUTE_ID' and (r.get('match_policy') or {}).get('path_prefix')=='$ROUTE_PATH' and (r.get('auth_policy') or {}).get('require_virtual_key') is True for r in d.get('items',[]))).lower()")
+if [ "$HAVE_ROUTE" = "true" ]; then
+  status "OK" "已存在"
+elif [ -n "$CHECK_ONLY" ]; then
+  status "MISS" "私有 MCP 路由未建（ACP 型 agent 挂工具的前置）"
+else
+  api -X POST -H "Content-Type: application/json" \
+    "$AGWMNGR/api/platform/v1/gateways/$GW_ID/infrastructure/mcp/routes" \
+    -d "{\"id\":\"$ROUTE_ID\",\"description\":\"doc-parser private route\",\"disabled\":false,\"connector_id\":\"doc-parser\",\"match_policy\":{\"path_prefix\":\"$ROUTE_PATH\"},\"auth_policy\":{\"require_virtual_key\":true}}" >/dev/null \
+    && status "OK" "已建" || { status "FAIL" "路由创建失败"; exit 1; }
+fi
+
 # ── ② 平台目录 offering + 审批 ───────────────────────────────────────
 echo "② 目录 offering（mcp:doc-parser:parse_document）"
 STABLE_ID="mcp:doc-parser:parse_document"

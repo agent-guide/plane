@@ -14,9 +14,12 @@ chk "gateway admin 健康且鉴权可用"    "probe_contains http://localhost:$G
 chk "gateway 错 Host 不假活（127.0.0.1 也带体）" "probe_contains http://127.0.0.1:$GW_ADMIN_PORT/admin/health '\"status\"' -u $GW_ADMIN_USER:$GW_ADMIN_PASSWORD"
 chk "url-mcp 存活（链接读取工具 :8624）" "probe_http 200 http://127.0.0.1:8624/health"
 chk "doc-mcp 存活（文档解析工具 :8625）" "probe_http 200 http://127.0.0.1:8625/health"
+# .doc/.ppt 引擎水位（非阻断：olefile 兜底可用，soffice 缺失仅降级中文质量）
+command -v soffice >/dev/null 2>&1 && ok "soffice 可用（.doc/.ppt 高质量引擎）" \
+  || hint "soffice 不在 PATH：.doc/.ppt 走 olefile 兜底（中文可能带噪音）"
 chk "Plane api 存活"                 "probe_contains http://127.0.0.1:$API_PORT/api/instances/ 'is_setup_done'"
 chk "Plane web 存活"                 "probe_http 200 http://localhost:$WEB_PORT/"
-chk "编排 worker 在运行（且仅单实例）" "[ \"\$(pgrep -f procrastinate_worker.py | wc -l | tr -d ' ')\" = 1 ]"
+chk "编排 worker 在运行（且仅单实例）" "[ \"\$(pgrep -f '^[^ ]*python[0-9.]* procrastinate_worker.py' | wc -l | tr -d ' ')\" = 1 ]"
 chk "agwmngr 健康"                   "probe_contains http://127.0.0.1:$MGR_PORT/api/admin/health 'ok\|{}'"
 chk "Airflow api-server 健康"        "probe_contains http://127.0.0.1:$AIRFLOW_PORT/api/v2/monitor/health 'healthy\|ok'"
 

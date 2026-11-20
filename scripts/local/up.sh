@@ -67,6 +67,19 @@ if probe_contains "http://127.0.0.1:8624/health" '"ok"\|{}'; then
 step "④ doc-mcp（:8625，文档解析 MCP 工具 parse_document）"
 DOC_MCP_DIR="$PWD/../../services/doc-mcp"
 [ -f "$DOC_MCP_DIR/server.py" ] || fail "doc-mcp 缺失：$DOC_MCP_DIR"
+# .doc/.ppt 高质量引擎：LibreOffice headless 是系统级安装（非 pip 依赖）。
+# macOS 装了 .app 但 soffice 不在 PATH——shutil.which 找不到会静默降级到
+# olefile 兜底（中文文档带格式噪音）。幂等软链到 ~/.local/bin；未装不阻断
+# （兜底引擎可用，仅降级质量）。
+mkdir -p "$HOME/.local/bin"
+if command -v soffice >/dev/null 2>&1; then
+  ok "soffice 已在 PATH（.doc/.ppt 高质量引擎）"
+elif [ -x "/Applications/LibreOffice.app/Contents/MacOS/soffice" ]; then
+  ln -sf "/Applications/LibreOffice.app/Contents/MacOS/soffice" "$HOME/.local/bin/soffice"
+  ok "已软链 soffice → ~/.local/bin"
+else
+  hint "LibreOffice 未安装：.doc/.ppt 走 olefile 兜底（中文可能带噪音）——brew install --cask libreoffice 升级"
+fi
 # Python 服务：venv 自持（缺则建，uv cpython3.12 → 系统 python3 回退）
 if [ ! -x "$DOC_MCP_DIR/.venv/bin/python" ]; then
   PY312=$(ls "$HOME"/.local/share/uv/python/cpython-3.12*/bin/python3.12 2>/dev/null | head -1)
@@ -78,7 +91,7 @@ fi
 if probe_contains "http://127.0.0.1:8625/health" '"ok"'; then
   ok "doc-mcp 已在运行"; else
   stop_if_running "services/doc-mcp" "doc-mcp 残留"
-  nohup "$DOC_MCP_DIR/.venv/bin/python" "$DOC_MCP_DIR/server.py" > /tmp/doc-mcp.log 2>&1 &
+  PATH="$HOME/.local/bin:$PATH" nohup "$DOC_MCP_DIR/.venv/bin/python" "$DOC_MCP_DIR/server.py" > /tmp/doc-mcp.log 2>&1 &
   SECONDS=0; until curl -s -o /dev/null --max-time 2 http://127.0.0.1:8625/health; do
     [ $SECONDS -ge 8 ] && { fail "doc-mcp 探活失败"; hint "看 /tmp/doc-mcp.log"; }; sleep 1; done
   ok "doc-mcp 已启动"; fi
@@ -130,14 +143,16 @@ step "⑦ Plane API（:${API_PORT}）+ worker"
 # 跳过会让 api 带旧 env 运行（Docker 主机名/空 token 类漂移根源，2026-11-17 实证）。
 # dev server 重启代价 ~10s，稳定性优先。
 stop_if_running "manage.py runserver" "plane api（强制重启保 env 新鲜）"
+# PATH 带 ~/.local/bin：附件自动注入的 .doc/.ppt 解析需 soffice（④ 软链），
+# 缺了会静默降级 olefile 兜底（中文噪音）
 (cd "$API_DIR" && set -a && source .env && set +a && \
- nohup .venv/bin/python manage.py runserver "0.0.0.0:$API_PORT" --settings=plane.settings.local > /tmp/plane-api.log 2>&1 &)
+ PATH="$HOME/.local/bin:$PATH" nohup .venv/bin/python manage.py runserver "0.0.0.0:$API_PORT" --settings=plane.settings.local > /tmp/plane-api.log 2>&1 &)
 wait_port $API_PORT 30 "plane api"
 probe_contains "http://127.0.0.1:$API_PORT/api/instances/" 'is_setup_done' || fail "api 探活失败（/tmp/plane-api.log）"
 ok "plane api 已启动"
 stop_if_running "procrastinate_worker.py" "worker 残留"
 (cd "$API_DIR" && set -a && source .env && set +a && export DJANGO_SETTINGS_MODULE=plane.settings.local && \
- nohup .venv/bin/python procrastinate_worker.py > /tmp/plane-worker.log 2>&1 &)
+ PATH="$HOME/.local/bin:$PATH" nohup .venv/bin/python procrastinate_worker.py > /tmp/plane-worker.log 2>&1 &)
 sleep 3; pgrep -f procrastinate_worker.py >/dev/null || fail "worker 启动失败（/tmp/plane-worker.log）"
 ok "编排 worker 已启动（Procrastinate 单实例）"
 
