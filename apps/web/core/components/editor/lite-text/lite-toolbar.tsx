@@ -8,7 +8,7 @@ import React from "react";
 import { ArrowUp, Paperclip } from "lucide-react";
 // constants
 import type { ToolbarMenuItem } from "@plane/editor";
-import { IMAGE_ITEM } from "@plane/editor";
+import { ATTACHMENT_ITEM } from "@plane/editor";
 
 type LiteToolbarProps = {
   onSubmit: (e: React.KeyboardEvent<HTMLDivElement> | React.MouseEvent<HTMLButtonElement>) => void;
@@ -21,7 +21,7 @@ export function LiteToolbar({ onSubmit, isSubmitting, isEmpty, executeCommand }:
   return (
     <div className="flex items-center gap-2 pb-1">
       <button
-        onClick={() => executeCommand(IMAGE_ITEM)}
+        onClick={() => executeCommand(ATTACHMENT_ITEM)}
         type="button"
         className="p-1 text-tertiary transition-colors hover:text-secondary"
       >

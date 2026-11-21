@@ -164,11 +164,16 @@ export const USER_ACTION_ITEMS: ToolbarMenuItem<"quote" | "code">[] = [
 
 export const COMPLEX_ITEMS: ToolbarMenuItem<"table" | "image" | "attachment">[] = [
   { itemKey: "table", renderKey: "table", name: "Table", icon: Table, editors: ["document"] },
-  { itemKey: "image", renderKey: "image", name: "Image", icon: Image, editors: ["lite", "document"] },
+  // 图片按钮只在文档编辑器保留；评论区走单一附件入口（图片=附件的一种类型，
+  // GitHub/Slack 同款）——粘贴/拖拽图片仍内联预览（custom-image 扩展未动）
+  { itemKey: "image", renderKey: "image", name: "Image", icon: Image, editors: ["document"] },
   { itemKey: "attachment", renderKey: "attachment", name: "Attachment", icon: FileText, editors: ["lite"] },
 ];
 
 export const IMAGE_ITEM = COMPLEX_ITEMS.find((item): item is ToolbarMenuItem<"image"> => item.itemKey === "image")!;
+export const ATTACHMENT_ITEM = COMPLEX_ITEMS.find(
+  (item): item is ToolbarMenuItem<"attachment"> => item.itemKey === "attachment"
+)!;
 
 export const TOOLBAR_ITEMS: {
   [editorType in TEditorTypes]: {
