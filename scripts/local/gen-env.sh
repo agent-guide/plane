@@ -15,7 +15,7 @@ step()  { printf "\n\033[1m== %s ==\033[0m\n" "$*"; }
 ok()    { printf "  \033[32m[OK]\033[0m %s\n" "$*"; }
 warn()  { printf "  \033[33m[WARN]\033[0m %s\n" "$*"; }
 API_DIR="$LOCAL_DIR/../../apps/api"
-MGR_DIR="${AGWMNGR_DIR:-$HOME/Desktop/shu/agwmngr}"
+MGR_DIR="${MGR_DIR:-${AGWMNGR_DIR:-$HOME/Desktop/shu/agwmngr}}"
 GW_DIR="${GATEWAY_DIR:-$HOME/Desktop/shu/agent-gateway}"
 
 step "1. Plane API env (apps/api/.env)"
@@ -36,10 +36,10 @@ TENANT_TOKEN="${TENANT_TOKEN:-}"
 SECRET_KEY="$SECRET_KEY"
 POSTGRES_HOST=127.0.0.1
 POSTGRES_PORT=$PG_PORT
-POSTGRES_USER=plane
-POSTGRES_PASSWORD=plane
-POSTGRES_DB=plane
-DATABASE_URL=postgresql://plane:plane@127.0.0.1:$PG_PORT/plane
+POSTGRES_USER="${POSTGRES_USER:-plane}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-plane}"
+POSTGRES_DB="${POSTGRES_DB:-plane}"
+DATABASE_URL="${DATABASE_URL:-postgresql://plane:plane@127.0.0.1:$PG_PORT/plane}"
 REDIS_HOST=127.0.0.1
 REDIS_PORT=$REDIS_PORT
 REDIS_URL=redis://127.0.0.1:$REDIS_PORT/
@@ -54,7 +54,7 @@ AGWMNGR_BASE_URL=http://127.0.0.1:$MGR_PORT
 ORCHESTRATION_INTERNAL_BASE_URL=http://127.0.0.1:$API_PORT
 ORCHESTRATION_INTERNAL_TOKEN=$ORCH_TOKEN
 ORCHESTRATION_AIRFLOW_BASE_URL=http://127.0.0.1:$AIRFLOW_PORT
-ORCHESTRATION_DAG_ROOT=/tmp/agent-team-dags
+ORCHESTRATION_DAG_ROOT="${ORCHESTRATION_DAG_ROOT:-/tmp/agent-team-dags}"
 EOF
   [ -n "$TENANT_TOKEN" ] && printf 'AGWMNGR_TENANT_TOKEN=%s\nAGWMNGR_TENANT_ID=%s\n' "$TENANT_TOKEN" "$TENANT_ID"
 } > "$API_DIR/.env.new" && mv "$API_DIR/.env.new" "$API_DIR/.env"
