@@ -23,6 +23,11 @@ echo "==== [1/4] 构建 v2 前端（Mac）===="
 if [ "$SKIP_WEB" -eq 1 ]; then
   echo "⏭ --skip-web：跳过前端构建"
 else
+  # 依赖包先重编（发布纪律「依赖无条件同步」）：packages/* 全部按 dist 消费，
+  # 谁机上 dist 旧谁部署就把旧代码打进 web——11-21 实证：编辑器未重编导致
+  # 测试服评论工具栏丢「附件」按钮（11-19 c79258797 加的 attachment 项不在产物）。
+  # turbo 按拓扑构建全部 @plane/* 包；失败即中止（fail-closed）。
+  (cd "$REPO" && npx turbo run build --filter='@plane/*')
   (
     cd "$REPO/apps/web"
     # 地址构建期烧进产物（dual-deploy-plan §3.2）：同源相对路径 + 4004 公网入口。
