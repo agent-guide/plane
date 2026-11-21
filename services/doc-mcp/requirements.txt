@@ -1,4 +1,6 @@
 # 解析库（与 plane apps/api requirements/base.txt 同版本钉）
+# Pillow（python-docx 传递依赖）：CentOS 7 上源码构建失败，钉与 api 一致版本
+# 由部署脚本 --only-binary 安装（见 deploy-v2.sh doc-mcp venv 段）
 pypdf==7.0.1
 python-docx==1.2.0
 openpyxl==3.1.2

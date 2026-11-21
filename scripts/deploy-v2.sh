@@ -98,6 +98,12 @@ tar xzf /tmp/plane-v2-api.tar.gz 2>/dev/null
 find . -name '._*' -delete 2>/dev/null || true
 [ -f /tmp/plane-v2-api.env.bak ] && cp /tmp/plane-v2-api.env.bak .env
 
+# 共享解析包必须先就位：requirements 的 -e ../../packages/document-parsing
+# 相对 api 目录解析到 $V2ROOT/packages/（原先在本脚本后段才解压 → pip 首装必失败）
+mkdir -p "$V2ROOT/packages/document-parsing"
+tar xzf /tmp/document-parsing-v2.tar.gz -C "$V2ROOT/packages/document-parsing"
+find "$V2ROOT/packages/document-parsing" -name '._*' -delete 2>/dev/null || true
+
 .venv/bin/pip install -r requirements.txt --prefer-binary -q > /tmp/plane-v2-pip.log 2>&1 \
   || { tail -10 /tmp/plane-v2-pip.log; echo "❌ pip install 失败"; exit 1; }
 
@@ -200,6 +206,7 @@ if [ ! -x "$V2ROOT/doc-mcp/.venv/bin/python" ] || [ "$(cat "$STAMP" 2>/dev/null)
   PY3=${PY3:-python3}
   "$PY3" -m venv "$V2ROOT/doc-mcp/.venv" \
     && "$V2ROOT/doc-mcp/.venv/bin/pip" install -q --upgrade pip \
+    && "$V2ROOT/doc-mcp/.venv/bin/pip" install -q --only-binary :all: Pillow==12.2.0 \
     && "$V2ROOT/doc-mcp/.venv/bin/pip" install -q -r "$V2ROOT/doc-mcp/requirements.txt" \
     || { echo "❌ doc-mcp venv 构建失败"; exit 1; }
   echo "$REQHASH" > "$STAMP"
