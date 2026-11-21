@@ -393,7 +393,12 @@ def _steering_discipline(*, execution_id: str, node: dict) -> str:
     from django.utils import timezone as dj_tz
     from .dag_publication import _effective_timeout
     from .supplement_access import sign_supplement_access
-    base = (os.environ.get("PLANE_INTERNAL_BASE") or "http://127.0.0.1:8001").rstrip("/")
+    # 兜底链：专属覆盖 → 引擎回调地址（各环境必配，与 api 实际端口一致）→ 本地默认。
+    # 曾只兜底写死 8001，测试服 8001 跑着 v1 遗留栈 → agent 查补料全 404、
+    # 执行中补充采不进来（11-21 报关单112101 实证）
+    base = (os.environ.get("PLANE_INTERNAL_BASE")
+            or os.environ.get("ORCHESTRATION_INTERNAL_BASE_URL")
+            or "http://127.0.0.1:8001").rstrip("/")
     grant = sign_supplement_access(execution_id, ttl_seconds=int(float(_effective_timeout(node))) + 600)
     started_at = dj_tz.localtime(dj_tz.now()).replace(microsecond=0).isoformat()
     from urllib.parse import quote
