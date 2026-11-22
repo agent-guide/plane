@@ -36,11 +36,16 @@ class _FakeResponse:
 
 
 class _FakeOpener:
-    """按调用序返回脚本化响应：JSON（部署/invocation）或 SSE（turn）。"""
+    """按调用序返回脚本化响应：JSON（部署/invocation）或 SSE（turn）。
+
+    DELETE（turn 显式取消）返回固定应答，不消耗脚本队列——错误路径会
+    触发 _cancel_agent_turn，脚本里没为它排响应。"""
 
     def __init__(self, responses): self.responses = list(responses)
 
     def open(self, req, timeout=None):
+        if req.get_method() == "DELETE":
+            return _FakeResponse([b'{"status":"cancellation_requested"}'])
         item = self.responses.pop(0)
         if isinstance(item, list):  # SSE 帧行列表
             return _FakeResponse(item)

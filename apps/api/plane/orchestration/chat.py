@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 
 from .worker import (
-    AgentTurnError, _agwmngr_base, _agwmngr_headers, _local_opener,
+    AgentTurnError, _agwmngr_base, _agwmngr_headers, _local_opener, _cancel_agent_turn,
     _resolve_runtime_type,
 )
 
@@ -243,95 +243,110 @@ def stream_agent_turn(*, agent_definition_id: str, prompt: str, session_hint: st
             else _fallback_turn_error_code(exc.code),
             f"agent turn rejected: HTTP {exc.code} {detail}", detail=payload) from exc
 
-    with response_ctx as response:
-        started = _time.monotonic()
-        last_event = started
-        event_type = ""
-        _acp_tool_titles: dict[str, str] = {}
-        for raw in response:
-            now = _time.monotonic()
-            if now - last_event > idle_timeout:
-                raise AgentTurnError("timeout", f"agent turn idle timeout: no SSE event for {idle_timeout:.0f}s")
-            if now - started > total_timeout:
-                raise AgentTurnError("timeout", f"agent turn total timeout: exceeded {total_timeout:.0f}s budget")
-            line = raw.decode("utf-8", "replace").strip()
-            if not line or line.startswith(":"):
-                continue
-            last_event = now
-            if line.startswith("event: "):
-                # 信封协议感知（与 worker 聚合版同源）：只有 delta 事件的
-                # text 是增量；其他事件（final/完整文本块）不是——忽略
-                # 事件类型曾导致收尾块被当增量、回复整段翻倍
-                event_type = line[len("event: "):].strip()
-                continue
-            if not line.startswith("data: "):
-                continue
-            data = line[len("data: "):].strip()
-            if data == "[DONE]":
-                yield {"type": "done"}
-                return
-            try:
-                envelope = json.loads(data)
-            except ValueError:
-                continue
-            if event_type == "error":
-                # 错误事件是信封结构：真因（error_type/message）嵌套在 data 里，
-                # 顶层只有 run 元数据——不解嵌套则 code 恒 agent_error、detail
-                # 回退原始 dump（11-18 实证）
-                data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
-                raise AgentTurnError(
-                    str(data.get("error_type") or envelope.get("error_type") or "agent_error"),
-                    f"agent turn error: {str(envelope)[:200]}",
-                    detail=data or envelope)
-            if event_type == "delta" and isinstance(envelope.get("text"), str):
-                yield {"type": "delta", "text": envelope["text"]}
-            elif event_type == "tool_call" and isinstance(envelope.get("data"), dict):
-                # 进度透传（协议 v2 §六）。网关 tool_call 按 runtime 分两种形态：
-                # - builtin：发起 {calls:[{name}]} / 结果 {name, output}
-                # - ACP（sessionUpdate 协议）：{sessionUpdate: "tool_call"/"tool_call_update",
-                #   toolCallId, title("agwmngr_serviceN_<工具名>"), status: pending/
-                #   in_progress/completed/failed}——title 需剥网关服务前缀成用户可读名
-                td = envelope["data"]
-                if isinstance(td.get("calls"), list) and td["calls"]:
-                    names = "、".join(c.get("name", "工具") for c in td["calls"] if isinstance(c, dict))
-                    yield {"type": "stage", "phase": "tool", "label": f"正在调用 {names}…"}
-                elif isinstance(td.get("name"), str):
-                    yield {"type": "stage", "phase": "tool", "label": f"已完成 {td['name']}"}
-                elif isinstance(td.get("sessionUpdate"), str):
-                    su = td["sessionUpdate"]
-                    if su in ("tool_call", "tool_call_update"):
-                        # title 只在发起/in_progress 帧带；completed 帧按
-                        # toolCallId 回查（真实流实证：completed 只有 status+content）
-                        raw_title = str(td.get("title") or "")
-                        if raw_title.startswith("agwmngr_service"):
-                            raw_title = raw_title.split("_", 2)[-1]
-                        # bash 等本地工具的 title 是完整命令——进度行只露开头，
-                        # 截断防整段脚本灌进气泡（含换行压成单行）
-                        if len(raw_title) > 24:
-                            raw_title = " ".join(raw_title.split())[:24] + "…"
-                        call_id = str(td.get("toolCallId") or "")
-                        if raw_title:
-                            _acp_tool_titles[call_id] = raw_title
-                        title = raw_title or _acp_tool_titles.get(call_id, "")
-                        status = td.get("status")
-                        # 截断过的 title 已带尾省略号，不再叠「…」
-                        suffix = "" if title.endswith("…") else "…"
-                        if su == "tool_call" or status == "in_progress":
-                            if title:
-                                yield {"type": "stage", "phase": "tool", "label": f"正在调用 {title}{suffix}"}
-                        elif status == "completed":
-                            if title:
-                                yield {"type": "stage", "phase": "tool", "label": f"已完成 {title}"}
-                        # failed：不发 stage——错误经 result.error 路径呈现，进度行不重复报错
-            elif event_type == "done":
-                # 网关 turn 收口（data 可能带 stop_reason）——取代旧的 FINAL_MARKER
-                # 文本标志 hack，直接认 done 事件收口
-                stop_reason = ""
-                if isinstance(envelope.get("data"), dict):
-                    stop_reason = str(envelope["data"].get("stop_reason") or "")
-                yield {"type": "done", "stopReason": stop_reason}
-                return
-        yield {"type": "done"}
+    finished = False
+    try:
+        with response_ctx as response:
+            started = _time.monotonic()
+            last_event = started
+            event_type = ""
+            _acp_tool_titles: dict[str, str] = {}
+            for raw in response:
+                now = _time.monotonic()
+                if now - last_event > idle_timeout:
+                    raise AgentTurnError("timeout", f"agent turn idle timeout: no SSE event for {idle_timeout:.0f}s")
+                if now - started > total_timeout:
+                    raise AgentTurnError("timeout", f"agent turn total timeout: exceeded {total_timeout:.0f}s budget")
+                line = raw.decode("utf-8", "replace").strip()
+                if not line or line.startswith(":"):
+                    continue
+                last_event = now
+                if line.startswith("event: "):
+                    # 信封协议感知（与 worker 聚合版同源）：只有 delta 事件的
+                    # text 是增量；其他事件（final/完整文本块）不是——忽略
+                    # 事件类型曾导致收尾块被当增量、回复整段翻倍
+                    event_type = line[len("event: "):].strip()
+                    continue
+                if not line.startswith("data: "):
+                    continue
+                data = line[len("data: "):].strip()
+                if data == "[DONE]":
+                    finished = True
+                    yield {"type": "done"}
+                    return
+                try:
+                    envelope = json.loads(data)
+                except ValueError:
+                    continue
+                if event_type == "error":
+                    # 错误事件是信封结构：真因（error_type/message）嵌套在 data 里，
+                    # 顶层只有 run 元数据——不解嵌套则 code 恒 agent_error、detail
+                    # 回退原始 dump（11-18 实证）
+                    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+                    raise AgentTurnError(
+                        str(data.get("error_type") or envelope.get("error_type") or "agent_error"),
+                        f"agent turn error: {str(envelope)[:200]}",
+                        detail=data or envelope)
+                if event_type == "delta" and isinstance(envelope.get("text"), str):
+                    yield {"type": "delta", "text": envelope["text"]}
+                elif event_type == "tool_call" and isinstance(envelope.get("data"), dict):
+                    # 进度透传（协议 v2 §六）。网关 tool_call 按 runtime 分两种形态：
+                    # - builtin：发起 {calls:[{name}]} / 结果 {name, output}
+                    # - ACP（sessionUpdate 协议）：{sessionUpdate: "tool_call"/"tool_call_update",
+                    #   toolCallId, title("agwmngr_serviceN_<工具名>"), status: pending/
+                    #   in_progress/completed/failed}——title 需剥网关服务前缀成用户可读名
+                    td = envelope["data"]
+                    if isinstance(td.get("calls"), list) and td["calls"]:
+                        names = "、".join(c.get("name", "工具") for c in td["calls"] if isinstance(c, dict))
+                        yield {"type": "stage", "phase": "tool", "label": f"正在调用 {names}…"}
+                    elif isinstance(td.get("name"), str):
+                        yield {"type": "stage", "phase": "tool", "label": f"已完成 {td['name']}"}
+                    elif isinstance(td.get("sessionUpdate"), str):
+                        su = td["sessionUpdate"]
+                        if su in ("tool_call", "tool_call_update"):
+                            # title 只在发起/in_progress 帧带；completed 帧按
+                            # toolCallId 回查（真实流实证：completed 只有 status+content）
+                            raw_title = str(td.get("title") or "")
+                            if raw_title.startswith("agwmngr_service"):
+                                raw_title = raw_title.split("_", 2)[-1]
+                            # bash 等本地工具的 title 是完整命令——进度行只露开头，
+                            # 截断防整段脚本灌进气泡（含换行压成单行）
+                            if len(raw_title) > 24:
+                                raw_title = " ".join(raw_title.split())[:24] + "…"
+                            call_id = str(td.get("toolCallId") or "")
+                            if raw_title:
+                                _acp_tool_titles[call_id] = raw_title
+                            title = raw_title or _acp_tool_titles.get(call_id, "")
+                            status = td.get("status")
+                            # 截断过的 title 已带尾省略号，不再叠「…」
+                            suffix = "" if title.endswith("…") else "…"
+                            if su == "tool_call" or status == "in_progress":
+                                if title:
+                                    yield {"type": "stage", "phase": "tool", "label": f"正在调用 {title}{suffix}"}
+                            elif status == "completed":
+                                if title:
+                                    yield {"type": "stage", "phase": "tool", "label": f"已完成 {title}"}
+                            # failed：不发 stage——错误经 result.error 路径呈现，进度行不重复报错
+                elif event_type == "done":
+                    # 网关 turn 收口（data 可能带 stop_reason）——取代旧的 FINAL_MARKER
+                    # 文本标志 hack，直接认 done 事件收口
+                    stop_reason = ""
+                    if isinstance(envelope.get("data"), dict):
+                        stop_reason = str(envelope["data"].get("stop_reason") or "")
+                    finished = True
+                    yield {"type": "done", "stopReason": stop_reason}
+                    return
+            finished = True  # 兜底收口（流尽无 done 事件）也视为完成
+            yield {"type": "done"}
+    except AgentTurnError:
+        # 未收口即放弃：显式取消沙箱 turn（同 worker.invoke_agent_node，
+        # 2026-11-21 孤儿 turn 事故后补——断连检测在事件停滞期不可靠）
+        _cancel_agent_turn(context['id'], base, headers)
+        raise
+    finally:
+        # 调用方关生成器（用户点停止=GeneratorExit）等未收口路径同样取消；
+        # 正常 done 收口路径 finished=True 跳过
+        if not finished:
+            _cancel_agent_turn(context['id'], base, headers)
 
 
 # ---------------------------------------------------------------- 滚动摘要
