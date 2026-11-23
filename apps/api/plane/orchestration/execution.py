@@ -489,7 +489,7 @@ def process_event(*, external_event_id: str, event_type: str, payload: dict) -> 
 # ---------------------------------------------------------------- 受控启动（校验链清单 §1 启动段）
 
 
-def start_execution(*, issue, binding, user_id) -> WorkItemExecution:
+def start_execution(*, issue, binding, user_id, workflow_version_id: str = "") -> WorkItemExecution:
     """受控启动：校验链 + 冻结上下文 + outbox 启动命令（worker 触发引擎）。
 
     校验（顺序即暴露顺序）：
@@ -509,6 +509,18 @@ def start_execution(*, issue, binding, user_id) -> WorkItemExecution:
     if not team.members.filter(enabled=True).exists():
         raise TeamDomainError(409, "AGENT_TEAM_EMPTY", "An active team requires at least one enabled member")
     version = binding.workflow_version
+    # 单卡流程覆盖（11-23 确认卡升级）：确认卡选了非绑定流程时按选择执行，
+    # 绑定管默认、单卡选择管覆盖；需同项目且已发布（与绑定版本同校验口径）
+    if workflow_version_id:
+        override = WorkflowVersion.objects.filter(
+            id=workflow_version_id,
+            workflow__project=binding.project,
+            status=WorkflowVersion.Status.PUBLISHED,
+        ).first()
+        if override is None:
+            raise TeamDomainError(400, "WORKFLOW_VERSION_INVALID",
+                                  "Selected workflow version not found in project or not published")
+        version = override
     if version is None:
         # 两步绑定中间态：已绑团队未挂版本（建卡已被 PROJECT_NOT_BOUND 拦，此处 API 兜底）
         raise TeamDomainError(409, "PROJECT_TEAM_BINDING_NOT_FOUND", "No active binding")

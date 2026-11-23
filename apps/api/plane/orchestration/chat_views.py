@@ -292,6 +292,7 @@ def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list
                     # 确认卡识别（L1：建卡预览 JSON 独占回复）
                     card = _parse_confirm_card(final_text)
                     if card:
+                        card = _inject_confirm_options(card, conv.team)
                         reply.kind = AgentMessage.Kind.CONFIRM_CARD
                         reply.content = {"text": "", "confirm": card}
                     else:
@@ -366,7 +367,8 @@ def _parse_confirm_card(text: str) -> dict | None:
     if isinstance(obj, dict) and obj.get("type") == "create_card" and obj.get("title"):
         return {"title": str(obj["title"])[:200],
                 "description": str(obj.get("description") or "")[:10000],
-                "workflowHint": str(obj.get("workflow_hint") or "")[:200]}
+                "workflowHint": str(obj.get("workflow_hint") or "")[:200],
+                "projectHint": str(obj.get("project_hint") or "")[:200]}
     return None
 
 
@@ -389,6 +391,40 @@ class ConversationStreamEndpoint(BaseAPIView):
             or bool((m.content or {}).get("error"))
         return Response({"messageId": m.id, "kind": m.kind, "content": m.content,
                          "streamingOffset": m.streaming_offset, "done": done})
+
+
+def _inject_confirm_options(confirm: dict, team) -> dict:
+    """确认卡创建时注入项目/流程全集（11-23 确认卡升级）：前端下拉数据源。
+
+    数据与 prompt 注入的 _binding_context_block 同源同查询——所见即可选。
+    单项目单流程时前端可以不渲染下拉（只读展示）。
+    """
+    from .models import ProjectTeamBinding, WorkflowVersion
+    bindings = ProjectTeamBinding.objects.filter(
+        team=team, status=ProjectTeamBinding.Status.ACTIVE,
+        workflow_version__isnull=False,
+    ).select_related("project", "workflow_version", "workflow_version__workflow")
+    if not bindings:
+        return confirm
+    projects, workflows = [], {}
+    for b in bindings[:10]:
+        project = b.project
+        published = WorkflowVersion.objects.filter(
+            workflow__project=project, status=WorkflowVersion.Status.PUBLISHED,
+        ).select_related("workflow").order_by("workflow__name", "-version")
+        # 同流程多版本全列出（覆盖选择需要按版本挑；新版在前）
+        wf_list = [
+            {"id": str(v.id), "name": v.workflow.name, "version": v.version}
+            for v in published
+        ]
+        projects.append({
+            "id": str(project.id), "name": project.name,
+            "boundWorkflowVersionId": str(b.workflow_version.id),
+            "boundWorkflowName": b.workflow_version.workflow.name,
+        })
+        workflows[str(project.id)] = wf_list
+    confirm["options"] = {"projects": projects, "workflows": workflows}
+    return confirm
 
 
 class ConversationConfirmEndpoint(BaseAPIView):
@@ -423,34 +459,102 @@ class ConversationConfirmEndpoint(BaseAPIView):
         if action != "confirm":
             return Response({"error": "action must be confirm or cancel"}, status=400)
 
-        # 建卡闸门（与 IssueViewSet.create 同判据，fail-closed）。
-        # 用户友好：未指定 projectId 时取团队唯一活跃绑定项目（单项目团队主流，
-        # 免去前端项目下拉）；多项目才要求显式指定。
-        from .models import ProjectTeamBinding
+        # 建卡闸门（11-23 确认卡升级：预设+用户可改+单卡流程覆盖）。
+        # 选路顺序：用户显式选择 > agent hint 匹配 > 单项目自动。
+        from .models import ProjectTeamBinding, WorkflowVersion
         from plane.db.models.project import Project
         from plane.db.models.issue import Issue
         bound = Project.objects.filter(
             workspace__slug=slug, team_bindings__team=conv.team,
             team_bindings__status=ProjectTeamBinding.Status.ACTIVE,
             team_bindings__workflow_version__isnull=False).distinct()
+        card = m.content["confirm"]
+
+        # ① 用户显式选的 projectId（确认卡下拉传来的——最高优先级）
         requested = request.data.get("projectId")
+        # ② agent 的 projectHint（按名称模糊匹配绑定项目列表）
+        if not requested:
+            hint_name = str(card.get("projectHint") or "").strip()
+            if hint_name:
+                matched = [p for p in bound if hint_name in p.name or p.name in hint_name]
+                if len(matched) == 1:
+                    requested = str(matched[0].id)
+        # ③ 用户选了 / hint 命中了 → 校验在绑定范围内
         if requested:
             project = bound.filter(id=requested).first()
         else:
             project = bound.first() if bound.count() == 1 else None
-            if project is None and bound.count() > 1:
-                return Response({"error": "团队绑定多个项目，请指定 projectId",
-                                 "code": "PROJECT_AMBIGUOUS"}, status=409)
+        if project is None and bound.count() > 1:
+            return Response({"error": "团队绑定多个项目，请指定 projectId",
+                             "code": "PROJECT_AMBIGUOUS"}, status=409)
         if project is None:
             return Response({"error": "项目未绑定本团队或未配置流程",
                              "code": "PROJECT_NOT_BOUND"}, status=409)
-        card = m.content["confirm"]
-        issue = Issue.objects.create(
-            project=project,
-            name=card["title"][:255],
-            description_html=f"<p>{card['description']}</p>"[:20000],
-            created_by=request.user,
-        )
+
+        # 流程版本选择（11-23 单卡覆盖）：用户选的 workflowVersionId > agent
+        # workflowHint 匹配该项目的已发布流程 > 绑定的默认版本
+        wf_override = ""
+        requested_wf = request.data.get("workflowVersionId")
+        if requested_wf:
+            wf_override = str(requested_wf)
+        else:
+            hint_wf = str(card.get("workflowHint") or "").strip()
+            if hint_wf:
+                versions = WorkflowVersion.objects.filter(
+                    workflow__project=project, status=WorkflowVersion.Status.PUBLISHED,
+                ).select_related("workflow").order_by("-version")
+                seen, matched_v = set(), None
+                for v in versions:
+                    if v.workflow.name not in seen:
+                        seen.add(v.workflow.name)
+                        if hint_wf in v.workflow.name or v.workflow.name in hint_wf:
+                            matched_v = v
+                            break
+                if matched_v and str(matched_v.id) != str(
+                        project.team_bindings.filter(
+                            status=ProjectTeamBinding.Status.ACTIVE).first().workflow_version_id):
+                    wf_override = str(matched_v.id)
+        # 单卡流程覆盖：抑制 signal 默认启动，覆盖版本由本端点显式启动并
+        # 与建卡同事务——覆盖校验失败（跨项目/未发布）整体回滚不留半成品卡，
+        # 也不静默回退到绑定默认（用户确认的是覆盖版本，回退即违背授权）
+        from django.db import transaction
+        from .signals import suppress_auto_start
+        if wf_override:
+            binding = ProjectTeamBinding.objects.filter(
+                project=project, status=ProjectTeamBinding.Status.ACTIVE,
+                workflow_version__isnull=False).first()
+            if binding is None:
+                return Response({"error": "项目无活跃绑定", "code": "PROJECT_NOT_BOUND"}, status=409)
+            from . import execution as execution_svc
+            try:
+                with suppress_auto_start(), transaction.atomic():
+                    issue = Issue.objects.create(
+                        project=project,
+                        name=card["title"][:255],
+                        description_html=f"<p>{card['description']}</p>"[:20000],
+                        created_by=request.user,
+                    )
+                    execution_svc.start_execution(
+                        issue=issue, binding=binding, user_id=request.user.id,
+                        workflow_version_id=wf_override)
+            except Exception as exc:
+                from .worker import _normalize_agent_error
+                normalized = getattr(exc, "detail", None) or getattr(exc, "default_detail", None) \
+                    or _normalize_agent_error(exc)
+                if isinstance(normalized, dict):
+                    code, detail = normalized.get("code"), normalized.get("detail")
+                else:
+                    code, detail = getattr(exc, "code", None), str(normalized)
+                return Response({"error": f"按指定流程启动失败：{detail or exc}",
+                                 "code": code or "WORKFLOW_VERSION_INVALID"},
+                                status=getattr(exc, "status_code", None) or 400)
+        else:
+            issue = Issue.objects.create(
+                project=project,
+                name=card["title"][:255],
+                description_html=f"<p>{card['description']}</p>"[:20000],
+                created_by=request.user,
+            )
         m.content = {**m.content, "confirm": {**card, "state": "confirmed",
                                               "issueId": str(issue.id)}}
         m.save(update_fields=["content", "updated_at"])

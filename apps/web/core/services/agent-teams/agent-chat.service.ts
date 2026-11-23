@@ -28,6 +28,18 @@ export interface AgentConversation {
 
 export type AgentMessageKind = "text" | "task" | "confirm_card" | "flow_card";
 
+/** 确认卡可选的项目与流程（后端在卡创建时注入，前端渲染联动下拉） */
+export interface ConversationConfirmOptions {
+  projects: Array<{
+    id: string;
+    name: string;
+    /** 绑定的默认流程版本 id */
+    boundWorkflowVersionId?: string;
+    boundWorkflowName?: string;
+  }>;
+  workflows: Record<string, Array<{ id: string; name: string; version: number }>>;
+}
+
 export interface AgentMessage {
   id: string;
   role: "user" | "agent" | "system";
@@ -39,7 +51,16 @@ export interface AgentMessage {
     interrupted?: boolean;
     /** 分享回执（Slack forwarded-to 模式）：本条消息分享到了哪些卡 */
     sharedTo?: { issueId: string; projectId: string; title: string; at: string }[];
-    confirm?: { title: string; description: string; workflowHint?: string; state?: string; issueId?: string };
+    confirm?: {
+      title: string;
+      description: string;
+      workflowHint?: string;
+      projectHint?: string;
+      state?: string;
+      issueId?: string;
+      /** 可选项目与流程全集（11-23 确认卡升级：预设+用户可改） */
+      options?: ConversationConfirmOptions;
+    };
     card?: { issueId: string; projectId?: string; title: string; status: string };
   };
   attachments: { id: string; name: string; downloadUrl: string }[];
@@ -50,7 +71,14 @@ export interface AgentMessage {
 export type ChatStreamEvent =
   | { type: "delta"; text: string; messageId: string }
   | { type: "stage"; phase: "tool" | "plan"; label: string }
-  | { type: "done"; messageId: string; userMessageId?: string; kind: AgentMessageKind; content: AgentMessage["content"]; stopReason?: string }
+  | {
+      type: "done";
+      messageId: string;
+      userMessageId?: string;
+      kind: AgentMessageKind;
+      content: AgentMessage["content"];
+      stopReason?: string;
+    }
   | { type: "error"; code: string; detail?: string; checkpoint?: boolean; options?: string[] };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -111,14 +139,15 @@ export async function confirmCard(
   conversationId: string,
   messageId: string,
   action: "confirm" | "cancel",
-  projectId: string
+  projectId: string,
+  workflowVersionId: string = ""
 ): Promise<{ state: string; issueId?: string; confirmedCard?: AgentMessage; flowCard?: AgentMessage }> {
   return request<{ state: string; issueId?: string; confirmedCard?: AgentMessage; flowCard?: AgentMessage }>(
     `/api/workspaces/${workspaceSlug}/agent-teams/conversations/${conversationId}/messages/${messageId}/confirm/`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, projectId }),
+      body: JSON.stringify({ action, projectId, workflowVersionId }),
     }
   ).catch(async (err) => {
     // 透传错误码（409 三种：已决/多项目/未绑定），供前端出准确文案

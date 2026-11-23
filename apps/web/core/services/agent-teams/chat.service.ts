@@ -50,7 +50,12 @@ export type StreamTurnOptions = {
   webSearchEnabled?: boolean;
   onToken: (token: string) => void;
   onStage?: (stage: { phase: "tool" | "plan"; label: string }) => void; // 协议 v2：进度透传
-  onDone?: (done: { messageId: string; userMessageId?: string; kind: AgentMessageKind; content: AgentMessage["content"] }) => void; // 协议 v2：定稿快照
+  onDone?: (done: {
+    messageId: string;
+    userMessageId?: string;
+    kind: AgentMessageKind;
+    content: AgentMessage["content"];
+  }) => void; // 协议 v2：定稿快照
   onTrace?: (item: unknown) => void; // v2 网关暂无 trace 事件；接口保留
   onSourceCount?: (count: number) => void; // 同上
   onTitle?: (title: string) => void; // v2 标题由会话 title 字段承载
@@ -90,9 +95,7 @@ export const chatService = {
     const all = await listConversations(workspaceSlug);
     if (view === "archived") {
       // v2 列表端点默认只回活跃；归档经 ?archived=1 单独取
-      const response = await fetch(
-        `/api/workspaces/${workspaceSlug}/agent-teams/conversations/?archived=1`
-      );
+      const response = await fetch(`/api/workspaces/${workspaceSlug}/agent-teams/conversations/?archived=1`);
       if (!response.ok) return [];
       return ((await response.json()) as AgentConversation[]).map(toSession);
     }
@@ -129,7 +132,12 @@ export const chatService = {
         if (event.type === "delta") opts.onToken(event.text);
         else if (event.type === "stage") opts.onStage?.({ phase: event.phase, label: event.label });
         else if (event.type === "done")
-          opts.onDone?.({ messageId: event.messageId, userMessageId: event.userMessageId, kind: event.kind, content: event.content });
+          opts.onDone?.({
+            messageId: event.messageId,
+            userMessageId: event.userMessageId,
+            kind: event.kind,
+            content: event.content,
+          });
         else if (event.type === "error") opts.onError?.(event);
       },
       opts.signal,
@@ -151,9 +159,10 @@ export const chatService = {
     sessionId: string,
     messageId: string,
     action: "confirm" | "cancel",
-    projectId?: string
+    projectId?: string,
+    workflowVersionId?: string
   ): Promise<{ state: string; issueId?: string; confirmedCard?: AgentMessage; flowCard?: AgentMessage }> {
-    return confirmCardApi(workspaceSlug, sessionId, messageId, action, projectId ?? "");
+    return confirmCardApi(workspaceSlug, sessionId, messageId, action, projectId ?? "", workflowVersionId ?? "");
   },
 };
 

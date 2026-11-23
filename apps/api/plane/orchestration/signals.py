@@ -8,6 +8,9 @@ post_save(created) 覆盖进程内一切创建路径（API/草稿转正式/模�
 worker 对账兜底（reconcile 补启未启动的已绑定工作项）。
 """
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -15,11 +18,26 @@ from plane.db.models.issue import Issue
 
 from .models import ProjectTeamBinding
 
+# 单卡流程覆盖（11-23 确认卡升级）：确认端点自己带 override 版本启动，
+# 须抑制 signal 默认启动（否则默认版先占 EXECUTION_CONFLICT，覆盖永不可达）
+_suppress_auto_start: ContextVar[bool] = ContextVar("suppress_auto_start", default=False)
+
+
+@contextmanager
+def suppress_auto_start():
+    token = _suppress_auto_start.set(True)
+    try:
+        yield
+    finally:
+        _suppress_auto_start.reset(token)
+
 
 @receiver(post_save, sender=Issue, weak=False)
 def auto_start_execution(sender, instance, created, **kwargs):
     if not created:
         return
+    if _suppress_auto_start.get():
+        return  # 调用方自带覆盖版本启动（同事务，失败整体回滚）
     binding = ProjectTeamBinding.objects.filter(
         project_id=instance.project_id, status=ProjectTeamBinding.Status.ACTIVE,
         workflow_version__isnull=False,  # 两步绑定中间态（已绑团队未挂版本）不启动

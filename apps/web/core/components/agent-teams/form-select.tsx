@@ -9,7 +9,6 @@
  * 属性面板共用，替换原生 select。
  */
 import { CustomSelect } from "@plane/ui";
-import { CheckIcon } from "@plane/propel/icons";
 
 export function FormSelect({
   value,
@@ -39,10 +38,7 @@ export function FormSelect({
     >
       {options.map((option) => (
         <CustomSelect.Option key={option.id} value={option.id}>
-          <div className="flex items-center gap-2">
-            {value === option.id ? <CheckIcon className="size-3.5 text-accent-primary" aria-hidden /> : null}
-            <span className="truncate">{option.name}</span>
-          </div>
+          <span className="truncate">{option.name}</span>
         </CustomSelect.Option>
       ))}
     </CustomSelect>

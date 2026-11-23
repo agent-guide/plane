@@ -89,14 +89,17 @@ export function ConversationPane({
       setMessages((prev) => [
         ...prev,
         {
-          id: userLocalId, role: "user", kind: "text",
+          id: userLocalId,
+          role: "user",
+          kind: "text",
           content: { text },
           attachments: attachments.map((f) => ({
             id: f.id,
             name: f.name,
             downloadUrl: `/api/assets/v2/workspaces/${workspaceSlug}/download/${f.id}/`,
           })),
-          streamingOffset: 0, createdAt: now,
+          streamingOffset: 0,
+          createdAt: now,
         },
       ]);
       setStreaming({ id: assistantLocalId, text: "", sourceCount: 0 });
@@ -135,12 +138,15 @@ export function ConversationPane({
               // assistant 占位只存在于 streaming state、从未插入 messages，替换
               // 永不命中 → 气泡消失无定稿、刷新才见，11-19 实证修复）
               setMessages((prev) => {
-                const next = prev.map((m) =>
-                  m.id === userLocalId ? { ...m, id: done.userMessageId ?? m.id } : m);
+                const next = prev.map((m) => (m.id === userLocalId ? { ...m, id: done.userMessageId ?? m.id } : m));
                 if (!next.some((m) => m.id === done.messageId)) {
                   next.push({
-                    id: done.messageId, role: "agent", kind: done.kind,
-                    content: done.content, attachments: [], streamingOffset: 0,
+                    id: done.messageId,
+                    role: "agent",
+                    kind: done.kind,
+                    content: done.content,
+                    attachments: [],
+                    streamingOffset: 0,
                     createdAt: new Date().toISOString(),
                   });
                 }
@@ -153,9 +159,7 @@ export function ConversationPane({
           attachmentIds
         );
         // done 已定稿；此处仅在场即读 + 列表预览刷新（活跃会话未读恒清）
-        void chatService
-          .markRead(workspaceSlug, conversationId)
-          .then(() => onSessionsRefresh());
+        void chatService.markRead(workspaceSlug, conversationId).then(() => onSessionsRefresh());
       } catch (err) {
         if ((err as Error).name === "AbortError") {
           // 停止：本地用 partial 定稿「已中断」，不回拉（后端 GeneratorExit 落库
@@ -169,9 +173,13 @@ export function ConversationPane({
           setMessages((prev) => [
             ...prev,
             {
-              id: assistantLocalId, role: "agent", kind: "text",
+              id: assistantLocalId,
+              role: "agent",
+              kind: "text",
               content: { text: partial, interrupted: true },
-              attachments: [], streamingOffset: 0, createdAt: new Date().toISOString(),
+              attachments: [],
+              streamingOffset: 0,
+              createdAt: new Date().toISOString(),
             },
           ]);
         } else {
@@ -181,12 +189,16 @@ export function ConversationPane({
               setMessages((prev) => [
                 ...prev,
                 {
-                  id: current.id, role: "agent", kind: "text",
+                  id: current.id,
+                  role: "agent",
+                  kind: "text",
                   content: {
                     text: current.text,
                     error: { code: "network", detail: t("agent_teams_chat_send_failed") },
                   },
-                  attachments: [], streamingOffset: 0, createdAt: new Date().toISOString(),
+                  attachments: [],
+                  streamingOffset: 0,
+                  createdAt: new Date().toISOString(),
                 },
               ]);
             }
@@ -205,14 +217,27 @@ export function ConversationPane({
 
   // ── 确认卡（L1：确认创建走闸门链 / 取消） ────────────────────
   const handleConfirmCard = useCallback(
-    async (messageId: string, action: "confirm" | "cancel") => {
+    async (
+      messageId: string,
+      action: "confirm" | "cancel",
+      overrides?: { projectId?: string; workflowVersionId?: string }
+    ) => {
       setConfirmBusy(messageId);
       try {
-        const res = await chatService.confirmCard(workspaceSlug, conversationId, messageId, action);
+        const res = await chatService.confirmCard(
+          workspaceSlug,
+          conversationId,
+          messageId,
+          action,
+          overrides?.projectId,
+          overrides?.workflowVersionId
+        );
         // 协议 v2 §五：操作响应定点更新——确认卡就地改 state，确认时追加新流程卡
         setMessages((prev) => {
           let next = res.confirmedCard
-            ? prev.map((m) => (m.id === messageId ? { ...m, content: res.confirmedCard!.content, kind: res.confirmedCard!.kind } : m))
+            ? prev.map((m) =>
+                m.id === messageId ? { ...m, content: res.confirmedCard!.content, kind: res.confirmedCard!.kind } : m
+              )
             : prev;
           if (res.flowCard) next = [...next, res.flowCard];
           return next;
@@ -239,9 +264,7 @@ export function ConversationPane({
     (option: "continue" | "convert" | "stop") => {
       if (option === "stop") return;
       setPrefill({
-        text: option === "continue"
-          ? `${t("agent_teams_chat_continue")}——`
-          : t("agent_teams_chat_convert_prompt"),
+        text: option === "continue" ? `${t("agent_teams_chat_continue")}——` : t("agent_teams_chat_convert_prompt"),
         nonce: Date.now(),
       });
     },

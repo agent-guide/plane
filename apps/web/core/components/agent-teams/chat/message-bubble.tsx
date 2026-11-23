@@ -12,6 +12,7 @@ import { Button } from "@plane/propel/button";
 import { MessageSquarePlus } from "lucide-react";
 
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";
+import { FormSelect } from "@/components/agent-teams/form-select";
 import {
   AGENT_ERROR_MESSAGE_KEYS,
   displayErrorDetail,
@@ -224,10 +225,36 @@ function ConfirmCardBody({
   confirm: NonNullable<ChatMessage["content"]["confirm"]>;
   busy: boolean;
   messageId: string;
-  onConfirm: (messageId: string, action: "confirm" | "cancel") => void;
+  onConfirm: (
+    messageId: string,
+    action: "confirm" | "cancel",
+    overrides?: { projectId?: string; workflowVersionId?: string }
+  ) => void;
 }) {
   const { t } = useTranslation();
   const settled = Boolean(confirm.state);
+  const opts = confirm.options;
+  const projects = opts?.projects ?? [];
+
+  // 预填：agent hint 匹配 > 单项目自动
+  const [projectId, setProjectId] = useState(() => {
+    if (projects.length === 1) return projects[0].id;
+    const hint = confirm.projectHint ?? "";
+    const m = projects.find((p) => hint && (hint.includes(p.name) || p.name.includes(hint)));
+    return m?.id ?? "";
+  });
+  const workflowsFor = projectId ? (opts?.workflows?.[projectId] ?? []) : [];
+  const [wfVersionId, setWfVersionId] = useState(() => {
+    const hint = confirm.workflowHint ?? "";
+    const m = workflowsFor.find((w) => hint && (hint.includes(w.name) || w.name.includes(hint)));
+    if (m) return m.id;
+    const bound = projects.find((p) => p.id === projectId);
+    return bound?.boundWorkflowVersionId ?? "";
+  });
+  const selectedWf = workflowsFor.find((w) => w.id === wfVersionId);
+  const boundProject = projects.find((p) => p.id === projectId);
+  const isOverride = selectedWf && boundProject && selectedWf.id !== boundProject.boundWorkflowVersionId;
+
   return (
     <div className="flex w-full flex-col gap-3">
       {/* 眉头：状态徽标（待确认=主题色 / 已决=中性灰） */}
@@ -241,6 +268,49 @@ function ConfirmCardBody({
         </span>
         <div className="text-body-sm-medium">{confirm.title}</div>
       </div>
+      {/* 项目与流程选择（11-23 确认卡升级：预设+用户可改+单卡覆盖） */}
+      {!settled && projects.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <span className="w-10 shrink-0 text-caption-sm-medium text-tertiary">
+              {t("agent_teams_chat_confirm_project")}
+            </span>
+            <div className="flex-1">
+              <FormSelect
+                value={projectId}
+                placeholder={t("agent_teams_chat_confirm_project_select")}
+                options={projects.map((p) => ({ id: p.id, name: p.name }))}
+                onChange={(v) => {
+                  setProjectId(v);
+                  const p = projects.find((x) => x.id === v);
+                  setWfVersionId(p?.boundWorkflowVersionId ?? "");
+                }}
+              />
+            </div>
+          </div>
+          {projectId && workflowsFor.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="w-10 shrink-0 text-caption-sm-medium text-tertiary">
+                {t("agent_teams_chat_confirm_workflow")}
+              </span>
+              <div className="flex-1">
+                <FormSelect
+                  value={wfVersionId}
+                  placeholder={t("agent_teams_chat_confirm_project_select")}
+                  options={workflowsFor.map((w) => ({
+                    id: w.id,
+                    name: `${w.name}（v${w.version}）`,
+                  }))}
+                  onChange={setWfVersionId}
+                />
+              </div>
+            </div>
+          )}
+          {isOverride && (
+            <p className="text-caption-sm-regular text-accent-primary">{t("agent_teams_chat_confirm_override_hint")}</p>
+          )}
+        </div>
+      )}
       {/* 说明区：与正文字号一致（text-body-sm），用次级色和标题拉开层级——
           无底色块（11-20 反馈：弱底色圆角块显笨重） */}
       {confirm.description && (
@@ -251,7 +321,17 @@ function ConfirmCardBody({
       {/* 操作区：分隔线上方留白；已决态不渲染按钮 */}
       {!settled && (
         <div className="flex items-center gap-2 border-t border-subtle pt-3">
-          <Button variant="primary" size="sm" disabled={busy} onClick={() => onConfirm(messageId, "confirm")}>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={busy || (projects.length > 1 && !projectId)}
+            onClick={() =>
+              onConfirm(messageId, "confirm", {
+                projectId: projectId || undefined,
+                workflowVersionId: wfVersionId || undefined,
+              })
+            }
+          >
             {t("agent_teams_chat_confirm_title")}
           </Button>
           <Button variant="secondary" size="sm" disabled={busy} onClick={() => onConfirm(messageId, "cancel")}>
