@@ -158,3 +158,60 @@ class DagNodeFailEndpointTests(StartExecutionTestBase):
                 content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
         self.assertEqual(
             IssueComment.objects.filter(issue=ex.issue, comment_html__contains="failure-notice:").count(), 1)
+class AirflowClientTokenRenewalTests(TestCase):
+    """11-23 定案：凭证换票 + 401 自动续签（静态 token 过期事故根治）。"""
+
+    def _client(self):
+        from plane.orchestration.worker import AirflowClient
+        return AirflowClient("http://af.test", username="admin", password="pw")
+
+    @staticmethod
+    def _jwt(exp: float) -> str:
+        import base64, json
+        def seg(d):
+            b = base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=")
+            return b.decode()
+        return f"{seg({'alg': 'HS512'})}.{seg({'exp': exp})}.sig"
+
+    def test_mints_token_on_first_call(self):
+        import json as _json
+        from unittest.mock import patch
+        from plane.orchestration import worker as w
+        c = self._client()
+        fresh = self._jwt(9999999999)
+        class _Resp:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self):
+                return _json.dumps({"access_token": fresh}).encode()
+        with patch.object(w._local_opener, "open", return_value=_Resp()):
+            ok = c._refresh_token(force=True)
+        self.assertTrue(ok)
+        self.assertEqual(c._token, fresh)
+
+    def test_static_token_no_creds_keeps_old(self):
+        from plane.orchestration.worker import AirflowClient
+        c = AirflowClient("http://af.test", token="static-tok")
+        # 无凭证：签发链不触发，旧票原样保留（可用性由返回 True 表达）
+        self.assertTrue(c._refresh_token(force=True))
+        self.assertEqual(c._token, "static-tok")
+
+    def test_jwt_exp_parse_and_margin(self):
+        import time
+        c = self._client()
+        self.assertEqual(c._jwt_exp(self._jwt(123.0)), 123.0)
+        self.assertEqual(c._jwt_exp("not-a-jwt"), 0.0)
+
+    def test_singleton_client_cached(self):
+        import os
+        os.environ.setdefault("ORCHESTRATION_AIRFLOW_BASE_URL", "http://af.test")
+        os.environ["ORCHESTRATION_AIRFLOW_USERNAME"] = "admin"
+        os.environ["ORCHESTRATION_AIRFLOW_PASSWORD"] = "pw"
+        import plane.orchestration.worker as w
+        w._cached_airflow_client = None
+        try:
+            self.assertIs(w.airflow_client_from_env(), w.airflow_client_from_env())
+        finally:
+            w._cached_airflow_client = None

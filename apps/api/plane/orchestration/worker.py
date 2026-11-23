@@ -13,7 +13,9 @@
 HTTP 客户端用 urllib 零新依赖。
 """
 
+import base64
 import json
+from threading import Lock
 from typing import Any
 import time
 import urllib.error
@@ -32,24 +34,84 @@ class AirflowError(Exception):
 
 
 class AirflowClient:
-    """Airflow Stable API v2 客户端（Bearer + 有界重试；4xx 立即返回）。"""
+    """Airflow Stable API v2 客户端（Bearer + 有界重试；4xx 立即返回）。
 
-    def __init__(self, base_url: str, token: str, *, timeout_seconds: float = 15, max_retries: int = 2):
+    token 生命周期（2026-11-23 定案，业界「凭证换票」标准姿势）：
+    - 传 username/password（长期凭证）→ 自签到、内存缓存、快到期/401 自动
+      重签重试，静态 token 过期导致执行全体卡死的事故不再可能；
+    - 只传 token（过渡/兜底）→ 行为同旧版，过期由调用方负责。
+    """
+
+    _REFRESH_MARGIN = 300  # 提前 5 分钟续签
+
+    def __init__(self, base_url: str, token: str = "", *, username: str = "", password: str = "",
+                 timeout_seconds: float = 15, max_retries: int = 2):
         self._base = base_url.rstrip("/")
-        self._headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        self._token = token
+        self._username, self._password = username, password
+        self._token_exp = self._jwt_exp(token) if token else 0.0
+        self._lock = Lock()
         self._timeout = timeout_seconds
         self._max_retries = max_retries
+
+    # ---- token 自管理 ----
+
+    @staticmethod
+    def _jwt_exp(token: str) -> float:
+        """解析 JWT exp（不验签——仅本地缓存决策，鉴权仍由服务端做）。"""
+        try:
+            payload_b64 = token.split(".")[1]
+            payload_b64 += "=" * (-len(payload_b64) % 4)
+            return float(json.loads(base64.urlsafe_b64decode(payload_b64))["exp"])
+        except Exception:
+            return 0.0  # 解不出（非 JWT）→ 永不主动续签，靠 401 兜底
+
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._token}", "Content-Type": "application/json"}
+
+    def _refresh_token(self, force: bool) -> bool:
+        """凭证重签（线程安全；未到期且非强制则跳过）。返回是否有可用 token。"""
+        with self._lock:
+            if not self._username or not self._password:
+                return bool(self._token)
+            now = time.time()
+            if not force and self._token and now < self._token_exp - self._REFRESH_MARGIN:
+                return True
+            req = urllib.request.Request(
+                f"{self._base}/auth/token", method="POST",
+                data=json.dumps({"username": self._username, "password": self._password}).encode(),
+                headers={"Content-Type": "application/json"})
+            try:
+                with _local_opener.open(req, timeout=self._timeout) as response:
+                    token = json.loads(response.read()).get("access_token", "")
+            except Exception:
+                return bool(self._token)  # 签发失败：旧票还能用就先用
+            if token:
+                self._token, self._token_exp = token, self._jwt_exp(token)
+            return bool(self._token)
 
     def _request(self, method: str, path: str, payload: dict | None = None, *, retry_on_5xx: bool = True):
         data = json.dumps(payload).encode() if payload is not None else None
         attempt = 0
+        refreshed = False
         while True:
+            if not self._refresh_token(force=False):
+                raise AirflowError(401, "no airflow token available")
             request = urllib.request.Request(
-                f"{self._base}/api/v2/{path}", data=data, headers=self._headers, method=method)
+                f"{self._base}/api/v2/{path}", data=data, headers=self._headers(), method=method)
             try:
                 with _local_opener.open(request, timeout=self._timeout) as response:
                     return json.loads(response.read() or b"{}")
             except urllib.error.HTTPError as exc:
+                # 401 = 票过期：重签一次再试（每请求至多一次，防风暴）
+                if exc.code == 401 and self._username and not refreshed:
+                    refreshed = True
+                    try:
+                        exc.read()
+                    except OSError:
+                        pass
+                    if self._refresh_token(force=True):
+                        continue
                 if 200 <= exc.code < 500 or not retry_on_5xx or attempt >= self._max_retries:
                     try:
                         detail = exc.read().decode(errors="replace")
@@ -88,13 +150,26 @@ class AirflowClient:
             raise
 
 
+_cached_airflow_client: AirflowClient | None = None
+
+
 def airflow_client_from_env() -> AirflowClient:
+    """进程级单例（token 缓存才有意义——每次新建等于每次重签到）。"""
+    global _cached_airflow_client
     import os
+    if _cached_airflow_client is not None:
+        return _cached_airflow_client
     base = os.environ.get("ORCHESTRATION_AIRFLOW_BASE_URL", "")
+    if not base:
+        raise RuntimeError("ORCHESTRATION_AIRFLOW_BASE_URL not configured")
+    # 优先长期凭证（自动续签）；无凭证时回退静态 token（过渡配置）
+    username = os.environ.get("ORCHESTRATION_AIRFLOW_USERNAME", "")
+    password = os.environ.get("ORCHESTRATION_AIRFLOW_PASSWORD", "")
     token = os.environ.get("ORCHESTRATION_AIRFLOW_TOKEN", "")
-    if not base or not token:
-        raise RuntimeError("ORCHESTRATION_AIRFLOW_BASE_URL/TOKEN not configured")
-    return AirflowClient(base, token)
+    if not username and not token:
+        raise RuntimeError("ORCHESTRATION_AIRFLOW_USERNAME/PASSWORD or TOKEN not configured")
+    _cached_airflow_client = AirflowClient(base, token, username=username, password=password)
+    return _cached_airflow_client
 
 
 def wait_until_ready(client: AirflowClient, *, dag_id: str, definition_hash: str,
