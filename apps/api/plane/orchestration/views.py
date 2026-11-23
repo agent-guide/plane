@@ -1660,13 +1660,10 @@ class DagNodeFailView(DagNodeRuntimeBase):
         # 失败原因上卡片（C5 一期）：以当前在牌团队助手身份落到动态流，
         # 终结不再「悄悄失败」。投影非事实源，回写失败不阻断登记。
         self._comment_failure(execution=execution, node_key=node_key, result=record.result)
-        try:
-            execution_svc.on_engine_terminal(
-                execution_id=execution.id,
-                event_id=request.data.get("eventId") or f"nodefail:{run_ref}:{node_key}",
-                engine_status="failed")
-        except Exception:
-            pass  # 已终态时节点失败仅登记
+        # 11-23 修正（112102 事故）：节点失败 ≠ 执行终态——引擎（Airflow）
+        # 可能还在重试该节点。执行终态唯一由 DAG run 终局决定（DAG 级回调
+        # 推送 + 对账循环兜底），此前这里直接 on_engine_terminal(failed)
+        # 把重试窗口内的执行钉死为失败，重试成功也翻不回来。
         return Response({"accepted": True, "status": record.status})
 
 

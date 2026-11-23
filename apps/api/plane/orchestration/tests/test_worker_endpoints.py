@@ -135,7 +135,9 @@ class DagNodeFailEndpointTests(StartExecutionTestBase):
             content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
         self.assertEqual(r.status_code, 200, r.content)
         ex.refresh_from_db()
-        self.assertEqual(ex.business_status, "failed")
+        # 11-23 修正（112102 事故）：节点失败只记节点状态，不再直接判执行终态
+        # ——执行终态唯一由引擎 DAG run 终局决定（DAG 级回调 + 对账兜底）
+        self.assertEqual(ex.business_status, "running")
         record = NodeRuntimeRecord.objects.get(execution=ex, node_key="agent_1_0")
         self.assertEqual(record.status, NodeRuntimeRecord.Status.FAILED)
         self.assertIn("timed out", record.result["error"])

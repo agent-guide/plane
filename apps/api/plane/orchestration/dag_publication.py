@@ -58,6 +58,31 @@ def _internal_request(method: str, path: str, timeout_seconds: int = 15, **kwarg
     return response.json()
 
 
+def report_dag_terminal(context):
+    """DAG run 终局回调（主路径推送，11-23 补齐）：run success/failed 时
+    主动推后端 engine.terminal——对账循环退为兜底（网络丢包等漏网场景）。
+
+    此前主路径缺失：执行终态靠 sensor 级 on_failure_callback（节点失败
+    被越界升级为执行终态）+ 对账循环兜底——112102 事故实证重试成功
+    也翻不回来。DAG 级回调只在 run 真正终局时触发，不关心节点级重试。
+    """
+    dag_run = context["dag_run"]
+    run_id = dag_run.conf.get("backendRunId", dag_run.run_id)
+    state = dag_run.state  # success / failed
+    try:
+        _internal_request(
+            "POST",
+            "/api/internal/agent-teams/events/",
+            json={{
+                "externalEventId": f"dag-terminal:{{run_id}}:{{state}}",
+                "eventType": "engine.terminal",
+                "payload": {{"executionId": run_id.replace("exec-", ""), "engine_status": state}},
+            }},
+        )
+    except Exception:
+        pass  # 推送失败由对账循环兜底
+
+
 def report_sensor_failure(context):
     """sensor 终结（超时/失败）回调：把失败原因登记回后端节点失败端点。
 
@@ -147,6 +172,8 @@ def observe_node(node: dict) -> PokeReturnValue:
     catchup=False,
     max_active_runs={max_active_runs},
     tags=["workflow_version", {definition_hash!r}],
+    on_success_callback=report_dag_terminal,
+    on_failure_callback=report_dag_terminal,
 )
 def generated_workflow():
 {function_body}
