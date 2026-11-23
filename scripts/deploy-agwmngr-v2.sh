@@ -27,9 +27,10 @@ ssh -p "$SSH_PORT" "$REMOTE_USER@$SERVER" \
   "find \"$DEST\" -name '._*' -delete 2>/dev/null || true"
 # 保留：.env.local*（服务器侧密钥与 DB 路径）、data、node_modules（依赖
 # 无变化时跳过传输；lockfile 变化时先本地 bun install 再来）
+# /data 锚定根：只排除运行库目录，不误杀 packages/platform/data（Codex 目录数据）
 rsync -a --delete \
   --exclude 'node_modules' --exclude '.env.local*' --exclude '.git' \
-  --exclude '._*' --exclude 'data' \
+  --exclude '._*' --exclude '/data' \
   -e "ssh -p $SSH_PORT" "$SRC/" "$REMOTE_USER@$SERVER:$DEST/"
 
 echo "==== [2/3] 重启 ===="
