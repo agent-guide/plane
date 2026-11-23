@@ -91,7 +91,10 @@ def report_sensor_failure(context):
     终态对账仍然兜底结算——只是没有原因可展示。
     """
     ti = context["task_instance"]
-    node_key = ti.task_id.split("_", 2)[2]
+    # task_id 即完整节点 key（如 n_mwagmckw_4i2_1，含多个下划线段）——
+    # 旧 split("_", 2)[2] 会截成尾巴（4i2_1），后端按残 key 新建幽灵
+    # 节点记录，时间线多出匹配不上流程的步骤（2026-11-23 ENTRYAPI-22 实证）
+    node_key = ti.task_id
     run_ref = context["dag_run"].conf.get("backendRunId", context["dag_run"].run_id)
     raw = str(context.get("exception") or "")
     is_timeout = "timed out" in raw.lower() or "AirflowTaskTimeout" in raw

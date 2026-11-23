@@ -412,3 +412,21 @@ def _plain_description(html: str | None) -> str:
         return ""
     text = re.sub(r"<[^>]+>", " ", html)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def frozen_definition(execution) -> dict:
+    """执行冻结的流程定义（版本切换后旧执行仍按其启动版本执行与呈现）。
+
+    快照缺失回退绑定当前版本（与时间线节点名解析同口径）。此前多处直接
+    读 binding 当前版本——重绑后旧执行的重试/剪枝/审批判定会被新版本
+    干扰（2026-11-23 ENTRYAPI-22 排查实证：节点查找错版本、历史卡挂出
+    新版本排队节点）。
+    """
+    frozen_version_id = (execution.frozen_context or {}).get("workflowVersionId")
+    if frozen_version_id:
+        from .models import WorkflowVersion
+        definition = WorkflowVersion.objects.filter(
+            id=frozen_version_id).values_list("definition", flat=True).first()
+        if definition is not None:
+            return definition
+    return execution.binding.workflow_version.definition or {}

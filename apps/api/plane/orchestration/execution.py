@@ -119,7 +119,8 @@ def on_human_handoff(*, execution_id: str, event_id: str, member, node_ref: str 
     """
     ex = _load_active(execution_id)
     # 审批人解析（与审批单 assignee 同源，§7.3）：优先人工节点指定审批人
-    node = next((n for n in ((ex.binding.workflow_version.definition or {}).get("nodes") or [])
+    from .execution_context import frozen_definition
+    node = next((n for n in (frozen_definition(ex).get("nodes") or [])
                  if n.get("key") == node_ref), {})
     from .issue_state_sync import approver_user_id_of
     approver_id = approver_user_id_of(node)
@@ -163,7 +164,8 @@ def _ensure_pending_approval(execution, member, node_ref: str = "human", *, defa
         return
     node = None
     try:
-        definition = execution.binding.workflow_version.definition or {}
+        from .execution_context import frozen_definition
+        definition = frozen_definition(execution)
         candidates = [n for n in (definition.get("nodes") or []) if n.get("type") == "human_approval"]
         node = next((n for n in candidates if n.get("key") == node_ref), candidates[0] if candidates else None)
     except Exception:
@@ -221,7 +223,8 @@ def on_human_resume(*, execution_id: str, event_id: str) -> WorkItemExecution:
         raise TeamDomainError(409, "EXECUTION_RESUME_CONFLICT", "Execution is not waiting for a human")
     resumed = transition_execution(execution=ex, target="running", event_id=event_id, member=None)
     from .node_runtime import NodeRuntimeRecord
-    definition = (ex.binding.workflow_version.definition or {})
+    from .execution_context import frozen_definition
+    definition = frozen_definition(ex)
     human_keys = {n.get("key") for n in (definition.get("nodes") or []) if n.get("type") == "human_approval"}
     # 保留已有 result（通过路径先落的拍板备注/附件 output——下游 prior_outputs
     # 携带），resumedBy 仅补充不覆盖
@@ -249,7 +252,8 @@ def on_human_redo(*, execution_id: str, node_ref: str, feedback: str, event_id: 
     """
     from .models import NodeRuntimeRecord
     ex = _load_active(execution_id)
-    definition = (ex.binding.workflow_version.definition or {})
+    from .execution_context import frozen_definition
+    definition = frozen_definition(ex)
     nodes = definition.get("nodes") or []
     edges = definition.get("edges") or []
     # node_ref 的全部上游（传递闭包，edges 方向 source→target）

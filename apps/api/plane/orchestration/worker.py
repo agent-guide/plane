@@ -380,6 +380,25 @@ def _normalize_agent_error(exc: BaseException) -> dict:
     return {"code": "agent_error", "detail": _error_detail(payload, text)}
 
 
+def _stuck_ask_discipline() -> str:
+    """卡住求助纪律段（2026-11-23 ENTRYAPI-22 实证）：agent 缺工具/
+    连不通/不确定时立即 NEED_INPUT 求助，禁止空耗预算。
+
+    背景：节点绑定的 agent 缺少完成任务所需工具（如报关单录入节点
+    绑了只有「文件识别」技能的 agent），agent 只会反复探索环境找工具，
+    30 分钟 turn 预算耗尽判超时——用户只看到笼统失败，不知道哪里配
+    错。NEED_INPUT 通道（engine.agent_ask → 面板求助卡 → 人工答复
+    → 重跑现查部署）早已存在，缺的只是告诉 agent「卡住时用它」。
+    """
+    return (
+        "\n\n【卡住求助】完成任务所需的工具、权限、网络连通或指令不明确，"
+        "尝试合理次数（建议不超过 3 次）仍无法解决时：**立即**输出一行"
+        " `NEED_INPUT: <说明缺什么工具/哪个地址不通/需要用户做什么、去哪里修改>` "
+        "向用户求助。这是正确行为，不是失败——"
+        "**严禁**反复探索环境、盲试替代方案或等待重试来空耗时间预算。"
+        "用户修复配置（如改绑节点、增挂工具）并答复后，你会带着新配置重跑。")
+
+
 def _steering_discipline(*, execution_id: str, node: dict) -> str:
     """执行中补料纪律段（C8-B）：agent 分阶段自取用户补充。
 
@@ -893,7 +912,8 @@ def _agent_invoke_inner(*, execution_id: str, node_key: str, attempt: int,
     from .models import WorkItemExecution
     execution = WorkItemExecution.objects.select_related(
         "binding", "binding__workflow_version").get(id=execution_id)
-    definition = execution.binding.workflow_version.definition or {}
+    from .execution_context import frozen_definition
+    definition = frozen_definition(execution)
     node = next((n for n in (definition.get("nodes") or []) if n.get("key") == node_key), None)
     if node is None or not node.get("expertId"):
         raise RuntimeError(f"node {node_key} has no agent reference")
@@ -936,7 +956,7 @@ def _agent_invoke_inner(*, execution_id: str, node_key: str, attempt: int,
     # 执行中补料纪律（C8-B，2026-11-15）：agent 分阶段自取补充。
     # 签名短期有效（G4：共享 token 不进 prompt），worker 每次组
     # prompt 现签；after=本次开工时刻（首查即节点期内增量）。
-    prompt = prompt + _steering_discipline(execution_id=str(execution.id), node=node)
+    prompt = prompt + _stuck_ask_discipline() + _steering_discipline(execution_id=str(execution.id), node=node)
     # 线程保鲜（2026-11-11 定案）：每次尝试用全新 ACP 线程——重试
     # 撞进残留中毒线程状态会让 turn 秒拒/挂死（1109 实证）；本就
     # 不依赖 agwmngr 会话记忆（无状态全量重传），换线程零语义损失。

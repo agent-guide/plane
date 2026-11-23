@@ -166,15 +166,14 @@ def _approval_json(a: BusinessApproval):
         "attachments": attachments,
         # 作答形态依据：人工审批节点纯按钮（通过/驳回无下游资料消费），
         # agent 问询节点允许文字/附件组合补充（C6 边界，11-15 修正）
+        # 节点形态按执行冻结快照判定（重绑不改变旧执行/待答卡的按钮形态）
         "humanNode": a.node_ref in {
-            n.get("key") for n in (
-                (e.binding.workflow_version.definition or {}).get("nodes") or [])
+            n.get("key") for n in (_frozen_definition(e).get("nodes") or [])
             if n.get("type") == "human_approval"},
         # 画布自定义选项的人工节点：驳回维持「终止」语义（v2 定案）；
         # 默认形态驳回=重做。前端据此区分按钮形态
         "customOptions": bool(next(
-            (n.get("options") for n in (
-                (e.binding.workflow_version.definition or {}).get("nodes") or [])
+            (n.get("options") for n in (_frozen_definition(e).get("nodes") or [])
             if n.get("key") == a.node_ref and n.get("type") == "human_approval"), None)),
         # 消费面（卡片列表/详情头）：团队与工作项上下文
         "teamId": e.binding.team_id, "teamName": e.binding.team.name,
@@ -226,11 +225,30 @@ def _write_answer_comment(approval, user, asset_ids, blocks):
         pass
 
 
+def _frozen_definition(execution: WorkItemExecution) -> dict:
+    """执行冻结的流程定义（版本切换后旧执行仍按其启动版本呈现）。
+
+    实现在 execution_context.frozen_definition（worker/execution 共用）。
+    曾有 _upcoming_steps / _node_member_name / 审批 humanNode 判定直接读
+    binding 当前版本——重绑后旧执行的「排队中」步骤、执行者、审批按钮
+    按新版本算，界面与实际执行的流程错位（2026-11-23 ENTRYAPI-22 实证：
+    已完成卡挂出新版本的两个排队节点）。
+    """
+    from .execution_context import frozen_definition
+    return frozen_definition(execution)
+
+
 def _upcoming_steps(execution: WorkItemExecution) -> list[str]:
-    """叙事流未来步骤名（剪枝感知）：定义序中未开始的节点，减去被条件淘汰的分支。"""
+    """叙事流未来步骤名（剪枝感知）：定义序中未开始的节点，减去被条件淘汰的分支。
+
+    按冻结快照取定义（重绑不影响旧执行呈现）；终态执行无未来步骤。
+    """
     from .execution_context import pruned_node_keys
     from .node_runtime import NodeRuntimeRecord
-    definition = (execution.binding.workflow_version.definition or {})
+    from .state_machine import TERMINAL_STATUSES
+    if execution.business_status in TERMINAL_STATUSES:
+        return []
+    definition = _frozen_definition(execution)
     started = set(execution.node_records.values_list("node_key", flat=True))
     choices = {
         node_key: chosen for node_key, chosen in NodeRuntimeRecord.objects.filter(
@@ -842,7 +860,7 @@ class ApprovalsEndpoint(BaseAPIView):
         # agent 求助单（AI 节点发起，能力化人工介入）：答复 = 补充资料 →
         # 同节点重跑（attempt+1，prompt 注入答复）；拒绝 = 终止执行。
         # 通过且无原因时给「确认继续」兜底，避免空重跑让 agent 重复问 NEED_INPUT。
-        _definition = approval.execution.binding.workflow_version.definition or {}
+        _definition = _frozen_definition(approval.execution)
         _node_type = next((n.get("type") for n in (_definition.get("nodes") or [])
                            if n.get("key") == approval.node_ref), None)
         if _node_type in ("ai", "condition"):
@@ -1291,7 +1309,7 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
         # memberName = 该步执行者（叙事流步骤行「节点 — 执行者」的「谁在做」；
         # 2026-11-04 #3：此前误用全局 current_member，每步显示同一人）
         definition_nodes = {
-            n.get("key"): n for n in ((execution.binding.workflow_version.definition or {}).get("nodes") or [])}
+            n.get("key"): n for n in (_frozen_definition(execution).get("nodes") or [])}
         frozen_members = (execution.frozen_context or {}).get("members") or []
         # frozen 快照不存 role（成员收敛 §3.3 只钉 id/kind/userId）——AI 步骤
         # 执行者用 agent 目录显示名（names，与成员页同源），不读快照 role
@@ -1495,7 +1513,7 @@ class DagNodeView(DagNodeRuntimeBase):
         if not execution:
             return Response({"error": "run not found"}, status=404)
         record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
-        definition = (execution.binding.workflow_version.definition or {})
+        definition = _frozen_definition(execution)
         # 剪枝闸门前置：死分支节点（含已被拉起的竞态残留）observe 即判 skipped
         if self._prune_if_unreachable(execution, definition, node_key):
             record.refresh_from_db()
@@ -1533,7 +1551,7 @@ class DagNodeStartView(DagNodeRuntimeBase):
         if record.status in (NodeRuntimeRecord.Status.SUCCESS,
                              NodeRuntimeRecord.Status.CANCELLED):
             return Response({"accepted": True, "status": record.status})
-        definition = (execution.binding.workflow_version.definition or {})
+        definition = _frozen_definition(execution)
         # 重试上限（B1 2026-11-14 语义分离）：上限只看 failure_retries（失败
         # 自动重派的专用预算）；attempt 是总运行序号（幂等键/线程保鲜），
         # 「提问→答复」重跑推进 attempt 但不占预算、无限次。sensor 收到
