@@ -158,6 +158,39 @@ class DagNodeFailEndpointTests(StartExecutionTestBase):
                 content_type="application/json", HTTP_X_ORCHESTRATION_TOKEN="test-internal-token")
         self.assertEqual(
             IssueComment.objects.filter(issue=ex.issue, comment_html__contains="failure-notice:").count(), 1)
+
+
+class EngineStartFailureSurfacingTests(StartExecutionTestBase):
+    """11-23 定案：engine_start 失败必须上浮——执行终态化 + 失败原因回写卡片评论，
+    不允许永远「排队中」静默挂死。"""
+
+    def test_start_failure_marks_execution_failed_and_comments(self):
+        from plane.orchestration.tasks import engine_start_task
+        from plane.db.models import IssueComment
+        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        # 用不存在的版本 id 触发启动失败（版本查不到 → 异常 → 上浮路径）
+        with self.assertRaises(Exception):
+            engine_start_task(executionId=ex.id, workflowVersionId="nonexistent-version")
+        ex.refresh_from_db()
+        self.assertEqual(ex.business_status, "failed")
+        notice = IssueComment.objects.filter(
+            issue=self.issue, comment_html__contains=f"failure-notice:{ex.id}:engine_start")
+        self.assertTrue(notice.exists(), "失败原因未回写卡片评论")
+        self.assertIn("启动失败", notice.first().comment_html)
+
+    def test_start_failure_does_not_touch_terminal_execution(self):
+        from plane.orchestration.tasks import engine_start_task
+        from plane.orchestration.execution import on_engine_terminal
+        ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
+        on_engine_terminal(execution_id=ex.id, event_id=f"t:{ex.id}",
+                           engine_status="cancelled")
+        # 已终局的执行：上浮路径不得再改状态（幂等保护）
+        with self.assertRaises(Exception):
+            engine_start_task(executionId=ex.id, workflowVersionId="nonexistent-version")
+        ex.refresh_from_db()
+        self.assertEqual(ex.business_status, "cancelled")
+
+
 class AirflowClientTokenRenewalTests(TestCase):
     """11-23 定案：凭证换票 + 401 自动续签（静态 token 过期事故根治）。"""
 

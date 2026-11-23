@@ -77,7 +77,27 @@ def execution_lock(execution_id: str) -> str:
 @app.task(name="orchestration.engine_start")
 def engine_start_task(executionId: str, workflowVersionId: str) -> None:
     from .worker import handle_engine_start
-    handle_engine_start(execution_id=executionId, workflow_version_id=workflowVersionId)
+    try:
+        handle_engine_start(execution_id=executionId, workflow_version_id=workflowVersionId)
+    except Exception as exc:
+        # 启动失败必须上浮（11-23 实证：此前失败只落 job 状态，执行永远
+        # 「排队中」，用户无从得知）。终态化 + 失败原因回写卡片评论，
+        # 面板/列表立即显示失败可重试；随后照常抛出保 job 可观测。
+        from .execution import on_engine_terminal
+        from .execution_context import comment_failure
+        from .models import WorkItemExecution
+        try:
+            execution = WorkItemExecution.objects.filter(id=executionId).exclude(
+                business_status__in=("failed", "completed", "cancelled")).first()
+            if execution is not None:
+                comment_failure(execution=execution, node_key="engine_start",
+                                result={"error": f"启动失败：{exc}"})
+                on_engine_terminal(execution_id=executionId,
+                                   event_id=f"engine-start-fail:{executionId}",
+                                   engine_status="failed")
+        except Exception:
+            pass  # 上浮路径自身失败不吞原始异常
+        raise
 
 
 @app.task(name="orchestration.agent_invoke")
