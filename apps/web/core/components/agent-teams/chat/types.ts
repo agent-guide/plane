@@ -16,7 +16,7 @@ export type StreamingAssistant = {
   text: string;
   sourceCount: number;
   /** 协议 v2 进度透传：当前阶段（单行「正在…」），done 后清空 */
-  stage?: { phase: "tool" | "plan"; label: string } | null;
+  stage?: { phase: "tool" | "plan"; label: string; out?: string } | null;
   error?: StreamError;
 };
 
@@ -54,9 +54,7 @@ export function deriveActiveSession(
   currentActiveId: string
 ): { nextActiveId: string; sessionToCreate?: { teamId: string; agentMemberId: string; title?: string } } {
   if (link.member || link.expert) {
-    const existing = sessions.find((s) =>
-      link.member ? s.agentMemberId === link.member : s.expertId === link.expert
-    );
+    const existing = sessions.find((s) => (link.member ? s.agentMemberId === link.member : s.expertId === link.expert));
     if (existing) return { nextActiveId: existing.id };
     if (link.member && link.team) {
       return {
@@ -82,13 +80,17 @@ export function groupSessionsByTeam(
   const groups = new Map<string, { teamId: string; teamName: string; sessions: ChatSession[]; unread: number }>();
   for (const session of sessions) {
     const g = groups.get(session.teamId) ?? {
-      teamId: session.teamId, teamName: session.teamName, sessions: [], unread: 0,
+      teamId: session.teamId,
+      teamName: session.teamName,
+      sessions: [],
+      unread: 0,
     };
     g.sessions.push(session);
     if (session.unread) g.unread += 1;
     groups.set(session.teamId, g);
   }
-  const result: { teamId: string; teamName: string; sessions: ChatSession[]; unread: number; latestPreview: string }[] = [];
+  const result: { teamId: string; teamName: string; sessions: ChatSession[]; unread: number; latestPreview: string }[] =
+    [];
   for (const g of groups.values()) {
     // 最近活跃会话（lastMessageAt 降序首个）；preview 即列表副行
     const latest = g.sessions.reduce<ChatSession | undefined>((acc, s) => {
@@ -96,7 +98,13 @@ export function groupSessionsByTeam(
       if (!acc || (s.lastMessageAt ?? "") > (acc.lastMessageAt ?? "")) return s;
       return acc;
     }, undefined);
-    result.push({ teamId: g.teamId, teamName: g.teamName, sessions: g.sessions, unread: g.unread, latestPreview: latest?.lastMessagePreview ?? "" });
+    result.push({
+      teamId: g.teamId,
+      teamName: g.teamName,
+      sessions: g.sessions,
+      unread: g.unread,
+      latestPreview: latest?.lastMessagePreview ?? "",
+    });
   }
   return result;
 }

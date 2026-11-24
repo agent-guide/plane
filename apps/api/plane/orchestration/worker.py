@@ -586,7 +586,8 @@ def _cancel_agent_turn(context_id: str, base: str, headers: dict) -> None:
 
 
 def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: str,
-                      idle_timeout: float = 240.0, total_timeout: float = 1800.0) -> str:
+                      idle_timeout: float = 240.0, total_timeout: float = 1800.0,
+                      trace_sink=None) -> str:
     """agent 节点执行：解析部署 → 建调用上下文 → turn（SSE 聚合为完整回复）。
 
     阶段 0/1′ 摸底验证的租户调用链；SSE 形态与旧 llm_gateway 同源
@@ -651,6 +652,81 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
 
     pieces: list[str] = []
     event_type = ""
+    # 工作过程留痕（11-24 定案：执行不黑盒）——工具调用起止 + 模型生成段
+    # 起止全部进 trace，写库由 trace_sink 负责（节流/容错在 sink 侧）。
+    # 解析与会话进度行同源（parse_tool_event），两处不各养一套。
+    _titles: dict[str, str] = {}
+    _starts: dict[str, float] = {}
+    _gen_open = False
+    # gen 段文字内容（Claude Code 式过程流主体）：delta 按段聚合，节流 2s
+    # touch 更新库里的 start 条目（面板轮询近实时看到），段结束补终稿。
+    # 上限 20000 字符/段防大输出撑爆。
+    _gen_buf: list[str] = []
+    _gen_last_touch = 0.0
+    _GEN_TEXT_CAP = 20000
+
+    def _emit(kind: str, phase: str, name: str = "", cid: str = "", out: str = "", inp: str = "") -> None:
+        if trace_sink is None:
+            return
+        nonlocal _gen_open, _gen_buf, _gen_last_touch
+        now = time.monotonic()
+        wall_ms = int(time.time() * 1000)
+        if kind == "gen" and phase == "start":
+            if _gen_open:
+                return
+            _gen_open = True
+            _gen_buf = []
+            _gen_last_touch = now
+            _starts["gen"] = now
+            trace_sink({"t": wall_ms, "k": "gen", "s": "start", "text": ""})
+        elif kind == "gen" and phase == "text":
+            if not _gen_open:
+                return
+            _gen_buf.append(name)  # name 复用为 delta 文本
+            if now - _gen_last_touch >= 2.0:
+                _gen_last_touch = now
+                trace_sink({"k": "gen", "s": "touch",
+                            "text": "".join(_gen_buf)[:_GEN_TEXT_CAP]})
+        elif kind == "gen" and phase == "end":
+            if not _gen_open:
+                return
+            _gen_open = False
+            text = "".join(_gen_buf)[:_GEN_TEXT_CAP]
+            trace_sink({"t": wall_ms, "k": "gen", "s": "end",
+                        "ms": int((now - _starts.pop("gen", now)) * 1000),
+                        "text": text})
+        elif kind == "tool" and phase == "start":
+            # ACP 同一调用会连发多帧：pending 帧只有工具名（bash），完整
+            # 命令在 in_progress 帧——已开段不重复记录，但标题就地补全
+            key = f"tool:{cid or name}"
+            if key in _starts:
+                prev = _starts[key]
+                if isinstance(prev, tuple) and len(name) > len(prev[1]):
+                    trace_sink({"k": "tool", "s": "retouch", "old": prev[1], "new": name})
+                    _starts[key] = (prev[0], name)
+                return
+            _emit("gen", "end")
+            _starts[key] = (now, name)
+            trace_sink({"t": wall_ms, "k": "tool", "s": "start", "name": name, "input": inp})
+        elif kind == "tool" and phase == "failed":
+            started_t = _starts.pop(f"tool:{cid or name}", None)
+            started = started_t[0] if isinstance(started_t, tuple) else started_t
+            trace_sink({"t": wall_ms, "k": "tool", "s": "end", "name": name,
+                        "ms": int((now - started) * 1000) if started is not None else None,
+                        "status": "failed"})
+        elif kind == "tool" and phase == "end":
+            started_t = _starts.pop(f"tool:{cid or name}", None)
+            started = started_t[0] if isinstance(started_t, tuple) else started_t
+            if started is None and not cid:
+                # ACP 的 end 帧 title 有时是结果摘要而非调用名（start=read、
+                # end=文件路径）：精确未命中时按 FIFO 配最早的开段兜底
+                for k in list(_starts):
+                    if k.startswith("tool:"):
+                        started = _starts.pop(k)[0]
+                        break
+            trace_sink({"t": wall_ms, "k": "tool", "s": "end", "name": name,
+                        "ms": int((now - started) * 1000) if started is not None else None,
+                        "out": out})
     try:
         response_ctx = _local_opener.open(
             open_turn({"input": prompt, session_field: session_hint}), timeout=600)
@@ -685,6 +761,7 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
                     # 不自行结束 turn，则按成功收口而非报错——防"活干完被记旷工"
                     joined = "".join(pieces)
                     if FINAL_MARKER in joined:
+                        _emit("gen", "end")
                         return joined
                     raise AgentTurnError("timeout", f"agent turn idle timeout: no SSE event for {idle_timeout:.0f}s")
                 if now - started > total_timeout:
@@ -713,13 +790,24 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
                         detail=envelope)
                 if event_type == "delta" and isinstance(envelope.get("text"), str):
                     pieces.append(envelope["text"])
+                    _emit("gen", "start")
+                    _emit("gen", "text", envelope["text"])
                     if FINAL_MARKER in envelope["text"]:
                         # 收到终止信号即收口（不等模型自己停、不干等流关闭）
+                        _emit("gen", "end")
                         return "".join(pieces)
+                elif event_type == "tool_call" and isinstance(envelope.get("data"), dict):
+                    from .chat import parse_tool_event
+                    parsed = parse_tool_event(envelope["data"], _titles)
+                    if parsed:
+                        _emit("tool", parsed["phase"], parsed["name"], parsed["cid"],
+                              parsed["out"], parsed.get("input", ""))
     except AgentTurnError:
         # 未收口即放弃：显式取消沙箱 turn，防事件停滞期断连检测失灵留孤儿
+        _emit("gen", "end")
         _cancel_agent_turn(context['id'], base, headers)
         raise
+    _emit("gen", "end")
     return "".join(pieces)
 
 
@@ -1054,15 +1142,53 @@ def _agent_invoke_inner(*, execution_id: str, node_key: str, attempt: int,
     # 看门狗同源，防止 worker 与 Airflow 双头不一致）
     from .dag_publication import _effective_timeout
     node_total = float(_effective_timeout(node))
+    # 工作过程留痕 sink（11-24）：增量写 NodeRuntimeRecord.trace——只
+    # update 该字段（不碰乐观锁/状态）；写失败静默（留痕绝不影响执行
+    # 本身）；上限 500 条防极长 turn 撑爆行。
+    record = NodeRuntimeRecord.objects.filter(execution=execution, node_key=node_key).first()
+    trace_events: list = list((record.trace if record else None) or [])
+    _TRACE_CAP = 500
+
+    def trace_sink(evt: dict) -> None:
+        try:
+            if evt.get("s") == "retouch":
+                # in_progress 帧带完整命令：就地补全已记录 start 条目的标题
+                for e in reversed(trace_events):
+                    if e.get("k") == "tool" and e.get("s") == "start" and e.get("name") == evt.get("old"):
+                        e["name"] = evt["new"]
+                        if record is not None:
+                            NodeRuntimeRecord.objects.filter(id=record.id).update(trace=trace_events)
+                        return
+                return
+            if evt.get("s") == "touch":
+                # gen 段进行中的文字节流更新：原地改最近一个未闭合 gen start
+                # 条目（不追加新条目），面板轮询近实时看到过程文字
+                for e in reversed(trace_events):
+                    if e.get("k") == "gen" and e.get("s") == "start":
+                        if evt.get("text"):
+                            e["text"] = evt["text"]
+                        if record is not None:
+                            NodeRuntimeRecord.objects.filter(id=record.id).update(trace=trace_events)
+                        return
+                return
+            if len(trace_events) >= _TRACE_CAP:
+                return
+            trace_events.append(evt)
+            if record is not None:
+                NodeRuntimeRecord.objects.filter(id=record.id).update(trace=trace_events)
+        except Exception:
+            pass
+
     reply = invoke_agent_node(
         agent_definition_id=node["expertId"], prompt=prompt,
-        session_hint=thread_hint, total_timeout=node_total)
+        session_hint=thread_hint, total_timeout=node_total, trace_sink=trace_sink)
     # 空回复（模型偶发空补全）：就地重试一次（SDK 惯例），仍空
     # 报失败交引擎重试线——空串当成功曾是"假完成"漏洞
     if not reply.strip():
         reply = invoke_agent_node(
             agent_definition_id=node["expertId"], prompt=prompt,
-            session_hint=f"{thread_hint}:r", total_timeout=node_total)
+            session_hint=f"{thread_hint}:r", total_timeout=node_total,
+            trace_sink=trace_sink)
     if not reply.strip():
         raise AgentTurnError(
             "empty_reply",

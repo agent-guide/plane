@@ -219,6 +219,80 @@ def _release_persona_via_deployments(agent_definition_id: str) -> str:
 
 # ---------------------------------------------------------------- 流式 turn
 
+
+def parse_tool_event(td: dict, title_cache: dict) -> dict | None:
+    """网关 tool_call 事件 → {"phase","name","cid","out"}；非可展示工具事件返回 None。
+
+    phase: "start"|"end"；cid：ACP toolCallId（并行同名工具配对），builtin ""；
+    out：end 帧的结果摘录（builtin output / ACP completed content），start 帧 ""。
+
+    会话进度行与执行留痕（worker node trace）共用同一解析——网关 tool_call
+    按 runtime 分两种形态：
+    - builtin：发起 {calls:[{name}]} / 结果 {name, output}
+    - ACP（sessionUpdate 协议）：{sessionUpdate: "tool_call"/"tool_call_update",
+      toolCallId, title("agwmngr_serviceN_<工具名>"), status: pending/
+      in_progress/completed/failed}——title 需剥网关服务前缀成用户可读名；
+      title 只在发起/in_progress 帧带，completed 帧按 toolCallId 回查缓存
+      （真实流实证：completed 只有 status+content）。
+    failed：返回 {"phase":"failed"}——过程留痕标注该段失败；会话进度行不
+    重复报错文本（错误经 result.error 路径呈现）。
+    """
+    if isinstance(td.get("calls"), list) and td["calls"]:
+        names = "、".join(c.get("name", "工具") for c in td["calls"] if isinstance(c, dict))
+        return {"phase": "start", "name": names, "cid": "", "out": "", "input": ""} if names else None
+    if isinstance(td.get("name"), str):
+        return {"phase": "end", "name": td["name"], "cid": "",
+                "out": str(td.get("output") or "")[:2000]}
+    if isinstance(td.get("sessionUpdate"), str):
+        su = td["sessionUpdate"]
+        if su not in ("tool_call", "tool_call_update"):
+            return None
+        raw_title = str(td.get("title") or "")
+        if raw_title.startswith("agwmngr_service"):
+            raw_title = raw_title.split("_", 2)[-1]
+        # bash 等本地工具的 title 是完整命令：换行压成单行后完整保留
+        # （对齐 Claude Code：无任何字符上限，容器自行换行/滚动）
+        raw_title = " ".join(raw_title.split())
+        call_id = str(td.get("toolCallId") or "")
+        if raw_title:
+            title_cache[call_id] = raw_title
+        title = raw_title or title_cache.get(call_id, "")
+        if not title:
+            return None
+        if td.get("status") == "failed":
+            # 失败也进过程留痕（Claude Code：每个工具有成败状态）——错误
+            # 走统一错误路径兜底，过程流里只标注该段失败，不重复报错文本
+            return {"phase": "failed", "name": title, "cid": call_id, "out": ""}
+        if su == "tool_call" or td.get("status") == "in_progress":
+            # rawInput=实际调用参数（Claude Code 展示的输入）：紧凑序列化，
+            # title 已含命令的 bash 场景不重复带
+            input_s = ""
+            ri = td.get("rawInput")
+            if isinstance(ri, dict) and ri and "command" not in title:
+                try:
+                    input_s = json.dumps(ri, ensure_ascii=False)[:500]
+                except (TypeError, ValueError):
+                    input_s = str(ri)[:500]
+            return {"phase": "start", "name": title, "cid": call_id, "out": "", "input": input_s}
+        if td.get("status") == "completed":
+            # content 实测为嵌套块：[{type:"content", content:{type:"text", text}}]
+            content = td.get("content")
+            if isinstance(content, str):
+                out_s = content
+            elif isinstance(content, list):
+                parts = []
+                for blk in content:
+                    inner = blk.get("content") if isinstance(blk, dict) else None
+                    if isinstance(inner, dict) and isinstance(inner.get("text"), str):
+                        parts.append(inner["text"])
+                out_s = "\n".join(parts)
+            else:
+                out_s = ""
+            return {"phase": "end", "name": title, "cid": call_id, "out": out_s[:2000]}
+        return None
+    return None
+
+
 def stream_agent_turn(*, agent_definition_id: str, prompt: str, session_hint: str,
                       idle_timeout: float = 240.0, total_timeout: float = 1800.0):
     """对话版 turn：生成器逐事件 yield（与 invoke_agent_node 同链，流式形态）。
@@ -325,43 +399,24 @@ def stream_agent_turn(*, agent_definition_id: str, prompt: str, session_hint: st
                 if event_type == "delta" and isinstance(envelope.get("text"), str):
                     yield {"type": "delta", "text": envelope["text"]}
                 elif event_type == "tool_call" and isinstance(envelope.get("data"), dict):
-                    # 进度透传（协议 v2 §六）。网关 tool_call 按 runtime 分两种形态：
-                    # - builtin：发起 {calls:[{name}]} / 结果 {name, output}
-                    # - ACP（sessionUpdate 协议）：{sessionUpdate: "tool_call"/"tool_call_update",
-                    #   toolCallId, title("agwmngr_serviceN_<工具名>"), status: pending/
-                    #   in_progress/completed/failed}——title 需剥网关服务前缀成用户可读名
-                    td = envelope["data"]
-                    if isinstance(td.get("calls"), list) and td["calls"]:
-                        names = "、".join(c.get("name", "工具") for c in td["calls"] if isinstance(c, dict))
-                        yield {"type": "stage", "phase": "tool", "label": f"正在调用 {names}…"}
-                    elif isinstance(td.get("name"), str):
-                        yield {"type": "stage", "phase": "tool", "label": f"已完成 {td['name']}"}
-                    elif isinstance(td.get("sessionUpdate"), str):
-                        su = td["sessionUpdate"]
-                        if su in ("tool_call", "tool_call_update"):
-                            # title 只在发起/in_progress 帧带；completed 帧按
-                            # toolCallId 回查（真实流实证：completed 只有 status+content）
-                            raw_title = str(td.get("title") or "")
-                            if raw_title.startswith("agwmngr_service"):
-                                raw_title = raw_title.split("_", 2)[-1]
-                            # bash 等本地工具的 title 是完整命令——进度行只露开头，
-                            # 截断防整段脚本灌进气泡（含换行压成单行）
-                            if len(raw_title) > 24:
-                                raw_title = " ".join(raw_title.split())[:24] + "…"
-                            call_id = str(td.get("toolCallId") or "")
-                            if raw_title:
-                                _acp_tool_titles[call_id] = raw_title
-                            title = raw_title or _acp_tool_titles.get(call_id, "")
-                            status = td.get("status")
-                            # 截断过的 title 已带尾省略号，不再叠「…」
-                            suffix = "" if title.endswith("…") else "…"
-                            if su == "tool_call" or status == "in_progress":
-                                if title:
-                                    yield {"type": "stage", "phase": "tool", "label": f"正在调用 {title}{suffix}"}
-                            elif status == "completed":
-                                if title:
-                                    yield {"type": "stage", "phase": "tool", "label": f"已完成 {title}"}
-                            # failed：不发 stage——错误经 result.error 路径呈现，进度行不重复报错
+                    # 进度透传（协议 v2 §六），解析归 parse_tool_event（与执行
+                    # 留痕 worker trace 同源，两处不各养一套）
+                    parsed = parse_tool_event(envelope["data"], _acp_tool_titles)
+                    if parsed:
+                        phase, name = parsed["phase"], parsed["name"]
+                        # 截断过的 title 已带尾省略号，不再叠「…」
+                        suffix = "" if name.endswith("…") else "…"
+                        if phase == "failed":
+                            pass  # 会话进度行不重复报错文本；执行留痕侧已标注
+                        elif phase == "start":
+                            yield {"type": "stage", "phase": "tool", "label": f"正在调用 {name}{suffix}"}
+                        else:
+                            evt = {"type": "stage", "phase": "tool", "label": f"已完成 {name}"}
+                            # 完成行带结果摘录（Claude Code：工具输出关键几行）
+                            out = (parsed.get("out") or "").strip()
+                            if out:
+                                evt["out"] = out[:400]
+                            yield evt
                 elif event_type == "done":
                     # 网关 turn 收口（data 可能带 stop_reason）——取代旧的 FINAL_MARKER
                     # 文本标志 hack，直接认 done 事件收口

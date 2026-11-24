@@ -1336,6 +1336,10 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             "createdAt": execution.created_at.isoformat(),
         }]
         for n in execution.node_records.order_by("updated_at"):
+            # 重试对用户透明（11-24 状态机定案）：尝试失败但额度未尽由写侧
+            # 落 RETRYING，这里只做状态映射——统一显示「执行中」、错误不
+            # 透出；FAILED 自此只表终态失败（重试耗尽），照常显示错误
+            is_retrying = n.status == "retrying"
             # output：节点输出正文（叙事流每步结论行；失败节点回退 error）。
             # 截断 4000——页内展开看全文，预览弹层仍走 artifact.content
             raw_result = n.result or {}
@@ -1345,13 +1349,15 @@ class WorkItemRuntimeEndpoint(BaseAPIView):
             node_output = raw_result.get("output") or ("" if error_code else raw_result.get("error")) or ""
             events.append({
                 "id": f"node:{n.id}:{n.status}", "kind": "node",
-                "status": n.status, "nodeKey": n.node_key,
+                "status": "running" if is_retrying else n.status, "nodeKey": n.node_key,
                 "nodeName": node_names.get(n.node_key, n.node_key),
                 "memberName": _node_member_name(n.node_key),
                 "createdAt": n.updated_at.isoformat(),
-                "output": node_output[:4000] or None,
-                "errorCode": error_code,
-                "errorDetail": (error_detail or "")[:4000] or None,
+                "output": None if is_retrying else (node_output[:4000] or None),
+                "errorCode": None if is_retrying else error_code,
+                "errorDetail": None if is_retrying else ((error_detail or "")[:4000] or None),
+                # 工作过程留痕（11-24）：工具调用/生成段起止与耗时；空=无留痕
+                "trace": n.trace or None,
             })
         for a in execution.approvals.order_by("created_at"):
             events.append({
@@ -1556,16 +1562,17 @@ class DagNodeStartView(DagNodeRuntimeBase):
         # 自动重派的专用预算）；attempt 是总运行序号（幂等键/线程保鲜），
         # 「提问→答复」重跑推进 attempt 但不占预算、无限次。sensor 收到
         # status=failed 会 raise 结束 run，终结「失败→重试」循环。
-        _node_def = next((n for n in (definition.get("nodes") or []) if n.get("key") == node_key), {})
-        _retries = _node_def.get("retries") if _node_def.get("retries") is not None else 1
-        if record.status == NodeRuntimeRecord.Status.FAILED and record.failure_retries >= _retries:
+        from .execution_context import failure_retry_budget
+        _retries = failure_retry_budget(definition, node_key)
+        _failed_like = record.status in (NodeRuntimeRecord.Status.FAILED, NodeRuntimeRecord.Status.RETRYING)
+        if _failed_like and record.failure_retries >= _retries:
             return Response({"accepted": True, "status": record.status, "error": "retries exhausted"})
         # 当前 attempt 的命令是否已投递（任意状态——等价旧 outbox 键存在判据，
         # 改查 procrastinate job 表：行完成后仍保留）
         from .tasks import command_exists
         _key_exists = command_exists(f"agent_call:{execution.id}:{node_key}:{record.attempt}")
-        if record.status == NodeRuntimeRecord.Status.FAILED or _key_exists:
-            if record.status == NodeRuntimeRecord.Status.FAILED:
+        if _failed_like or _key_exists:
+            if _failed_like:
                 record.failure_retries += 1
             record.attempt = record.attempt + 1
         # 剪枝闸门：条件已选别的分支时 start 直接判 skipped（handoff/命令都不发）

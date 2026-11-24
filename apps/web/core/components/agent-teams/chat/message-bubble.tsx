@@ -155,7 +155,11 @@ export function StreamingBubble({
   streaming,
   onCheckpoint,
 }: {
-  streaming: { text: string; stage?: { phase: "tool" | "plan"; label: string } | null; error?: StreamError };
+  streaming: {
+    text: string;
+    stage?: { phase: "tool" | "plan"; label: string; out?: string } | null;
+    error?: StreamError;
+  };
   onCheckpoint: (option: "continue" | "convert" | "stop") => void;
 }) {
   const { t } = useTranslation();
@@ -165,7 +169,7 @@ export function StreamingBubble({
           呼吸感：环状 spinner（持续活动感，弱于跳动点）+ 更宽的间距/留白，
           与正文的视觉重心拉开层级（11-20 UI 反馈） */}
       {streaming.stage?.label && (
-        <div className="mb-3 flex items-center gap-2 pb-1 text-caption-sm-regular text-tertiary">
+        <div className="mb-3 flex items-start gap-2 pb-1 text-caption-sm-regular text-tertiary">
           <svg aria-hidden className="size-3 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path
@@ -176,7 +180,15 @@ export function StreamingBubble({
               strokeLinecap="round"
             />
           </svg>
-          <span className="min-w-0 truncate">{streaming.stage.label}</span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            {/* 完整显示不截断（对齐 Claude Code），长命令容器内换行 */}
+            <span className="min-w-0 break-all">{streaming.stage.label}</span>
+            {streaming.stage.out && (
+              <pre className="font-mono max-h-8 min-w-0 overflow-hidden text-caption-sm-regular break-all whitespace-pre-wrap text-placeholder">
+                {streaming.stage.out}
+              </pre>
+            )}
+          </div>
         </div>
       )}
       {streaming.text ? (

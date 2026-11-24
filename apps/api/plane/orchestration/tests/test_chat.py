@@ -402,3 +402,42 @@ class CheckpointAndReadTests(ChatTestBase):
         self.assertEqual(r.status_code, 200)
         r = client.get("/api/workspaces/chatws-orch/agent-teams/conversations/")
         self.assertFalse(r.json()[0]["unread"])
+
+
+class ParseToolEventTests(TestCase):
+    """共享工具事件解析（会话进度行与执行留痕同源，11-24）。"""
+
+    def test_builtin_shapes(self):
+        from plane.orchestration.chat import parse_tool_event
+        got = parse_tool_event({"calls": [{"name": "dict"}, {"name": "rate"}]}, {})
+        self.assertEqual((got["phase"], got["name"]), ("start", "dict、rate"))
+        got = parse_tool_event({"name": "dict", "output": "结果文本"}, {})
+        self.assertEqual((got["phase"], got["name"], got["out"]), ("end", "dict", "结果文本"))
+        self.assertIsNone(parse_tool_event({"irrelevant": 1}, {}))
+
+    def test_acp_shapes(self):
+        from plane.orchestration.chat import parse_tool_event
+        cache: dict = {}
+        # 发起帧：剥网关前缀
+        self.assertEqual(
+            parse_tool_event({"sessionUpdate": "tool_call", "toolCallId": "tc1",
+                              "title": "agwmngr_service2_customs_dict", "status": "pending"}, cache),
+            {"phase": "start", "name": "customs_dict", "cid": "tc1", "out": "", "input": ""})
+        # completed 帧无 title：按 toolCallId 回查缓存
+        self.assertEqual(
+            parse_tool_event({"sessionUpdate": "tool_call_update", "toolCallId": "tc1",
+                              "content": "词典命中 3 条", "status": "completed"}, cache),
+            {"phase": "end", "name": "customs_dict", "cid": "tc1", "out": "词典命中 3 条"})
+        # 长命令 title 单行化但不截断（对齐 Claude Code 全量显示）
+        got = parse_tool_event({"sessionUpdate": "tool_call", "toolCallId": "tc2",
+                                "title": "bash: python3 -c 'import os; " + "x" * 60 + "'",
+                                "status": "in_progress"}, cache)
+        self.assertEqual(got["phase"], "start")
+        self.assertIn("x" * 60, got["name"])
+        self.assertNotIn("\n", got["name"])
+        # failed：进留痕标注（phase=failed），会话进度行不重复报错
+        got = parse_tool_event({"sessionUpdate": "tool_call_update",
+                                "toolCallId": "tc3", "title": "x", "status": "failed"}, cache)
+        self.assertEqual(got["phase"], "failed")
+        # 非工具 sessionUpdate 忽略
+        self.assertIsNone(parse_tool_event({"sessionUpdate": "agent_status"}, cache))

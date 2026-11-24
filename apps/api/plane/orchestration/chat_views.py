@@ -286,7 +286,10 @@ def _stream_agent_reply(conv: AgentConversation, text: str, attachment_ids: list
                     _persist_reply(reply, chunks)
                     yield _sse_frame("delta", {"v": 2, "text": event["text"], "messageId": reply.id})
                 elif event["type"] == "stage":
-                    yield _sse_frame("stage", {"v": 2, "phase": event.get("phase", "tool"), "label": event.get("label", "")})
+                    frame = {"v": 2, "phase": event.get("phase", "tool"), "label": event.get("label", "")}
+                    if event.get("out"):
+                        frame["out"] = event["out"]
+                    yield _sse_frame("stage", frame)
                 elif event["type"] == "done":
                     final_text = "".join(chunks)
                     # 确认卡识别（L1：建卡预览 JSON 独占回复）

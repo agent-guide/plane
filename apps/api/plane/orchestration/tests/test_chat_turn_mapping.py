@@ -97,7 +97,7 @@ class StreamAgentTurnMappingTests(TestCase):
         events = self._run(opener)
         self.assertEqual(events, [
             {"type": "stage", "phase": "tool", "label": "正在调用 parse_document…"},
-            {"type": "stage", "phase": "tool", "label": "已完成 parse_document"},
+            {"type": "stage", "phase": "tool", "label": "已完成 parse_document", "out": "{...}"},
             {"type": "delta", "text": "解析"},
             {"type": "delta", "text": "完成"},
             {"type": "done", "stopReason": "end_turn"},
@@ -129,7 +129,7 @@ class StreamAgentTurnMappingTests(TestCase):
                                     "title": "agwmngr_service0_parse_document"}}),
             ("tool_call", {"data": {"sessionUpdate": "tool_call_update", "toolCallId": "c1",
                                     "status": "completed", "content": "..."}}),
-            # bash 工具：title=完整命令——截断成单行 24 字防脚本灌进气泡
+            # bash 工具：title=完整命令——压成单行，不截断（对齐 Claude Code）
             ("tool_call", {"data": {"sessionUpdate": "tool_call", "toolCallId": "c2",
                                     "title": long_cmd, "status": "pending"}}),
             ("delta", {"text": "结果"}),
@@ -146,10 +146,10 @@ class StreamAgentTurnMappingTests(TestCase):
             {"type": "stage", "phase": "tool", "label": "正在调用 parse_document…"},
             {"type": "stage", "phase": "tool", "label": "正在调用 parse_document…"},
             # completed 帧无 title（真实 ACP 流实证），按 toolCallId 回查名字
-            {"type": "stage", "phase": "tool", "label": "已完成 parse_document"},
-            # bash 长命令：压成单行 + 截断
+            {"type": "stage", "phase": "tool", "label": "已完成 parse_document", "out": "..."},
+            # bash 长命令：换行压成空格、全量保留（容器换行）
             {"type": "stage", "phase": "tool",
-             "label": "正在调用 date '+%H:%M' && python3…"},
+             "label": f"正在调用 {' '.join(long_cmd.split())}…"},
         ])
 
     def test_acp_runtime_uses_thread_id(self):

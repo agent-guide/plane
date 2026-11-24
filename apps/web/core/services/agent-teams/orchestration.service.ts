@@ -530,6 +530,23 @@ export interface OrchestrationTimelineEvent {
   errorCode?: AgentErrorCode | null;
   /** 错误排障详情，仅作为次要技术信息展示。 */
   errorDetail?: string | null;
+  /** 工作过程留痕（11-24）：agent turn 内工具调用/生成段起止与耗时；空=无留痕。 */
+  trace?: OrchestrationTraceEntry[] | null;
+}
+
+/** 工作过程留痕条目：t=epoch ms；k=tool|gen；s=start|touch|end；ms=该段
+ * 耗时（end 带或 null）；text=gen 段文字（start 就地更新/touch 合并）；
+ * out=工具 end 帧的结果摘录。 */
+export interface OrchestrationTraceEntry {
+  t: number;
+  k: "tool" | "gen";
+  s: "start" | "touch" | "end";
+  name?: string;
+  ms?: number | null;
+  text?: string;
+  out?: string;
+  input?: string;
+  status?: string;
 }
 
 export interface OrchestrationWorkItemRuntime {

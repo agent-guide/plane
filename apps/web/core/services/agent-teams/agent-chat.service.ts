@@ -70,7 +70,7 @@ export interface AgentMessage {
 
 export type ChatStreamEvent =
   | { type: "delta"; text: string; messageId: string }
-  | { type: "stage"; phase: "tool" | "plan"; label: string }
+  | { type: "stage"; phase: "tool" | "plan"; label: string; out?: string }
   | {
       type: "done";
       messageId: string;

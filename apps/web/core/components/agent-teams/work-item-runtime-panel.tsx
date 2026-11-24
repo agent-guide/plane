@@ -20,7 +20,7 @@ import { Button } from "@plane/propel/button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { EModalWidth, ModalCore } from "@plane/ui";
 // icons
-import { Check, ChevronDown, Clock, Minus, X } from "lucide-react";
+import { Check, ChevronDown, Clock, FileText, ListTodo, Minus, Pencil, Search, Terminal, X } from "lucide-react";
 
 // components
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
@@ -38,6 +38,7 @@ import {
   type OrchestrationRuntimeArtifact,
   type OrchestrationTimelineEvent,
   type OrchestrationWorkItemRuntime,
+  type OrchestrationTraceEntry,
 } from "@/services/agent-teams/orchestration.service";
 
 type WorkItemRuntimePanelProps = {
@@ -69,6 +70,70 @@ interface StreamStep {
   /** 审批/求助的答复文本（选项文案或人工补充资料）——状态位后缀呈现。 */
   answer: string | null;
   artifact: OrchestrationRuntimeArtifact | null;
+  /** 工作过程留痕（11-24）：工具调用/生成段全集，含进行中。 */
+  trace: OrchestrationTraceEntry[];
+}
+
+/** 工具结果块：展开即全文（两级折叠——行级展开后不再套娃夹层），
+      超长限高滚动；todo 清单渲染成勾选列表（结构化展示）。 */
+const ToolOutBlock = ({ out }: { out: string }) => {
+  let todos: Array<{ content?: string; status?: string }> | null = null;
+  try {
+    const parsed = JSON.parse(out);
+    if (Array.isArray(parsed) && parsed.length && parsed.every((x) => typeof x?.content === "string")) {
+      todos = parsed;
+    }
+  } catch {
+    todos = null;
+  }
+  if (todos) {
+    return (
+      <ul className="flex flex-col gap-0.5">
+        {todos.map((td) => (
+          <li
+            key={td.content ?? td.status ?? Math.random().toString(36)}
+            className="flex items-start gap-1.5 text-body-xs-regular leading-4 text-tertiary"
+          >
+            <span
+              className={`mt-0.5 flex-shrink-0 ${td.status === "completed" ? "text-accent-primary" : "text-placeholder"}`}
+            >
+              {td.status === "completed" ? "●" : td.status === "in_progress" ? "◐" : "○"}
+            </span>
+            <span className={td.status === "completed" ? "line-through opacity-70" : ""}>{td.content}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <pre className="[font-family:var(--font-code)] text-body-xs-regular leading-4 break-all whitespace-pre-wrap text-placeholder">
+      {out}
+    </pre>
+  );
+};
+
+/** gen 段文字块：展开即全文自然撑开（Claude Code 同款——无内嵌滚动
+      框，页面滚动承载长内容）。 */
+const GenTextBlock = ({ text }: { text: string }) => (
+  <div className="min-w-0">
+    <MarkdownPreview
+      content={text}
+      className="prose-p:my-0.5 prose-pre:my-1 text-body-xs-regular leading-5 text-tertiary"
+    />
+  </div>
+);
+
+/** 时间戳：绝对时刻（HH:MM:SS）——过程流行首是「事件何时发生」，
+    相对时间放这语义错位（29m 会随秒跳动且说不清指什么）。 */
+function traceTimeText(ms: number): string {
+  return new Date(ms).toLocaleTimeString();
+}
+
+/** 留痕段耗时：亚秒级显示毫秒（durationText 的 1s 下限会把 26ms 显示
+    成 1s，用户对不上账——11-24 实证）；1s 以上沿用 durationText。 */
+function traceDurationText(ms: number): string {
+  if (ms < 1000) return `${Math.max(1, Math.round(ms))}ms`;
+  return durationText(ms / 1000);
 }
 
 function durationText(seconds: number): string {
@@ -130,6 +195,8 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
   }, [summary?.pendingApproval?.id]);
   const [cancelling, setCancelling] = useState(false);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+  const [expandedTraces, setExpandedTraces] = useState<Set<string>>(new Set());
+  const [expandedTraceTexts, setExpandedTraceTexts] = useState<Set<string>>(new Set());
 
   const isActive = !!summary && !TERMINAL.has(summary.businessStatus);
   // 秒级跳动：执行中每秒刷新一次（呼吸灯耗时的「活」感，#3 准直播）
@@ -160,6 +227,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           errorDetail: event.errorDetail ?? null,
           answer: null,
           artifact: null,
+          trace: event.trace ?? [],
         });
       } else {
         existing.lastAt = event.createdAt;
@@ -171,6 +239,7 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           existing.errorCode = event.errorCode;
           existing.errorDetail = event.errorDetail ?? null;
         }
+        if (event.trace) existing.trace = event.trace;
         if (event.kind === "approval" && event.output) existing.answer = event.output;
         else if (event.output) existing.output = event.output;
       }
@@ -313,6 +382,24 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
 
   const isTerminal = summary ? TERMINAL.has(summary.businessStatus) : false;
 
+  const toggleTraceTextExpanded = (key: string) => {
+    setExpandedTraceTexts((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleTraceExpanded = (key: string) => {
+    setExpandedTraces((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const toggleStepExpanded = (key: string) => {
     setExpandedSteps((prev) => {
       const next = new Set(prev);
@@ -430,6 +517,249 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
     );
   };
 
+  /** 工作过程留痕（11-24，对标 Claude Code 过程流）：模型文字 + 工具调用
+      交错展示——gen 段带文字原文（长文折叠就地展开），工具行带结果摘录；
+      进行中的步骤常驻实时动作与正在生成的文字。 */
+  const renderTrace = (step: StreamStep, isCurrent: boolean) => {
+    if (!step.trace.length) return null;
+    // 配对 start/end 成段：精确名匹配 → FIFO 兜底（ACP end 帧 title 常是
+    // 结果摘要）；连发 start 去重。
+    interface TraceSeg {
+      key: string;
+      kind: "tool" | "gen";
+      startName: string;
+      endName: string | null;
+      text: string | null;
+      out: string | null;
+      input: string | null;
+      failed: boolean;
+      startMs: number;
+      ms: number | null;
+    }
+    const open = new Map<string, { seg: TraceSeg }>();
+    const segments: TraceSeg[] = [];
+    for (const e of step.trace) {
+      const id = `${e.k}:${e.name ?? ""}`;
+      if (e.s === "start") {
+        if (open.has(id)) continue;
+        const seg: TraceSeg = {
+          key: `${id}:${e.t}`,
+          kind: e.k,
+          startName: e.name ?? "",
+          endName: null,
+          text: e.k === "gen" ? (e.text ?? null) : null,
+          out: null,
+          input: e.input || null,
+          failed: false,
+          startMs: e.t,
+          ms: null,
+        };
+        open.set(id, { seg });
+        segments.push(seg);
+      } else if (e.s === "touch") {
+        continue; // 已由后端原地并入 start 条目
+      } else {
+        const hit =
+          open.get(id) ??
+          (() => {
+            for (const [k, v] of open) {
+              if (k.startsWith(`${e.k}:`)) return (open.delete(k), v);
+            }
+            return undefined;
+          })();
+        if (!hit) continue;
+        open.delete(id);
+        hit.seg.ms = e.ms ?? null;
+        if (e.k === "tool") {
+          hit.seg.endName = e.name ?? null;
+          hit.seg.out = e.out || null;
+          hit.seg.failed = e.status === "failed";
+        } else {
+          hit.seg.text = e.text ?? hit.seg.text;
+        }
+      }
+    }
+    const running = isCurrent ? segments.find((sg) => sg.ms === null) : undefined;
+    const expanded = expandedTraces.has(step.key);
+
+    /** 摘要行（Claude Code 式「动作+对象+规模」）：图标 + 动词 + 对象
+        摘要 + 规模数字；全文命令/参数/结果收进点击展开的详情区。 */
+    const renderSeg = (sg: TraceSeg) => {
+      const later = segments.map((x) => x.startMs).filter((ts) => ts > sg.startMs);
+      const fallbackEnd = later.length ? Math.min(...later) : isCurrent ? nowTick : null;
+      const ms = sg.ms ?? (fallbackEnd !== null ? fallbackEnd - sg.startMs : null);
+      const isRunning = isCurrent && sg === running;
+      const detailExpanded = expandedTraceTexts.has(sg.key);
+      const isTool = sg.kind === "tool";
+      // 工具画像：图标 + 动词 + 对象（文件名/命令首段）+ 规模摘要
+      const name = sg.startName;
+      const lower = name.toLowerCase();
+      let Icon = Terminal;
+      let verbKey = "agent_teams_trace_verb_run";
+      let object = name;
+      let scale = "";
+      if (isTool) {
+        if (lower === "read" || lower.startsWith("read ")) {
+          Icon = FileText;
+          verbKey = "agent_teams_trace_verb_read";
+          object = (sg.endName || name).split("/").pop() || name;
+          const lines = (sg.out || "").split("\n").length;
+          scale = t("agent_teams_trace_lines", { count: lines });
+        } else if (lower.startsWith("todowrite")) {
+          Icon = ListTodo;
+          verbKey = "agent_teams_trace_verb_todo";
+          object = "";
+          try {
+            const parsed = JSON.parse(sg.out || "[]");
+            if (Array.isArray(parsed)) scale = t("agent_teams_trace_items", { count: parsed.length });
+          } catch {
+            scale = "";
+          }
+        } else if (lower.startsWith("grep") || lower.startsWith("search")) {
+          Icon = Search;
+          verbKey = "agent_teams_trace_verb_search";
+          object = name.slice(0, 40);
+        } else if (lower.startsWith("edit") || lower.startsWith("write") || lower.startsWith("patch")) {
+          Icon = Pencil;
+          verbKey = "agent_teams_trace_verb_edit";
+          object = (sg.endName || name).split("/").pop() || name;
+        } else if (lower.startsWith("bash") || lower.includes(" ")) {
+          Icon = Terminal;
+          verbKey = "agent_teams_trace_verb_run";
+          object = name.slice(0, 60);
+        }
+      }
+      const hasDetail = isTool ? Boolean(sg.input || sg.out) : Boolean(sg.text && sg.text.trim());
+      const summaryText =
+        sg.kind === "gen"
+          ? t("agent_teams_trace_gen")
+          : `${t(verbKey)}${object ? ` ${object}` : ""}${scale ? ` · ${scale}` : ""}${sg.failed ? ` · ${t("agent_teams_trace_failed")}` : ""}`;
+      return (
+        <div key={sg.key} className="flex flex-col gap-1 py-1">
+          {/* 摘要行：四列栅格（时间 44px / 图标 16px / 内容 / 耗时右置）
+              ——所有行严格对齐，字号统一 caption-sm，数字用等宽表格字 */}
+          <button
+            type="button"
+            disabled={!hasDetail}
+            onClick={() => toggleTraceTextExpanded(sg.key)}
+            className={`grid grid-cols-[3.75rem_1.25rem_minmax(0,1fr)_auto] items-baseline gap-x-2 gap-x-2.5 rounded px-1 text-left text-body-xs-regular leading-5 ${
+              hasDetail ? "hover:bg-layer-transparent-hover" : "cursor-default"
+            }`}
+          >
+            <span className="text-right text-placeholder tabular-nums">{traceTimeText(sg.startMs)}</span>
+            <span className="flex items-center justify-center self-center">
+              {isRunning ? (
+                <span className="inline-block size-1.5 animate-pulse rounded-full bg-accent-primary" aria-hidden />
+              ) : isTool ? (
+                <Icon className={`size-3 ${sg.failed ? "text-danger-primary" : "text-placeholder"}`} aria-hidden />
+              ) : (
+                <span className="bg-placeholder inline-block size-1 rounded-full" aria-hidden />
+              )}
+            </span>
+            <span
+              className={`min-w-0 ${detailExpanded ? "break-all whitespace-pre-wrap" : "truncate"} ${
+                sg.failed ? "text-danger-primary" : "text-secondary"
+              }`}
+            >
+              {/* 命令/文件名等对象用等宽（与详情区一致，Claude Code 同款：
+                  动词正文字、命令 mono）；gen 段为整句保持正文 */}
+              {sg.kind === "gen" ? (
+                summaryText
+              ) : (
+                <>
+                  {t(verbKey)} <span className="[font-family:var(--font-code)]">{object}</span>
+                  {scale ? ` · ${scale}` : ""}
+                  {sg.failed ? ` · ${t("agent_teams_trace_failed")}` : ""}
+                </>
+              )}
+              {hasDetail && (
+                <ChevronDown
+                  className={`ml-1 inline size-3 align-[-2px] text-placeholder transition-transform ${detailExpanded ? "rotate-180" : ""}`}
+                  aria-hidden
+                />
+              )}
+            </span>
+            <span className="text-placeholder tabular-nums">{ms === null ? "—" : traceDurationText(ms)}</span>
+          </button>
+          {/* 详情区（点击摘要行展开，挂在内容列）：完整命令 + 参数 + 结果 */}
+          {detailExpanded && isTool && (
+            <div className="grid grid-cols-[3.75rem_1.25rem_minmax(0,1fr)_auto] gap-x-2.5 px-1">
+              <div className="col-start-3 mt-0.5 flex flex-col gap-1.5">
+                {sg.input && (
+                  <pre className="[font-family:var(--font-code)] text-body-xs-regular leading-4 break-all whitespace-pre-wrap text-placeholder">
+                    {sg.input}
+                  </pre>
+                )}
+                {sg.out && <ToolOutBlock out={sg.out} />}
+              </div>
+            </div>
+          )}
+          {/* gen 段文字：模型过程叙述，收进行级详情（两级折叠收敛） */}
+          {detailExpanded && sg.kind === "gen" && sg.text && sg.text.trim().length > 0 && (
+            <div className="grid grid-cols-[3.75rem_1.25rem_minmax(0,1fr)_auto] gap-x-2.5 px-1">
+              <div className="col-start-3">
+                <GenTextBlock text={sg.text} />
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // 间隙行：上一段结束与下一段开始之间的空隙即模型响应延迟（该段无
+    // 事件产生、天然无留痕），超过 2s 显式标注——耗时对得上账
+    interface GapRow {
+      key: string;
+      startMs: number;
+      ms: number;
+    }
+    const rows: Array<{ type: "seg" | "gap"; seg?: TraceSeg; gap?: GapRow }> = [];
+    segments.forEach((sg, idx) => {
+      const prev = segments[idx - 1];
+      if (prev) {
+        // 上一段结束（未闭合段无结束时刻：以下一段开始为界，不产生间隙）
+        const prevEnd = prev.ms !== null ? prev.startMs + prev.ms : sg.startMs;
+        const gapMs = sg.startMs - prevEnd;
+        if (gapMs >= 2000) {
+          rows.push({ type: "gap", gap: { key: `gap:${sg.startMs}`, startMs: prevEnd, ms: gapMs } });
+        }
+      }
+      rows.push({ type: "seg", seg: sg });
+    });
+
+    return (
+      <div className="mt-1">
+        <button
+          type="button"
+          onClick={() => toggleTraceExpanded(step.key)}
+          className="hover:text-accent-hover inline-flex items-center gap-0.5 text-body-xs-medium text-accent-primary"
+        >
+          <ChevronDown className={`size-3 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden />
+          {t("agent_teams_trace_title", { count: segments.length })}
+        </button>
+        {expanded && (
+          <div className="mt-2 flex flex-col gap-1.5">
+            {rows.map((row) =>
+              row.type === "seg" ? (
+                renderSeg(row.seg!)
+              ) : (
+                <div
+                  key={row.gap!.key}
+                  className="grid grid-cols-[3.75rem_1.25rem_minmax(0,1fr)_auto] items-baseline gap-x-2 gap-x-2.5 px-1 text-body-xs-regular leading-5"
+                >
+                  <span />
+                  <span />
+                  <span className="min-w-0 truncate text-placeholder italic">{t("agent_teams_trace_gap")}</span>
+                  <span className="text-placeholder tabular-nums">{traceDurationText(row.gap!.ms)}</span>
+                </div>
+              )
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="w-full" data-issue-id={issueId}>
       {/* 区块标题：团队归属一行（链接直达团队页）——当前步骤即状态，
@@ -531,6 +861,8 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                         </div>
                         {/* 每步产出统一内联折叠（超两行截断就地展开，展开限高滚动） */}
                         {renderConclusion(step)}
+                        {/* 工作过程留痕：实时动作 + 完整过程可回看 */}
+                        {renderTrace(step, isCurrent)}
                         {/* 审批操作内嵌等待步骤：待确认内容（agent 归纳的
                           markdown，规范渲染）+ 操作区。前几步已在流里逐步
                           呈现，审批卡不重复罗列，只带需要拍板的内容 */}
