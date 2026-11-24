@@ -374,7 +374,7 @@ def cancel_execution(*, execution: WorkItemExecution, event_id: str = "") -> Wor
     # 当「当前步」显示呼吸灯（WB-4003 终止后主管批准仍在"执行中"实证）
     from .node_runtime import NodeRuntimeRecord
     execution.node_records.filter(
-        status=NodeRuntimeRecord.Status.RUNNING,
+        status__in=[NodeRuntimeRecord.Status.RUNNING, NodeRuntimeRecord.Status.RETRYING],
     ).update(status=NodeRuntimeRecord.Status.CANCELLED)
     # 作废待审批（收件箱不残留已取消执行的待办）+ 回收未认领挂载附件（C7）
     for stale in execution.approvals.filter(result=BusinessApproval.Result.PENDING):
@@ -409,7 +409,7 @@ def on_engine_terminal(*, execution_id: str, event_id: str, engine_status: str) 
     # 感知执行已终局，残留 running 会让叙事流显示"执行中"呼吸灯
     from .node_runtime import NodeRuntimeRecord
     settled.node_records.filter(
-        status=NodeRuntimeRecord.Status.RUNNING,
+        status__in=[NodeRuntimeRecord.Status.RUNNING, NodeRuntimeRecord.Status.RETRYING],
     ).update(status=NodeRuntimeRecord.Status.CANCELLED)
     # C5 补口（2026-11-17）：agent 失败耗尽后由对账收终态的路径不经过
     # DagNodeFailView——失败原因上卡片改在终态收口统一触发（按最近

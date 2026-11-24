@@ -185,9 +185,10 @@ class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
     """agent.invoke 失败回投节点失败（失败可见性：不等 execution_timeout）。"""
 
     def test_invoke_failure_marks_node_record_failed_only(self):
-        """新契约（2026-11-06 重试权威唯一归 Airflow）：worker 失败只把节点
-        记录置 FAILED+错误文本，零终局权、零内部回投——重试由引擎
-        RetryPolicy 重打 start 驱动，终局由 run 级对账收敛。"""
+        """新契约（2026-11-06 重试权威唯一归 Airflow + 11-24 RETRYING 定案）：
+        worker 失败把节点记录置 RETRYING（额度未尽）+错误文本，零终局权、
+        零内部回投——重试由引擎 RetryPolicy 重打 start 驱动，终局由 run 级
+        对账收敛；额度耗尽才落 FAILED（终态失败）。"""
         from unittest.mock import patch
         from plane.orchestration.models import WorkItemExecution, NodeRuntimeRecord
         ex = start_execution(issue=self.issue, binding=self.binding, user_id=self.owner.id)
@@ -201,7 +202,9 @@ class AgentInvokeFailureCallbackTests(OutboxConsumerTests):
                     handle_agent_invoke(execution_id=ex.id, node_key="analyze_0", attempt=1)
             pc.assert_not_called()  # 不回投、不判终局
         record = NodeRuntimeRecord.objects.get(execution=ex, node_key="analyze_0")
-        self.assertEqual(record.status, NodeRuntimeRecord.Status.FAILED)
+        # 夹具画布默认重试预算 >0 → RETRYING（用户面经 view() 映射为
+        # failed 供引擎重试，时间线显示为执行中）
+        self.assertEqual(record.status, NodeRuntimeRecord.Status.RETRYING)
         self.assertIn("gateway hiccup", str(record.result.get("error", "")))
         self.assertEqual(record.result.get("error_normalized", {}).get("code"), "agent_error")
         self.assertEqual(record.result.get("error_normalized", {}).get("detail"), "gateway hiccup")

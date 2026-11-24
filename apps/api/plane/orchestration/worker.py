@@ -967,9 +967,23 @@ def handle_agent_invoke(*, execution_id: str, node_key: str, attempt: int = 1,
             "agent invoke failed (engine retry ladder takes over): %s:%s err=%s",
             execution_id, node_key, str(exc)[:300])
         try:
+            # 重试对用户透明（11-24 状态机定案）：尝试失败但额度未尽落
+            # RETRYING（引擎传感器经 view() 映射回 failed 照常重试）；
+            # 只有耗尽才落 FAILED——FAILED 自此只表终态失败，读取面无需
+            # 再各自重算重试预算（ENTRYCUS-3 实证旧法是读取层打补丁）
+            from .models import WorkItemExecution
+            from .execution_context import frozen_definition, failure_retry_budget
+            _execution = WorkItemExecution.objects.filter(id=execution_id).first()
+            _budget = (failure_retry_budget(frozen_definition(_execution), node_key)
+                       if _execution else 0)
+            _record = NodeRuntimeRecord.objects.filter(
+                execution_id=execution_id, node_key=node_key).first()
+            _used = _record.failure_retries if _record else 0
             NodeRuntimeRecord.objects.filter(
                 execution_id=execution_id, node_key=node_key,
-            ).update(status=NodeRuntimeRecord.Status.FAILED,
+            ).update(status=(NodeRuntimeRecord.Status.RETRYING
+                             if _used + 1 <= _budget and _budget > 0
+                             else NodeRuntimeRecord.Status.FAILED),
                      result={
                          "error": str(exc)[:2000],
                          "error_normalized": _normalize_agent_error(exc),

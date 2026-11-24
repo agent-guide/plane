@@ -26,6 +26,9 @@ class NodeRuntimeRecord(models.Model):
         WAITING_HUMAN = "waiting_human", "Waiting Human"
         SUCCESS = "success", "Success"
         FAILED = "failed", "Failed"
+        # 尝试失败但重试额度未尽（11-24）：Airflow up_for_retry 同语义——
+        # 引擎侧仍可重试的中间态；FAILED 从此只表终态失败（重试耗尽）
+        RETRYING = "retrying", "Retrying"
         CANCELLED = "cancelled", "Cancelled"
         SKIPPED = "skipped", "Skipped"
 
@@ -43,6 +46,11 @@ class NodeRuntimeRecord(models.Model):
     human_answer = models.TextField(blank=True, default="")
     last_event_id = models.CharField(max_length=250, default="")
     result = models.JSONField(default=dict, blank=True)
+    # 工作过程留痕（11-24 定案：执行不黑盒）：agent turn 内工具调用/生成段
+    # 的起止与耗时，只追加。worker 边执行边写（节流+上限+写失败不影响执行），
+    # 完成后永久保留——用户完整知道做了什么、时间花在哪。
+    # 条目：{"t": epoch_ms, "k": "tool"|"gen", "s": "start"|"end", "name": str, "ms": int}
+    trace = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -54,9 +62,13 @@ class NodeRuntimeRecord(models.Model):
     def view(self) -> dict:
         normalized_error = (self.result or {}).get("error_normalized") or {}
         return {
-            "status": self.status,
+            # 引擎协议兼容（11-24）：已部署的 DAG 传感器只认 failed——
+            # RETRYING 对引擎映射回 failed，重试行为与旧版完全一致，
+            # 无需重发布流程；用户面走时间线（RETRYING 显示为执行中）
+            "status": "failed" if self.status == self.Status.RETRYING else self.status,
             "error": self.result.get("error"),
             "errorCode": normalized_error.get("code"),
             "errorDetail": normalized_error.get("detail"),
             "nodeKey": self.node_key,
+            "trace": self.trace or [],
         }

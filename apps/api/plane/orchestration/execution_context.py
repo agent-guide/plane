@@ -430,3 +430,14 @@ def frozen_definition(execution) -> dict:
         if definition is not None:
             return definition
     return execution.binding.workflow_version.definition or {}
+
+
+def failure_retry_budget(definition: dict, node_key: str) -> int:
+    """节点失败自动重试预算（画布 retries，缺省 1）——写侧（worker 失败
+    落 RETRYING/FAILED）与 /start 重试梯共用的单一事实源（11-24）。
+
+    语义对齐 B1：上限只看 failure_retries；attempt 是总运行序号不占预算。
+    """
+    node = next((n for n in (definition.get("nodes") or []) if n.get("key") == node_key), {})
+    retries = node.get("retries")
+    return int(retries) if retries is not None else 1
