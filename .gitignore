@@ -124,3 +124,7 @@ packages/i18n/src/types/keys.generated.ts
 
 # Local security notes (not for version control)
 /security/
+# 设计系统工作文档（公开 fork 不入库）
+PRODUCT.md
+DESIGN.md
+.impeccable/
