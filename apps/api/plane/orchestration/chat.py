@@ -265,14 +265,17 @@ def parse_tool_event(td: dict, title_cache: dict) -> dict | None:
             return {"phase": "failed", "name": title, "cid": call_id, "out": ""}
         if su == "tool_call" or td.get("status") == "in_progress":
             # rawInput=实际调用参数（Claude Code 展示的输入）：紧凑序列化，
-            # title 已含命令的 bash 场景不重复带
+            # title 已含命令的 bash 场景不重复带；cwd 等运行时管道参数过滤
+            # （沙箱工作目录对用户无意义且泄露服务器路径）
             input_s = ""
             ri = td.get("rawInput")
             if isinstance(ri, dict) and ri and "command" not in title:
-                try:
-                    input_s = json.dumps(ri, ensure_ascii=False)[:500]
-                except (TypeError, ValueError):
-                    input_s = str(ri)[:500]
+                ri = {k: v for k, v in ri.items() if k not in ("cwd", "workspace")}
+                if ri:
+                    try:
+                        input_s = json.dumps(ri, ensure_ascii=False)[:500]
+                    except (TypeError, ValueError):
+                        input_s = str(ri)[:500]
             return {"phase": "start", "name": title, "cid": call_id, "out": "", "input": input_s}
         if td.get("status") == "completed":
             # content 实测为嵌套块：[{type:"content", content:{type:"text", text}}]

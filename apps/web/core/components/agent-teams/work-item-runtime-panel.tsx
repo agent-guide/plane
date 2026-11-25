@@ -112,17 +112,6 @@ const ToolOutBlock = ({ out }: { out: string }) => {
   );
 };
 
-/** gen 段文字块：展开即全文自然撑开（Claude Code 同款——无内嵌滚动
-      框，页面滚动承载长内容）。 */
-const GenTextBlock = ({ text }: { text: string }) => (
-  <div className="min-w-0">
-    <MarkdownPreview
-      content={text}
-      className="prose-p:my-0.5 prose-pre:my-1 text-body-xs-regular leading-5 text-tertiary"
-    />
-  </div>
-);
-
 /** 时间戳：绝对时刻（HH:MM:SS）——过程流行首是「事件何时发生」，
     相对时间放这语义错位（29m 会随秒跳动且说不清指什么）。 */
 function traceTimeText(ms: number): string {
@@ -629,10 +618,15 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
           object = name.slice(0, 60);
         }
       }
-      const hasDetail = isTool ? Boolean(sg.input || sg.out) : Boolean(sg.text && sg.text.trim());
+      const hasDetail = isTool ? Boolean(sg.input || sg.out) : false;
+      // gen 行是「模型说话」正文行（区别于工具卡片）：无展开详情，长文
+      // 就地折叠/展开（title 即内容，不再详情区复读——曾出现同句两遍）
+      // gen 行标题 = 叙述首行（Devin 式意图行：模型说的话就是步骤说明，
+      // 命令行因此有了上下文）；无文字时回退「生成输出」
+      const genFirstLine = ((sg.text || "").split("\n").find((l) => l.trim()) || "").trim();
       const summaryText =
         sg.kind === "gen"
-          ? t("agent_teams_trace_gen")
+          ? genFirstLine || t("agent_teams_trace_gen")
           : `${t(verbKey)}${object ? ` ${object}` : ""}${scale ? ` · ${scale}` : ""}${sg.failed ? ` · ${t("agent_teams_trace_failed")}` : ""}`;
       return (
         <div key={sg.key} className="flex flex-col gap-1 py-1">
@@ -657,9 +651,13 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
               )}
             </span>
             <span
-              className={`min-w-0 ${detailExpanded ? "break-all whitespace-pre-wrap" : "truncate"} ${
-                sg.failed ? "text-danger-primary" : "text-secondary"
-              }`}
+              className={`min-w-0 ${
+                sg.kind === "gen"
+                  ? "whitespace-pre-wrap" // 叙述正文全文自然换行（Claude Code 正文从不折叠）
+                  : detailExpanded
+                    ? "break-all whitespace-pre-wrap"
+                    : "truncate"
+              } ${sg.failed ? "text-danger-primary" : "text-secondary"}`}
             >
               {/* 命令/文件名等对象用等宽（与详情区一致，Claude Code 同款：
                   动词正文字、命令 mono）；gen 段为整句保持正文 */}
@@ -691,14 +689,6 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
                   </pre>
                 )}
                 {sg.out && <ToolOutBlock out={sg.out} />}
-              </div>
-            </div>
-          )}
-          {/* gen 段文字：模型过程叙述，收进行级详情（两级折叠收敛） */}
-          {detailExpanded && sg.kind === "gen" && sg.text && sg.text.trim().length > 0 && (
-            <div className="grid grid-cols-[3.75rem_1.25rem_minmax(0,1fr)_auto] gap-x-2.5 px-1">
-              <div className="col-start-3">
-                <GenTextBlock text={sg.text} />
               </div>
             </div>
           )}

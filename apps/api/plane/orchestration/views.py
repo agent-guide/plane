@@ -1680,7 +1680,21 @@ class DagNodeFailView(DagNodeRuntimeBase):
             return Response({"error": "run not found"}, status=404)
         record, _ = NodeRuntimeRecord.objects.get_or_create(execution=execution, node_key=node_key)
         record.status = NodeRuntimeRecord.Status.FAILED
-        record.result = request.data.get("result") or {"error": "node failed"}
+        # 结果合并不覆盖（11-25 用户盲盒实证）：重试耗尽时传感器上报的
+        # "retries exhausted" 文案不含原因，整份覆盖会把 worker 先前写入的
+        # error_normalized（真因）丢掉——用户只见「运行失败：retries
+        # exhausted」，具体原因要查日志。保留原始归一化 + 人话化终局文案。
+        incoming = request.data.get("result") or {}
+        prior = record.result or {}
+        merged = {**prior, **incoming}
+        if "error_normalized" not in incoming and "error_normalized" in prior:
+            merged["error_normalized"] = prior["error_normalized"]
+        raw_error = str(incoming.get("error") or "")
+        if "retries exhausted" in raw_error:
+            origin = ((prior.get("error_normalized") or {}).get("detail")
+                      or prior.get("error") or "原因未知")
+            merged["error"] = f"已自动重试仍失败：{origin}"
+        record.result = merged
         record.save()
         # 失败原因上卡片（C5 一期）：以当前在牌团队助手身份落到动态流，
         # 终结不再「悄悄失败」。投影非事实源，回写失败不阻断登记。
