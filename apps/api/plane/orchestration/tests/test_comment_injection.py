@@ -247,13 +247,13 @@ class CommentInjectionTest(TestCase):
         self.assertNotIn("用户对话记录", prompt)
 
     def test_extract_ack_parses_marker(self):
-        """采纳说明提取：从产出里截取【采纳说明】到【任务完成】之间的一段。"""
-        reply = "节点结果……\n【采纳说明】采纳毛重 480 KGM；散货矛盾需确认\n【任务完成】"
+        """采纳说明提取：从产出里截取【采纳说明】之后的一段（终止标记已退役，取到末尾）。"""
+        reply = "节点结果……\n【采纳说明】采纳毛重 480 KGM；散货矛盾需确认"
         self.assertEqual(_extract_ack(reply), "采纳毛重 480 KGM；散货矛盾需确认")
 
     def test_extract_ack_absent_returns_none(self):
         """无【采纳说明】标记 → None（回评走固定兜底）。"""
-        self.assertIsNone(_extract_ack("节点结果……\n【任务完成】"))
+        self.assertIsNone(_extract_ack("节点结果……"))
         self.assertIsNone(_extract_ack(""))
 
     def test_extract_ack_ignores_negation(self):

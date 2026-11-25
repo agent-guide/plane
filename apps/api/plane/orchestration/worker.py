@@ -275,7 +275,6 @@ def _agwmngr_base() -> str:
 # 节点"任务完成"终止标记（与 build_node_prompt 的执行纪律对应）：
 # agent 在最终结果末尾独占一行输出它；worker 据此在空闲超时/流未关闭时
 # 按成功收口（2026-11-11 收工事故的客户端兜底）
-FINAL_MARKER = "【任务完成】"
 
 
 # 运行时类型缓存：key=(deployment_id, applied_release_id) → runtime type。
@@ -709,7 +708,6 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
     # touch 更新库里的 start 条目（面板轮询近实时看到），段结束补终稿。
     # 上限 20000 字符/段防大输出撑爆。
     _gen_buf: list[str] = []
-    _final_tail = ""
     # in-turn 求助挂起（11-25 终态 §二）：request_human_input 调用未完成期间
     # 等人工≠空闲/超支——豁免 idle/total 双看门狗（求助自带上限，plane 侧
     # 7 天语义），防等待期被误判超时杀 turn
@@ -812,12 +810,6 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
                     # 求助挂起中：时钟不推进（不判空闲也不判总预算）
                     last_event = now
                 if now - last_event > idle_timeout:
-                    # 收工兜底（2026-11-11）：若已收到"任务完成"终止信号但模型
-                    # 不自行结束 turn，则按成功收口而非报错——防"活干完被记旷工"
-                    joined = "".join(pieces)
-                    if FINAL_MARKER in joined:
-                        _emit("gen", "end")
-                        return joined
                     raise AgentTurnError("timeout", f"agent turn idle timeout: no SSE event for {idle_timeout:.0f}s")
                 if now - started > total_timeout and not _ask_open:
                     raise AgentTurnError("timeout", f"agent turn total timeout: exceeded {total_timeout:.0f}s budget")
@@ -847,23 +839,9 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
                     pieces.append(envelope["text"])
                     _emit("gen", "start")
                     _emit("gen", "text", envelope["text"])
-                    # 收口检测（契约：标记独占一行）：滚动缓冲解决跨分块
-                    # 劈开漏检；行首限定解决误伤——模型把「…并输出【任务完
-                    # 成】」写进叙述句时中招截断，真正的 NEED_INPUT 提问行
-                    # 再没机会输出，节点带着半截说明被判成功（11-25 实证）
-                    _final_tail = (_final_tail + envelope["text"])[-len(FINAL_MARKER) * 2 - 8:]
-                    _hit = _final_tail.endswith(FINAL_MARKER)
-                    if _hit:
-                        _before = _final_tail[: -len(FINAL_MARKER)]
-                        _hit = _before == "" or _before.endswith("\n")
-                    if _hit:
-                        # 收到终止信号即收口（不等模型自己停、不干等流关闭）
-                        _emit("gen", "end")
-                        return "".join(pieces)
                 elif event_type == "done":
-                    # 协议原生收口（与 chat.stream_agent_turn 同源；11-25 调研
-                    # 定案）：网关 done 事件即模型停止——取代文本哨兵主路径，
-                    # FINAL_MARKER 滚动检测降级为兜底（模型复读收口确认时提前截）
+                    # 协议原生收口（11-25 P2 退役）：网关 done 即终止，TurnBudget
+                    # 兜底跑飞。文本哨兵（FINAL_MARKER）已整体退役
                     _emit("gen", "end")
                     return "".join(pieces)
                 elif event_type == "tool_call" and isinstance(envelope.get("data"), dict):
@@ -1034,11 +1012,7 @@ def _extract_ack(reply: str) -> str | None:
     if not m:
         return None
     tail = reply[m.end():]
-    end = tail.find("【任务完成】")
-    if end >= 0:
-        tail = tail[:end]
-    text = tail.strip()
-    return text or None
+    return tail.strip() or None
 
 
 def _post_supplement_ack(*, execution, node: dict, ack_text: str | None = None) -> None:
