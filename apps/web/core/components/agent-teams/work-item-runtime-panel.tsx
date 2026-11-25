@@ -20,7 +20,19 @@ import { Button } from "@plane/propel/button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { EModalWidth, ModalCore } from "@plane/ui";
 // icons
-import { Check, ChevronDown, Clock, FileText, ListTodo, Minus, Pencil, Search, Terminal, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Clock,
+  FileText,
+  ListTodo,
+  MessageSquare,
+  Minus,
+  Pencil,
+  Search,
+  Terminal,
+  X,
+} from "lucide-react";
 
 // components
 import { useAgentTeamsLinks } from "@/components/agent-teams/helper";
@@ -588,7 +600,40 @@ export const WorkItemRuntimePanel = observer(function WorkItemRuntimePanel({
       let object = name;
       let scale = "";
       if (isTool) {
-        if (lower === "read" || lower.startsWith("read ")) {
+        if (lower.startsWith("request_human_input")) {
+          Icon = MessageSquare;
+          verbKey = "agent_teams_trace_verb_ask";
+          object = "";
+          // 答复从 MCP 信封提取，去掉 [approved] 决策前缀（用户不需要看自己的操作标记）
+          try {
+            const parsed = JSON.parse(sg.out || "{}");
+            const inner = String(parsed?.content?.[0]?.text || "");
+            if (inner) {
+              sg = { ...sg, out: inner.replace(/^\[(approved|rejected)\]\s*/, "") };
+            }
+          } catch {
+            /* 保留原文 */
+          }
+        } else if (lower.startsWith("request_supplements")) {
+          Icon = Search;
+          verbKey = "agent_teams_trace_verb_supp";
+          object = "";
+          // 补料结果双层解析：MCP 信封 → 内层 text 也是 JSON（服务端序列化）
+          try {
+            const parsed = JSON.parse(sg.out || "{}");
+            const inner = JSON.parse(String(parsed?.content?.[0]?.text || "{}"));
+            if (inner?.hasNew === false) {
+              sg = { ...sg, out: t("agent_teams_trace_no_supplement") };
+            } else if (inner?.supplements?.length) {
+              sg = {
+                ...sg,
+                out: inner.supplements.map((x: { text?: string }) => (x.text || "").slice(0, 80)).join("; "),
+              };
+            }
+          } catch {
+            /* 保留原文 */
+          }
+        } else if (lower === "read" || lower.startsWith("read ")) {
           Icon = FileText;
           verbKey = "agent_teams_trace_verb_read";
           object = (sg.endName || name).split("/").pop() || name;

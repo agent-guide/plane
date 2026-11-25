@@ -1024,8 +1024,17 @@ class ApprovalsEndpoint(BaseAPIView):
             ).update(result={"output": ((approval.reason or "").strip()
                                         + ("\n" + "\n".join(_blocks) if _blocks else "")),
                              "choice": decision})
-            _write_answer_comment(approval, request.user, _merged, _blocks)
+            _reclaim_unlink = approval  # noqa: F841（占位防重复替换锚点）
             _reclaim_unlinked(approval, _merged)
+            if getattr(approval, "in_turn", False):
+                # in-turn 求助（11-25 终态 §二）：员工 turn 仍阻塞在
+                # request_human_input 工具上等待——答复只需落审批记录（
+                # ask-mcp 轮询取走），**不触发**恢复/重跑：重跑会杀掉还活着
+                # 的 turn、丢失全部执行上下文（闭环验证实证：attempt 4 重跑
+                # 撞网关 turn_failed）。等待中的节点状态由 turn 自然收口。
+                if (approval.reason or "").strip() or _merged:
+                    _write_answer_comment(approval, request.user, _merged, _blocks)
+                return Response({"id": approval.id, "result": approval.result})
             # 人工恢复命令（worker 兜底推进；本地无 worker 时由过渡内联处理）
             from .tasks import defer_command, execution_lock
             defer_command(
@@ -1041,6 +1050,7 @@ class ApprovalsEndpoint(BaseAPIView):
                 execution_svc.on_human_resume(execution_id=approval.execution_id, event_id=f"approval:{approval.id}")
             except Exception:
                 pass  # 执行未在等待态（终态/冲突）时审批仍成立
+            _write_answer_comment(approval, request.user, _merged, _blocks)
         return Response({"id": approval.id, "result": approval.result})
 
 
@@ -1742,3 +1752,113 @@ class ExecutionSupplementsView(BaseAPIView):
                 return Response({"error": "invalid after (ISO 8601 expected)"}, status=400)
         items = supplement_entries(execution.issue, after_dt=after)
         return Response({"supplements": items, "hasNew": bool(items)})
+
+
+# ---------------------------------------------------------------- 平台工具（in-turn 求助/补料，11-25 终态设计）
+
+def _load_grant(ticket: str):
+    """票据解析（fail-closed：过期即拒，不静默降级）。"""
+    from django.utils import timezone as dj_tz
+    from .models import PlatformToolGrant
+    grant = (PlatformToolGrant.objects
+             .select_related("execution", "execution__issue", "execution__issue__project")
+             .filter(ticket=ticket).first())
+    if grant is None or grant.expires_at < dj_tz.now():
+        return None
+    return grant
+
+
+class PlatformToolsAuthMixin:
+    """平台工具服务（MCP）→ Plane 内部端点的共享鉴权（同 supplements 口径）。"""
+
+    permission_classes = []
+    throttle_classes = []
+
+    def _auth(self, request):
+        import os
+        import secrets
+        expected = os.environ.get("ORCHESTRATION_INTERNAL_TOKEN", "")
+        return expected and secrets.compare_digest(expected, request.headers.get("X-Orchestration-Token", ""))
+
+
+class PlatformAskRegisterView(PlatformToolsAuthMixin, BaseAPIView):
+    """POST /api/internal/platform-tools/ask/ —— in-turn 求助注册。
+
+    ask-mcp 收到 agent 的 request_human_input 调用后凭票据登记：复用
+    on_agent_ask（waiting_human + 建审批 + 节点状态同步），审批标 in_turn。
+    幂等：同节点已有 pending 审批时 on_agent_ask 自身保证不重建。
+    """
+
+    def post(self, request):
+        if not self._auth(request):
+            return Response({"error": "unauthorized"}, status=401)
+        grant = _load_grant(str(request.data.get("ticket") or ""))
+        if grant is None:
+            return Response({"error": "invalid or expired ticket"}, status=403)
+        question = str(request.data.get("question") or "").strip()
+        if not question:
+            return Response({"error": "question required"}, status=400)
+        options = request.data.get("options")
+        options = [
+            o if isinstance(o, dict) else {"label": str(o)}
+            for o in (options if isinstance(options, list) else [])
+        ][:6]
+        from . import execution as execution_svc
+        execution = execution_svc.on_agent_ask(
+            execution_id=str(grant.execution_id), event_id=f"asktool:{grant.ticket}",
+            node_ref=grant.node_key, question=question,
+            options=options or None, free_text=bool(request.data.get("free_text", True)))
+        # in-turn 标记：答复走工具结果回投，不触发恢复/重跑
+        execution.approvals.filter(node_ref=grant.node_key, in_turn=False,
+                                   result="pending").update(in_turn=True)
+        return Response({"approvalRegistered": True})
+
+
+class PlatformAskStatusView(PlatformToolsAuthMixin, BaseAPIView):
+    """GET /api/internal/platform-tools/ask/<ticket>/ —— 求助状态轮询。
+
+    ask-mcp 阻塞期间轮询：pending 继续等；answered 返回答复全文（含附件
+    解析文本，与重跑注入的 human_answer 同源）；无审批（未注册过/已被
+    终态收口）返回 none——调用方按「本轮无求助」处理。
+    """
+
+    def get(self, request, ticket):
+        if not self._auth(request):
+            return Response({"error": "unauthorized"}, status=401)
+        grant = _load_grant(ticket)
+        if grant is None:
+            return Response({"error": "invalid or expired ticket"}, status=403)
+        from .models import BusinessApproval
+        approval = (grant.execution.approvals.filter(node_ref=grant.node_key)
+                    .order_by("-created_at").first())
+        if approval is None:
+            return Response({"status": "none"})
+        if approval.result == BusinessApproval.Result.PENDING:
+            return Response({"status": "pending"})
+        # 答复组装：结论 + 自由文本理由 + 附件解析（与 human_answer 注入同源）
+        from .execution_context import answer_attachment_results
+        merged = [str(a) for a in (approval.attachment_ids or [])]
+        blocks, _ = answer_attachment_results(
+            merged, workspace_id=grant.execution.binding.project.workspace_id)
+        answer = f"[{approval.result}] {approval.reason or ''}".strip()
+        if blocks:
+            answer += "\n" + "\n".join(blocks)
+        return Response({"status": "answered", "result": approval.result, "answer": answer[:20000]})
+
+
+class PlatformSupplementsByTicketView(PlatformToolsAuthMixin, BaseAPIView):
+    """GET /api/internal/platform-tools/supplements/<ticket>/ —— 补料查询（票据）。
+
+    与 supplements 签名 URL 同源数据（supplement_entries），差异仅在鉴权
+    （短票据查表替代长 URL 签名）与 after（票据创建时刻即节点开工时刻）。
+    """
+
+    def get(self, request, ticket):
+        if not self._auth(request):
+            return Response({"error": "unauthorized"}, status=401)
+        grant = _load_grant(ticket)
+        if grant is None:
+            return Response({"error": "invalid or expired ticket"}, status=403)
+        from .supplement_access import supplement_entries
+        entries = supplement_entries(grant.execution.issue, after_dt=grant.created_at)
+        return Response({"supplements": entries, "hasNew": bool(entries)})

@@ -94,12 +94,35 @@ class SupplementAccessTests(TestCase):
         entries = supplement_entries(self.issue)
         self.assertEqual(entries, [])
 
-    def test_steering_discipline_in_prompt(self):
-        from plane.orchestration.worker import _steering_discipline
-        text = _steering_discipline(execution_id="exec-x", node={"type": "ai", "retries": None})
-        self.assertIn("执行中补料", text)
-        self.assertIn("exec-x", text)
-        self.assertIn("sig=", text)
-        self.assertIn("hasNew=true", text)
+    def test_platform_tools_discipline_in_prompt(self):
+        """11-25 终态：补料/求助纪律工具化（票据替代长 URL——手抄事故根除）。"""
+        from django.contrib.auth import get_user_model
+        from plane.db.models.workspace import Workspace
+        from plane.db.models.project import Project
+        from plane.db.models.issue import Issue
+        from plane.orchestration.models import WorkItemExecution, ProjectTeamBinding, PlatformToolGrant
+        from plane.orchestration.worker import _platform_tools_discipline
+        ws = Workspace.objects.create(name="pts", slug="pts-ws", owner=get_user_model().objects.first())
+        project = Project.objects.create(name="pts-p", identifier="PTSP", workspace=ws)
+        issue = Issue.objects.create(project=project, name="票据测试")
+        from plane.orchestration.models import WorkflowDefinition
+        from django.utils import timezone as dj_tz
+        wf = WorkflowDefinition.objects.create(project=project, name="票据流程")
+        ver = wf.versions.create(version=1, status="published",
+                                 definition={"nodes": [], "edges": []}, published_at=dj_tz.now())
+        from plane.orchestration.models import AgentTeam
+        team = AgentTeam.objects.create(workspace=ws, name="票据团队")
+        binding = ProjectTeamBinding.objects.create(
+            project=project, team=team, workflow_version=ver, status="active")
+        execution = WorkItemExecution.objects.create(issue=issue, binding=binding)
+        text = _platform_tools_discipline(execution_id=execution.id, node_key="analyze_0")
+        self.assertIn("request_human_input", text)
+        self.assertIn("request_supplements", text)
+        grant = PlatformToolGrant.objects.get(execution=execution, node_key="analyze_0")
+        self.assertIn(grant.ticket, text)
+        self.assertLessEqual(len(grant.ticket), 16)
+        # 幂等：重复签发不换票
+        _platform_tools_discipline(execution_id=execution.id, node_key="analyze_0")
+        self.assertEqual(grant.ticket, PlatformToolGrant.objects.get(execution=execution).ticket)
 
 

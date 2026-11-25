@@ -20,6 +20,9 @@ from .views import (
     TeamLifecycleEndpoint, TeamMemberDetailEndpoint, TeamMembersEndpoint, TeamShareableIssuesEndpoint,
     TeamsEndpoint, WorkflowPublishEndpoint, WorkflowVersionsEndpoint,
     ExecutionSupplementsView,
+    PlatformAskRegisterView,
+    PlatformAskStatusView,
+    PlatformSupplementsByTicketView,
 )
 
 urlpatterns = [
@@ -32,7 +35,10 @@ urlpatterns = [
     path("workspaces/<str:slug>/agent-teams/conversations/", ConversationsEndpoint.as_view(), name="orchestration-conversations"),
     path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/", ConversationDetailEndpoint.as_view(), name="orchestration-conversation-detail"),
     path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/messages/", ConversationMessagesEndpoint.as_view(), name="orchestration-conversation-messages"),
-    path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/messages/<str:message_id>/confirm/", ConversationConfirmEndpoint.as_view(), name="orchestration-conversation-confirm"),
+        path("internal/platform-tools/ask/", PlatformAskRegisterView.as_view(), name="platform-tools-ask-register"),
+    path("internal/platform-tools/ask/<str:ticket>/", PlatformAskStatusView.as_view(), name="platform-tools-ask-status"),
+    path("internal/platform-tools/supplements/<str:ticket>/", PlatformSupplementsByTicketView.as_view(), name="platform-tools-supplements"),
+path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/messages/<str:message_id>/confirm/", ConversationConfirmEndpoint.as_view(), name="orchestration-conversation-confirm"),
     path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/messages/<str:message_id>/share/", ConversationShareEndpoint.as_view(), name="orchestration-conversation-share"),
     path("workspaces/<str:slug>/agent-teams/conversations/<str:conversation_id>/stream/", ConversationStreamEndpoint.as_view(), name="orchestration-conversation-stream"),
     path("workspaces/<str:slug>/agent-teams/quota/", TeamQuotaEndpoint.as_view(), name="orchestration-team-quota"),

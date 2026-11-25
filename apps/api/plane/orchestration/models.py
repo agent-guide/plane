@@ -208,6 +208,28 @@ class BusinessApproval(OrchestrationBaseModel):
     # 答复附件挂载（C7，2026-11-15）：作答前随传随挂到审批——刷新不丢，
     # 作答时与请求附件合并；未认领（没挂上评论）的由作答/终态路径回收。
     attachment_ids = models.JSONField(default=list, blank=True)
+    # in-turn 求助（11-25 终态设计）：agent 执行期间经 request_human_input
+    # 工具发起、turn 仍阻塞中——答复只回投工具结果（ask-mcp 轮询取走），
+    # 不触发 waiting_human 恢复与节点重跑（语义见 agent-execution-protocol-endgame §二）
+    in_turn = models.BooleanField(default=False)
+
+
+class PlatformToolGrant(OrchestrationBaseModel):
+    """平台工具票据（11-25 终态设计 §三）：worker 每次节点执行签发一张，
+    绑定 execution+node+时效——MCP 工具服务凭票据反查执行（网关 MCP 转发
+    不传调用方上下文，代码实证），替代长 URL 手抄（32 位 ID+签名抄错实测）。
+    一张票据同时供 request_human_input / request_supplements 使用。
+    """
+
+    ticket = models.CharField(max_length=16, unique=True)
+    execution = models.ForeignKey(WorkItemExecution, on_delete=models.CASCADE, related_name="tool_grants")
+    node_key = models.CharField(max_length=200)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["execution", "node_key"], name="uniq_grant_per_node_execution"),
+        ]
 
 
 class AgentPermissionRequest(OrchestrationBaseModel):
