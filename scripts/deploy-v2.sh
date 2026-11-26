@@ -181,6 +181,24 @@ ssh -p $SSH_PORT $REMOTE_USER@$SERVER "
   [ -d $V2ROOT/platform-tools-mcp ] && rm -rf $V2ROOT/platform-tools-mcp.old && mv $V2ROOT/platform-tools-mcp $V2ROOT/platform-tools-mcp.old
   mv $V2ROOT/platform-tools-mcp.new $V2ROOT/platform-tools-mcp
 " || { echo "FAIL: platform-tools-mcp 目录替换失败"; exit 1; }
+# env 文件：从 plane api 的 .env 提取 ORCHESTRATION_INTERNAL_TOKEN（同值复用，
+# 幂等——已存在且含非空 TOKEN 则跳过，防发版覆盖手调值）
+ssh -p $SSH_PORT $REMOTE_USER@$SERVER "
+  ENV_DIR=/opt/projects/ai-platform/env
+  ENV_FILE=\$ENV_DIR/platform-tools-mcp.env
+  mkdir -p \$ENV_DIR
+  TOKEN=\$(grep ^ORCHESTRATION_INTERNAL_TOKEN= $V2ROOT/plane/api/.env | cut -d= -f2-)
+  if [ -z "\$TOKEN" ]; then echo 'FAIL: plane api .env 里没有 ORCHESTRATION_INTERNAL_TOKEN'; exit 1; fi
+  if [ -f \$ENV_FILE ] && grep -q 'ORCHESTRATION_INTERNAL_TOKEN=..' \$ENV_FILE; then
+    echo '  env 文件已存在且含 TOKEN，跳过'
+  else
+    cat > \$ENV_FILE << INNEREOF
+PLANE_INTERNAL_BASE=http://127.0.0.1:8202
+ORCHESTRATION_INTERNAL_TOKEN=\$TOKEN
+INNEREOF
+    echo '  env 文件已创建'
+  fi
+" || { echo "FAIL: platform-tools-mcp env 文件创建失败"; exit 1; }
 scp -P $SSH_PORT scripts/systemd/platform-tools-mcp.service $REMOTE_USER@$SERVER:/tmp/   && ssh -p $SSH_PORT $REMOTE_USER@$SERVER "sudo -n cp /tmp/platform-tools-mcp.service /etc/systemd/system/platform-tools-mcp.service && sudo -n systemctl daemon-reload && sudo -n systemctl enable --now platform-tools-mcp && sudo -n systemctl restart platform-tools-mcp"   || { echo "FAIL: platform-tools-mcp systemd 启动失败"; exit 1; }
 sudo -n systemctl restart url-mcp
 # 探活（8624；工具清单应含 url_reader）
