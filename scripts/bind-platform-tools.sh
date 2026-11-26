@@ -22,7 +22,7 @@ TOKEN=$(curl -sf -X POST "$AGWMNGR/api/admin/auth/login" \
   || { echo "FAIL: agwmngr 登录失败"; exit 1; }
 # 工具 id（三个：platform-tools 的 ask + url_reader + parse_document）
 TOOL_IDS=""
-for TNAME in request_human_input url_reader parse_document; do
+for TNAME in request_human_input request_supplements url_reader parse_document; do
   TID=$(api "$AGWMNGR/api/platform/v1/tenants/$TENANT/tools" \
     | jsonget "next((t['id'] for t in d.get('items',[]) if t.get('name')=='$TNAME'), '')")
   if [ -z "$TID" ]; then

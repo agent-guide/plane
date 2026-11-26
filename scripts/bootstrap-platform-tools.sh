@@ -68,40 +68,42 @@ else
     && status "OK" "已建" || { status "FAIL" "路由创建失败"; exit 1; }
 fi
 
-# ── ② 平台目录 offering + 审批 ───────────────────────────────────────
-echo "② 目录 offering（mcp:platform-tools:request_human_input）"
-STABLE_ID="mcp:platform-tools:request_human_input"
+# ── ② 平台目录 + ③ 租户工具（双工具：ask + supplements，收敛后单链）──
+# request_supplements 票据制查询补充（2026-11-26 收敛定案）：
+# 老的 connector:plane-supplements:fetch_supplements 双轨退役方向。
+TOOL_DEFS="request_human_input|Request human input (blocking ask)|平台工具：请求人工输入（阻塞等待答复）
+request_supplements|Query task supplements by ticket|平台工具：票据查询执行中补充资料"
 OFF_LIST=$(api "$AGWMNGR/api/platform/v1/catalog/offerings?category=tool" || echo '{"items":[]}')
-OFF_ID=$(echo "$OFF_LIST" | jsonget "next((o['offeringId'] for o in d.get('items',[]) if o.get('upstreamStableId')=='$STABLE_ID'), '')")
-if [ -n "$OFF_ID" ]; then
-  status "OK" "已登记（${OFF_ID}）"
-  # 幂等补救：空 allowlist 补齐（v7+ 无 approve；已生效的 PUT 幂等失败，忽略）
-  api -X PUT -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings/$OFF_ID/availability" \
-    -d "{\"tenant_ids\":[\"$TENANT\"]}" >/dev/null 2>&1 || true
-else
-  if [ -n "$CHECK_ONLY" ]; then status "MISS" "目录未登记"; else
-    RES=$(api -X POST -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings" \
-      -d "{\"category\":\"tool\",\"name\":\"request_human_input\",\"description\":\"Request human input (blocking ask) and query task supplements\",\"kind\":\"gateway-backed\",\"source_gateway_id\":\"$GW_ID\",\"upstream_stable_id\":\"$STABLE_ID\",\"availability\":{\"tenant_ids\":[\"$TENANT\"]}}")
-    OFF_ID=$(echo "$RES" | jsonget "d['offeringId']")
-    [ -n "$OFF_ID" ] || { status "FAIL" "登记失败"; exit 1; }
-    status "OK" "已登记（${OFF_ID}，创建即生效）"
-  fi
-fi
-[ -n "$OFF_ID" ] || OFF_ID="(unknown)"
-
-# ── ③ 租户工具定义 ───────────────────────────────────────────────────
-echo "③ 租户工具定义（$TENANT / request_human_input）"
 TOOL_LIST=$(api "$AGWMNGR/api/platform/v1/tenants/$TENANT/tools" || echo '{"items":[]}')
-HAVE_TOOL=$(echo "$TOOL_LIST" | jsonget "str(any(t.get('name')=='request_human_input' for t in d.get('items',[]))).lower()")
-if [ "$HAVE_TOOL" = "true" ]; then
-  status "OK" "已存在"
-else
-  if [ -n "$CHECK_ONLY" ]; then status "MISS" "租户工具未创建"; else
-    api -X POST -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/tenants/$TENANT/tools" \
-      -d "{\"name\":\"request_human_input\",\"description\":\"平台工具：请求人工输入（阻塞等待答复）/ 查询执行中补充资料\",\"offering_id\":\"$OFF_ID\"}" >/dev/null \
-      && status "OK" "已创建" || { status "FAIL" "创建失败"; exit 1; }
+while IFS='|' read -r TNAME TDESC_ZH_EN TDESC_ZH; do
+  STABLE_ID="mcp:platform-tools:$TNAME"
+  echo "② 目录 offering（$STABLE_ID）"
+  OFF_ID=$(echo "$OFF_LIST" | jsonget "next((o['offeringId'] for o in d.get('items',[]) if o.get('upstreamStableId')=='$STABLE_ID'), '')")
+  if [ -n "$OFF_ID" ]; then
+    status "OK" "已登记（${OFF_ID}）"
+    api -X PUT -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings/$OFF_ID/availability" \
+      -d "{\"tenant_ids\":[\"$TENANT\"]}" >/dev/null 2>&1 || true
+  else
+    if [ -n "$CHECK_ONLY" ]; then status "MISS" "目录未登记"; else
+      RES=$(api -X POST -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings" \
+        -d "{\"category\":\"tool\",\"name\":\"$TNAME\",\"description\":\"$TDESC_ZH_EN\",\"kind\":\"gateway-backed\",\"source_gateway_id\":\"$GW_ID\",\"upstream_stable_id\":\"$STABLE_ID\",\"availability\":{\"tenant_ids\":[\"$TENANT\"]}}")
+      OFF_ID=$(echo "$RES" | jsonget "d['offeringId']")
+      [ -n "$OFF_ID" ] || { status "FAIL" "登记失败"; exit 1; }
+      status "OK" "已登记（${OFF_ID}，创建即生效）"
+    fi
   fi
-fi
+  echo "③ 租户工具定义（$TENANT / $TNAME）"
+  HAVE_TOOL=$(echo "$TOOL_LIST" | jsonget "str(any(t.get('name')=='$TNAME' for t in d.get('items',[]))).lower()")
+  if [ "$HAVE_TOOL" = "true" ]; then
+    status "OK" "已存在"
+  else
+    if [ -n "$CHECK_ONLY" ]; then status "MISS" "租户工具未创建"; else
+      api -X POST -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/tenants/$TENANT/tools" \
+        -d "{\"name\":\"$TNAME\",\"description\":\"$TDESC_ZH\",\"offering_id\":\"$OFF_ID\"}" >/dev/null \
+        && status "OK" "已创建" || { status "FAIL" "创建失败"; exit 1; }
+    fi
+  fi
+done <<< "$TOOL_DEFS"
 
 # ── ④ 员工绑定报告（不自动改稿：release 不可变，改稿/部署需显式操作）────
 echo "④ 员工绑定情况（release 快照 toolDefinitionIds 含 request_human_input 工具 id）"
