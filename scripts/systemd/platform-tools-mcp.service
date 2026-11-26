@@ -1,0 +1,17 @@
+[Unit]
+Description=platform-tools-mcp v2 (平台工具 MCP 服务：request_human_input/request_supplements，:8626)
+After=network.target
+
+[Service]
+User=dongqian
+WorkingDirectory=/opt/projects/ai-platform/v2/platform-tools-mcp
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PORT=8626
+# 访问 Plane 内部端点（ask 登记/补料查询）所需——值随服务器 env 文件管理
+EnvironmentFile=/opt/projects/ai-platform/env/platform-tools-mcp.env
+ExecStart=/usr/local/bin/node dist/index.mjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

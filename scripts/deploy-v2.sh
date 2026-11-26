@@ -53,6 +53,11 @@ echo "==== [2/4] 打包 api + url-mcp + doc-mcp ===="
   --exclude=.pytest_cache --exclude=.git .)
 # url-mcp：Mac 侧 esbuild（--target=node20）出单文件产物，服务器零 npm 零构建
 (cd "$REPO/services/url-mcp" && npm run build >/dev/null && COPYFILE_DISABLE=1 tar czf /tmp/url-mcp-v2.tar.gz \
+
+# platform-tools-mcp：同款单文件产物（node ≥23 直跑 TS；服务器 node 20 用构建产物）
+(cd "$REPO/services/platform-tools-mcp" && npm ci --silent >/dev/null 2>&1 && npm run build >/dev/null && COPYFILE_DISABLE=1 tar czf /tmp/platform-tools-mcp-v2.tar.gz \
+  -C "$REPO/services/platform-tools-mcp" dist package.json) \
+  || { echo "FAIL: platform-tools-mcp 构建打包失败"; exit 1; }
   server.ts tool.ts tools dist package.json README.md)
 # doc-mcp：Python 服务源 + 共享解析包（apps/api 的 -e 依赖也指向 packages/，
 # 远端解到 $V2ROOT/packages/ 供两边共用——单一权威源跨机保持）
@@ -169,6 +174,14 @@ if [ ! -f /etc/systemd/system/url-mcp.service ]; then
     || { echo "❌ 单元安装失败（需 passwordless sudo）——先跑 bash scripts/sync-systemd-units.sh $SERVER"; exit 1; }
 fi
 sudo -n systemctl enable url-mcp >/dev/null 2>&1
+
+# platform-tools-mcp：同款服务器部署（目录替换 + systemd + 启动）
+ssh -p $SSH_PORT $REMOTE_USER@$SERVER "mkdir -p $V2ROOT/platform-tools-mcp.new"   && scp -P $SSH_PORT /tmp/platform-tools-mcp-v2.tar.gz $REMOTE_USER@$SERVER:/tmp/   && ssh -p $SSH_PORT $REMOTE_USER@$SERVER "tar xzf /tmp/platform-tools-mcp-v2.tar.gz -C $V2ROOT/platform-tools-mcp.new"   || { echo "FAIL: platform-tools-mcp 上传失败"; exit 1; }
+ssh -p $SSH_PORT $REMOTE_USER@$SERVER "
+  [ -d $V2ROOT/platform-tools-mcp ] && rm -rf $V2ROOT/platform-tools-mcp.old && mv $V2ROOT/platform-tools-mcp $V2ROOT/platform-tools-mcp.old
+  mv $V2ROOT/platform-tools-mcp.new $V2ROOT/platform-tools-mcp
+" || { echo "FAIL: platform-tools-mcp 目录替换失败"; exit 1; }
+scp -P $SSH_PORT scripts/systemd/platform-tools-mcp.service $REMOTE_USER@$SERVER:/tmp/   && ssh -p $SSH_PORT $REMOTE_USER@$SERVER "sudo -n cp /tmp/platform-tools-mcp.service /etc/systemd/system/platform-tools-mcp.service && sudo -n systemctl daemon-reload && sudo -n systemctl enable --now platform-tools-mcp && sudo -n systemctl restart platform-tools-mcp"   || { echo "FAIL: platform-tools-mcp systemd 启动失败"; exit 1; }
 sudo -n systemctl restart url-mcp
 # 探活（8624；工具清单应含 url_reader）
 for _ in $(seq 1 10); do

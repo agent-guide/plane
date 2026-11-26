@@ -13,6 +13,7 @@ chk "Redis PONG"                     "$REDIS_CLI -p $REDIS_PORT ping 2>/dev/null
 chk "gateway admin 健康"             "probe_http 200 http://127.0.0.1:$GW_ADMIN_PORT/admin/health"
 chk "gateway 数据面健康"             "probe_http 200 http://127.0.0.1:8080/healthz"
 chk "url-mcp 存活（链接读取工具 :8624）" "probe_http 200 http://127.0.0.1:8624/health"
+chk "platform-tools-mcp 存活（链接读取工具 :8626）" "probe_http 200 http://127.0.0.1:8626/health"
 chk "doc-mcp 存活（文档解析工具 :8625）" "probe_http 200 http://127.0.0.1:8625/health"
 # .doc/.ppt 引擎水位（非阻断：olefile 兜底可用，soffice 缺失仅降级中文质量）
 command -v soffice >/dev/null 2>&1 && ok "soffice 可用（.doc/.ppt 高质量引擎）" \

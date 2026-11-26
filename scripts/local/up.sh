@@ -64,6 +64,26 @@ if probe_contains "http://127.0.0.1:8624/health" '"ok"\|{}'; then
     [ $SECONDS -ge 8 ] && { fail "url-mcp 探活失败"; hint "看 /tmp/url-mcp.log"; }; sleep 1; done
   ok "url-mcp 已启动（$([ "$NODE_MAJOR" -lt 23 ] && echo 构建产物 || echo TS 直跑)）"; fi
 
+step "③b platform-tools-mcp（:8626，平台工具 MCP：request_human_input / request_supplements）"
+PT_MCP_DIR="$PWD/../../services/platform-tools-mcp"
+PT_MCP="$PT_MCP_DIR/server.ts"
+[ -f "$PT_MCP" ] || fail "platform-tools-mcp 缺失：$PT_MCP"
+PT_MCP_RUN="$PT_MCP"
+if [ "$NODE_MAJOR" -lt 23 ]; then
+  (cd "$PT_MCP_DIR" && npm ci --silent >/dev/null 2>&1 && npm run build >/dev/null) \
+    || fail "platform-tools-mcp 构建失败"
+  PT_MCP_RUN="$PT_MCP_DIR/dist/index.mjs"
+fi
+if probe_contains "http://127.0.0.1:8626/health" '"ok"'; then
+  ok "platform-tools-mcp 已在运行"; else
+  stop_if_running "services/platform-tools-mcp" "platform-tools-mcp 残留"
+  # 需要访问 Plane 内部端点（ask 登记/补料查询）→ 继承 api 的内部地址与令牌
+  set -a; source "$PWD/../../apps/api/.env" 2>/dev/null; set +a
+  nohup node "$PT_MCP_RUN" > /tmp/platform-tools-mcp.log 2>&1 &
+  SECONDS=0; until curl -s -o /dev/null --max-time 2 http://127.0.0.1:8626/health; do
+    [ $SECONDS -ge 8 ] && { fail "platform-tools-mcp 探活失败"; hint "看 /tmp/platform-tools-mcp.log"; }; sleep 1; done
+  ok "platform-tools-mcp 已启动"; fi
+
 step "④ doc-mcp（:8625，文档解析 MCP 工具 parse_document）"
 DOC_MCP_DIR="$PWD/../../services/doc-mcp"
 [ -f "$DOC_MCP_DIR/server.py" ] || fail "doc-mcp 缺失：$DOC_MCP_DIR"

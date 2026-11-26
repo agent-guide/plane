@@ -111,6 +111,8 @@ fi
 step "⑥ url_reader 平台链（连接器 → offering → 租户工具，幂等）"
 # 工具侧路线（link-and-file-artifacts-design §一）：url-mcp 服务由 up.sh ③ 拉起，
 # 这里只做网关注册与目录登记；员工绑定是改稿动作，脚本仅报告（bootstrap ④）
+bash ../bootstrap-platform-tools.sh || fail "platform-tools 平台链注册失败（platform-tools-mcp 是否在跑？up.sh ③b）"
+bash ../bind-platform-tools.sh || fail "存量员工绑定平台工具失败（看上方日志）"
 bash ../bootstrap-url-reader.sh || fail "url_reader 平台链注册失败（url-mcp 是否在跑？up.sh ③）"
 bash ../bootstrap-doc-parser.sh || fail "parse_document 平台链注册失败（doc-mcp 是否在跑？up.sh ④）"
 
