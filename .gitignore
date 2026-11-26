@@ -115,6 +115,11 @@ scripts/*
 !scripts/deploy-agwmngr-v2.sh
 !scripts/sync-systemd-units.sh
 !scripts/bootstrap-supplements.sh
+!scripts/bootstrap-url-reader.sh
+!scripts/bootstrap-doc-parser.sh
+!scripts/bootstrap-platform-tools.sh
+!scripts/bind-platform-tools.sh
+!scripts/env/
 !scripts/local/
 !scripts/systemd/
 !packages/i18n/scripts/
