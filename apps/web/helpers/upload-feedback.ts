@@ -5,7 +5,7 @@
  */
 
 // plane imports
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import { setToast } from "@plane/blocks/toast";
 import type { FileUploadErrorCode } from "@plane/utils";
 
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
@@ -26,7 +26,7 @@ export const getUploadErrorMessage = (t: TranslateFn, error: FileUploadErrorCode
 export const showUploadErrorToast = (t: TranslateFn, error: FileUploadErrorCode, maxFileSize: number): void => {
   setToast({
     title: t("common.error.label"),
-    type: TOAST_TYPE.ERROR,
+    type: "error",
     message: getUploadErrorMessage(t, error, maxFileSize),
   });
 };
@@ -37,7 +37,7 @@ export const showUploadErrorToast = (t: TranslateFn, error: FileUploadErrorCode,
 export const showUploadFailedToast = (t: TranslateFn): void => {
   setToast({
     title: t("common.error.label"),
-    type: TOAST_TYPE.ERROR,
+    type: "error",
     message: t("attachment.error"),
   });
 };

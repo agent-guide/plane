@@ -7,8 +7,8 @@
 import useSWR from "swr";
 // plane imports
 import { useTranslation } from "@plane/i18n";
-import type { IUserStateDistribution } from "@plane/types";
-import { ContentWrapper } from "@plane/ui";
+import type { IUserStateDistribution, TStateGroups } from "@plane/types";
+import { ContentWrapper } from "@plane/blocks/layout";
 // components
 import { PageHead } from "@/components/core/page-title";
 import { ProfileActivity } from "@/components/profile/overview/activity";
