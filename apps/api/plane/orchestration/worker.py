@@ -633,7 +633,7 @@ def _cancel_agent_turn(context_id: str, base: str, headers: dict) -> None:
 
 def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: str,
                       idle_timeout: float = 240.0, total_timeout: float = 1800.0,
-                      trace_sink=None) -> str:
+                      trace_sink=None, cwd: str = "") -> str:
     """agent 节点执行：解析部署 → 建调用上下文 → turn（SSE 聚合为完整回复）。
 
     阶段 0/1′ 摸底验证的租户调用链；SSE 形态与旧 llm_gateway 同源
@@ -779,7 +779,8 @@ def invoke_agent_node(*, agent_definition_id: str, prompt: str, session_hint: st
                         "out": out})
     try:
         response_ctx = _local_opener.open(
-            open_turn({"input": prompt, session_field: session_hint}), timeout=600)
+            open_turn({**{"input": prompt, session_field: session_hint},
+                       **({"cwd": cwd} if cwd else {})}), timeout=600)
     except urllib.error.HTTPError as exc:
         # 排障刚需：agwmngr/网关侧 4xx/5xx 的响应体带真因，不能只留状态码
         try:
@@ -1230,16 +1231,24 @@ def _agent_invoke_inner(*, execution_id: str, node_key: str, attempt: int,
         except Exception:
             pass
 
+    # cwd（执行隔离，P3）：invoke_agent_node 已支持可选 cwd 参数。
+    # 构造绝对路径需 workspace 根（来自网关 Agent 配置 inlineACP.cwd，
+    # agwmngr 域）——待 agwmngr feature 合并后接线：
+    #   cwd = f"{workspace_root}/executions/{execution_id}/"
+    # 当前留空=共享 workspace（隔离未生效，靠纪律兜底）
+    execution_cwd = ""  # TODO(P3): 从部署配置获取 workspace 根并拼子目录
+
     reply = invoke_agent_node(
         agent_definition_id=node["expertId"], prompt=prompt,
-        session_hint=thread_hint, total_timeout=node_total, trace_sink=trace_sink)
+        session_hint=thread_hint, total_timeout=node_total, trace_sink=trace_sink,
+        cwd=execution_cwd)
     # 空回复（模型偶发空补全）：就地重试一次（SDK 惯例），仍空
     # 报失败交引擎重试线——空串当成功曾是"假完成"漏洞
     if not reply.strip():
         reply = invoke_agent_node(
             agent_definition_id=node["expertId"], prompt=prompt,
             session_hint=f"{thread_hint}:r", total_timeout=node_total,
-            trace_sink=trace_sink)
+            trace_sink=trace_sink, cwd=execution_cwd)
     if not reply.strip():
         raise AgentTurnError(
             "empty_reply",
