@@ -75,22 +75,16 @@ OFF_LIST=$(api "$AGWMNGR/api/platform/v1/catalog/offerings?category=tool" || ech
 OFF_ID=$(echo "$OFF_LIST" | jsonget "next((o['offeringId'] for o in d.get('items',[]) if o.get('upstreamStableId')=='$STABLE_ID'), '')")
 if [ -n "$OFF_ID" ]; then
   status "OK" "已登记（${OFF_ID}）"
-  # 幂等补救：draft/空 allowlist 补齐（已 active 的 PUT/approve 会幂等失败，忽略）
+  # 幂等补救：空 allowlist 补齐（v7+ 无 approve；已生效的 PUT 幂等失败，忽略）
   api -X PUT -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings/$OFF_ID/availability" \
-    -d "{\"mode\":\"tenant-allowlist\",\"tenant_ids\":[\"$TENANT\"]}" >/dev/null 2>&1 || true
-  api -X POST "$AGWMNGR/api/platform/v1/catalog/offerings/$OFF_ID/approve" >/dev/null 2>&1 || true
+    -d "{\"tenant_ids\":[\"$TENANT\"]}" >/dev/null 2>&1 || true
 else
   if [ -n "$CHECK_ONLY" ]; then status "MISS" "目录未登记"; else
     RES=$(api -X POST -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings" \
-      -d "{\"category\":\"tool\",\"name\":\"request_human_input\",\"description\":\"Request human input (blocking ask) and query task supplements\",\"kind\":\"gateway-backed\",\"source_gateway_id\":\"$GW_ID\",\"upstream_stable_id\":\"$STABLE_ID\",\"availability\":{\"mode\":\"tenant-allowlist\"}}")
+      -d "{\"category\":\"tool\",\"name\":\"request_human_input\",\"description\":\"Request human input (blocking ask) and query task supplements\",\"kind\":\"gateway-backed\",\"source_gateway_id\":\"$GW_ID\",\"upstream_stable_id\":\"$STABLE_ID\",\"availability\":{\"tenant_ids\":[\"$TENANT\"]}}")
     OFF_ID=$(echo "$RES" | jsonget "d['offeringId']")
     [ -n "$OFF_ID" ] || { status "FAIL" "登记失败"; exit 1; }
-    # 开放给租户（availability tenant_ids + approve 两步；11-25 实测）
-    api -X PUT -H "Content-Type: application/json" "$AGWMNGR/api/platform/v1/catalog/offerings/$OFF_ID/availability" \
-      -d "{\"mode\":\"tenant-allowlist\",\"tenant_ids\":[\"$TENANT\"]}" >/dev/null || { status "FAIL" "租户授权失败"; exit 1; }
-    api -X POST "$AGWMNGR/api/platform/v1/catalog/offerings/$OFF_ID/approve" >/dev/null \
-      || { status "FAIL" "激活失败"; exit 1; }
-    status "OK" "已登记并开放（${OFF_ID}）"
+    status "OK" "已登记（${OFF_ID}，创建即生效）"
   fi
 fi
 [ -n "$OFF_ID" ] || OFF_ID="(unknown)"
