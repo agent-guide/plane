@@ -9,8 +9,8 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "@plane/i18n";
 import { useParams } from "react-router";
-import { EmptyStateDetailed } from "@plane/propel/empty-state";
-import { Table } from "@plane/ui";
+import { EmptyStateDetailed } from "@/plane-compat/empty-state";
+import { Table } from "@/core/ui-compat";
 // services
 import {
   orchestrationService,

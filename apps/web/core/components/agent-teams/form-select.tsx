@@ -8,7 +8,7 @@
  * （px-3 py-2 / text-13 / border-subtle-1 / bg-layer-2）。流程表单与画布
  * 属性面板共用，替换原生 select。
  */
-import { CustomSelect } from "@plane/ui";
+import { CustomSelect } from "@/core/ui-compat";
 
 export function FormSelect({
   value,

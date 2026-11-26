@@ -9,8 +9,8 @@
 import { useTranslation } from "@plane/i18n";
 import { GitBranch, History, MoreHorizontal, Pencil, Rocket, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { CustomMenu } from "@plane/ui";
-import type { TTableColumn } from "@plane/ui";
+import { CustomMenu } from "@/core/ui-compat";
+import type { TTableColumn } from "@/core/ui-compat";
 import { WorkflowStatus } from "./workflow-status";
 import type { OrchestrationWorkflow } from "@/services/agent-teams/orchestration.service";
 

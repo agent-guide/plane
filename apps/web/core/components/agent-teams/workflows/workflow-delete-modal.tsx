@@ -7,7 +7,7 @@
  * AlertModalCore（Plane 标准确认弹层，cycles/delete-modal 同款）。
  */
 import { useTranslation } from "@plane/i18n";
-import { AlertModalCore } from "@plane/ui";
+import { AlertModalCore } from "@/core/ui-compat";
 import type { OrchestrationWorkflow } from "@/services/agent-teams/orchestration.service";
 
 type Props = {

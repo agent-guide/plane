@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "@plane/i18n";
-import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
+import { Breadcrumbs, ContentWrapper, Header } from "@/core/ui-compat";
 import { MessageSquare, Users } from "lucide-react";
 
 import { AppHeader } from "@/components/core/app-header";

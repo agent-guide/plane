@@ -73,6 +73,7 @@ export const isEditorEmpty = (description: string | undefined): boolean =>
 
 export enum CORE_EXTENSIONS {
   BLOCKQUOTE = "blockquote",
+  ATTACHMENT = "attachment",
   BOLD = "bold",
   BULLET_LIST = "bulletList",
   CALLOUT = "calloutComponent",

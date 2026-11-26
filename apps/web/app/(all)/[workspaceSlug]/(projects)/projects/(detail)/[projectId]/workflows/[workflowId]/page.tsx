@@ -10,11 +10,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "@plane/i18n";
 import { useParams } from "react-router";
-import { Breadcrumbs } from "@plane/ui";
+import { Breadcrumbs } from "@/core/ui-compat";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
-import { Button } from "@plane/propel/button";
-import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
-import { Input, TextArea } from "@plane/ui";
+import { Button } from "@/core/ui-compat/button";
+import { EModalPosition, EModalWidth, ModalCore } from "@/core/ui-compat";
+import { Input, TextArea } from "@/core/ui-compat";
 import { Rocket, Workflow } from "lucide-react";
 // services
 import {

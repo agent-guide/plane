@@ -81,7 +81,8 @@
     "uuid": "catalog:",
     "y-indexeddb": "catalog:",
     "y-protocols": "catalog:",
-    "yjs": "catalog:"
+    "yjs": "catalog:",
+    "lucide-react": "catalog:"
   },
   "devDependencies": {
     "@plane/tailwind-config": "workspace:*",

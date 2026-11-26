@@ -9,7 +9,7 @@ import { observer } from "mobx-react";
 import type { FileRejection } from "react-dropzone";
 import { useDropzone } from "react-dropzone";
 import { useTranslation } from "@plane/i18n";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import { TOAST_TYPE, setToast } from "@/plane-compat/toast";
 // helpers
 import { showUploadErrorToast } from "@/helpers/upload-feedback";
 // plane web hooks

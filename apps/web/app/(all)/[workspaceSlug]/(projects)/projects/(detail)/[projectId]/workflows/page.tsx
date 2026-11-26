@@ -10,15 +10,15 @@ import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "react-router";
 import { useTranslation } from "@plane/i18n";
-import { Button as PropelButton } from "@plane/propel/button";
-import { Breadcrumbs, ContentWrapper, Header } from "@plane/ui";
+import { Button as PropelButton } from "@/core/ui-compat/button";
+import { Breadcrumbs, ContentWrapper, Header } from "@/core/ui-compat";
 // components
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { ProjectWorkflowsManager, type WorkflowsManagerHandle } from "@/components/agent-teams/workflows/manager";
 import { TeamBindModal } from "@/components/agent-teams/team-bind-modal";
-import { EmptyStateDetailed } from "@plane/propel/empty-state";
+import { EmptyStateDetailed } from "@/plane-compat/empty-state";
 // services
 import { orchestrationService } from "@/services/agent-teams/orchestration.service";
 // hooks

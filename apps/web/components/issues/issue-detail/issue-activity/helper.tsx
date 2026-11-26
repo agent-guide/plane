@@ -6,7 +6,7 @@
 
 import { useMemo } from "react";
 import { useTranslation } from "@plane/i18n";
-import { setToast } from "@plane/blocks/toast";
+import { setToast , TOAST_TYPE } from "@/plane-compat/toast";
 import { EFileAssetType } from "@plane/types";
 import type { TCommentsOperations } from "@plane/types";
 import { copyUrlToClipboard, formatTextList, generateWorkItemLink } from "@plane/utils";

@@ -68,7 +68,7 @@ export const TrackFileDeletionPlugin = (
         if (!nodeFileSetDetails || !src) return;
         try {
           if (nodeFileSetDetails.fileSetName) {
-            editor.storage[nodeType]?.[nodeFileSetDetails.fileSetName]?.set(src, true);
+            ((editor.storage as unknown as Record<string, any>)[nodeType])?.[nodeFileSetDetails.fileSetName]?.set(src, true);
           }
           // update assets list storage value
           editor.commands.updateAssetsList?.({

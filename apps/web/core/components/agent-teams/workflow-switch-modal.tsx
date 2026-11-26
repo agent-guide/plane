@@ -11,9 +11,9 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "@plane/i18n";
-import { Button as PropelButton } from "@plane/propel/button";
-import { CheckIcon, ChevronDownIcon } from "@plane/propel/icons";
-import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
+import { Button as PropelButton } from "@/core/ui-compat/button";
+import { CheckIcon, ChevronDownIcon } from "@/plane-compat/icons";
+import { EModalPosition, EModalWidth, ModalCore } from "@/core/ui-compat";
 import { cn } from "@plane/utils";
 import { format, parseISO } from "date-fns";
 // services

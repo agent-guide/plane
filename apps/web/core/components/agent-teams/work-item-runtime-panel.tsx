@@ -16,9 +16,9 @@ import useSWR, { useSWRConfig } from "swr";
 // i18n
 import { useTranslation } from "@plane/i18n";
 // plane imports
-import { Button } from "@plane/propel/button";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { EModalWidth, ModalCore } from "@plane/ui";
+import { Button } from "@/core/ui-compat/button";
+import { TOAST_TYPE, setToast } from "@/plane-compat/toast";
+import { EModalWidth, ModalCore } from "@/core/ui-compat";
 // icons
 import {
   Check,

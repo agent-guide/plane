@@ -16,8 +16,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { Disclosure, Transition } from "@headlessui/react";
 import { useTranslation } from "@plane/i18n";
 import { ChevronRightIcon, PlusIcon, UserIcon } from "lucide-react";
-import { IconButton } from "@plane/propel/icon-button";
-import { Tooltip } from "@plane/ui";
+import { IconButton } from "@/plane-compat/icon-button";
+import { Tooltip } from "@/core/ui-compat";
 import { teamInk } from "@/components/agent-teams/helper";
 import { cn } from "@plane/utils";
 // components

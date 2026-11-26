@@ -9,8 +9,8 @@
  */
 import { useMemo } from "react";
 import { useTranslation } from "@plane/i18n";
-import { Button as PropelButton } from "@plane/propel/button";
-import { EModalPosition, EModalWidth, ModalCore, Table } from "@plane/ui";
+import { Button as PropelButton } from "@/core/ui-compat/button";
+import { EModalPosition, EModalWidth, ModalCore, Table } from "@/core/ui-compat";
 import { format, parseISO } from "date-fns";
 import { WorkflowStatus } from "./workflow-status";
 import type { OrchestrationWorkflow, OrchestrationWorkflowVersion } from "@/services/agent-teams/orchestration.service";

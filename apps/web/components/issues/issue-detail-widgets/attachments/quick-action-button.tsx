@@ -35,10 +35,10 @@ type Props = {
   customButton?: React.ReactNode;
   /** Hover label for `customButton`. */
   tooltip?: string;
-  /** 延迟绑定资产回调（新建态先上传后建卡时上抛） */
-  onDeferredAsset?: (asset: TFileSignedURLResponse) => void;  disabled?: boolean;
+  disabled?: boolean;
   issueServiceType: TIssueServiceType;
-  /** 新建态：上传成功后回报资产元数据（由调用方建卡后 bulk 关联 + 回显） */
+  /** 新建态：上传成功后回报资产元数据（由调用方建卡后 bulk 关联 + 回显）。
+      走「先上传 → 建卡 → bulk 关联」的延迟绑定路径。 */
   onDeferredAsset?: (asset: { id: string; name: string; size?: number }) => void;
 };
 
@@ -137,7 +137,10 @@ export const IssueAttachmentActionButton = observer(function IssueAttachmentActi
   });
 
   if (customButton) {
-    const button = cloneElement(customButton, { onClick: open, disabled: isLoading || disabled });
+    const button = cloneElement(customButton as React.ReactElement<Record<string, unknown>>, {
+      onClick: open,
+      disabled: isLoading || disabled,
+    });
     return (
       // the wrapper keeps files dropped on the button working
       <span {...getRootProps({ className: "inline-flex", onClick: (e) => e.stopPropagation() })}>

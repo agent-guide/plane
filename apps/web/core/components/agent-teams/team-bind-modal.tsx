@@ -9,8 +9,8 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "@plane/i18n";
-import { Button as PropelButton } from "@plane/propel/button";
-import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
+import { Button as PropelButton } from "@/core/ui-compat/button";
+import { EModalPosition, EModalWidth, ModalCore } from "@/core/ui-compat";
 // services
 import { orchestrationService, type OrchestrationTeam } from "@/services/agent-teams/orchestration.service";
 import { FormSelect } from "@/components/agent-teams/form-select";

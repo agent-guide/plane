@@ -10,7 +10,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "@plane/i18n";
-import { CustomSelect } from "@plane/ui";
+import { CustomSelect } from "@/core/ui-compat";
 // services
 import { orchestrationService, type OrchestrationTeam } from "@/services/agent-teams/orchestration.service";
 

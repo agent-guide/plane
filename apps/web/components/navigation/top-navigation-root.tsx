@@ -11,6 +11,8 @@ import Link from "next/link";
 import { useTranslation } from "@plane/i18n";
 import { cn } from "@plane/utils";
 import { TopNavPowerK } from "@/components/navigation";
+import { HelpMenuRoot } from "@/components/workspace/sidebar/help-section/root";
+import { StarUsOnGitHubLink } from "@/app/(all)/[workspaceSlug]/(projects)/star-us-link";
 import { UserMenuRoot } from "@/components/workspace/sidebar/user-menu-root";
 import { WorkspaceMenuRoot } from "@/components/workspace/sidebar/workspace-menu-root";
 import { useAppRailPreferences } from "@/hooks/use-navigation-preferences";

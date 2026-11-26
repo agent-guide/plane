@@ -2,325 +2,246 @@
  * Copyright (c) 2023-present Plane Software, Inc. and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  * See the LICENSE file for details.
+ *
+ * 工作项表单属性行：精简为「附件 + 链接 + 负责人 + 标签」。
+ * 附件/链接复用工作卡详情页同一组件与交互（软依赖 issueId：新建态先上传/录入 →
+ * 建卡 → 关联，编辑态即时绑定）。回显采用详情页同款 chip 样式，数据为本会话
+ * 草稿（新建态无 store 数据，编辑态已有项仍在卡片详情列表）。
  */
-
 import { useState } from "react";
 import { observer } from "mobx-react";
 import type { Control } from "react-hook-form";
 import { Controller } from "react-hook-form";
-import { Icon as PropelIcon } from "@makeplane/propel/components/icon";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
-import { Pill } from "@makeplane/propel/components/pill";
-import { Pill as PillChrome } from "@makeplane/propel/elements/pill";
-import { CalendarOutline, ParentOutline } from "@makeplane/propel/icons";
-import { ETabIndices } from "@plane/constants";
+import { ETabIndices, EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
+import { LinkIcon } from "@/plane-compat/propel-icons";
+import { Paperclip } from "lucide-react";
 // types
-import type { ISearchIssueResponse, TIssue } from "@plane/types";
-// ui
-import { DateSelect } from "@plane/blocks/property-select";
-import { getDate, renderFormattedPayloadDate, getTabIndex } from "@plane/utils";
+import { EIssueServiceType, type TIssue, type TIssueLink } from "@plane/types";
 // components
-import { CycleSelect } from "@/components/dropdowns/cycle/cycle-select";
-import { EstimateSelect } from "@/components/dropdowns/estimate/estimate-select";
-import { LabelSelect } from "@/components/dropdowns/label/label-select";
+import { Collapsible, CollapsibleButton } from "@/core/ui-compat";
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
-import { ModuleSelect } from "@/components/dropdowns/module/module-select";
-import { PrioritySelect } from "@/components/dropdowns/priority/priority-select";
-import { StateSelect } from "@/components/dropdowns/state/state-select";
-import { ParentIssuesListModal } from "@/components/issues/parent-issues-list-modal";
-import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
+import { LabelSelect } from "@/components/dropdowns/label/label-select";
+import { IssueAttachmentActionButton } from "@/components/issues/issue-detail-widgets/attachments";
+import { AttachmentsCollapsible } from "@/components/issues/issue-detail-widgets/attachments";
+import { IssueLinksActionButton } from "@/components/issues/issue-detail-widgets/links";
+import { LinksCollapsible } from "@/components/issues/issue-detail-widgets/links";
+import { IssueDetailWidgetButton } from "@/components/issues/issue-detail-widgets/widget-button";
+import { IssueLinkItem } from "@/components/issues/issue-detail/links/link-item";
 // hooks
-import { useProjectEstimates } from "@/hooks/store/estimates";
-import { useProject } from "@/hooks/store/use-project";
-import { useProjectState } from "@/hooks/store/use-project-state";
-import { useUserProfile } from "@/hooks/store/user";
+import { useUserPermissions } from "@/hooks/store/user";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+import { getTabIndex } from "@plane/utils";
+
+export type LinkDraft = { title: string; url: string };
+
+type StagedAttachment = { id: string; name: string; size?: number };
 
 type TIssueDefaultPropertiesProps = {
   control: Control<TIssue>;
   id: string | undefined;
   projectId: string | null;
   workspaceSlug: string;
-  selectedParentIssue: ISearchIssueResponse | null;
-  startDate: string | null;
-  targetDate: string | null;
-  parentId: string | null;
-  isDraft: boolean;
   handleFormChange: () => void;
-  setSelectedParentIssue: (issue: ISearchIssueResponse) => void;
+  /** 附件 asset_id 上报（新建态由 base 建卡后 bulk 关联） */
+  onAssetUpload?: (assetId: string) => void;
+  /** 删除暂存附件时同步移除登记（防「隐形附件」） */
+  onAssetRemove?: (assetId: string) => void;
+  /** 链接草稿上报（新建态建卡后落库） */
+  onLinksChange?: (links: LinkDraft[]) => void;
 };
 
 export const IssueDefaultProperties = observer(function IssueDefaultProperties(props: TIssueDefaultPropertiesProps) {
-  const {
-    control,
-    id,
-    projectId,
-    workspaceSlug,
-    selectedParentIssue,
-    startDate,
-    targetDate,
-    parentId,
-    isDraft,
-    handleFormChange,
-    setSelectedParentIssue,
-  } = props;
-  // states
-  const [parentIssueListModalOpen, setParentIssueListModalOpen] = useState(false);
-  // store hooks
+  const { control, id, projectId, workspaceSlug, handleFormChange, onAssetUpload, onAssetRemove, onLinksChange } =
+    props;
   const { t } = useTranslation();
-  const { areEstimateEnabledByProjectId } = useProjectEstimates();
-  const { getProjectById } = useProject();
-  const { getProjectDefaultStateId } = useProjectState();
   const { isMobile } = usePlatformOS();
-  const { data: userProfile } = useUserProfile();
-  // derived values
-  const projectDetails = getProjectById(projectId);
-
+  const { allowPermissions } = useUserPermissions();
   const { getIndex } = getTabIndex(ETabIndices.ISSUE_FORM, isMobile);
 
-  const minDate = getDate(startDate);
-  minDate?.setDate(minDate.getDate());
+  const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
+  const [links, setLinks] = useState<LinkDraft[]>([]);
+  const [linksOpen, setLinksOpen] = useState(true);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(true);
 
-  const maxDate = getDate(targetDate);
-  maxDate?.setDate(maxDate.getDate());
+  const canCreateLabel =
+    projectId && allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId);
+
+  const commitLinks = (next: LinkDraft[]) => {
+    setLinks(next);
+    onLinksChange?.(next);
+  };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Controller
-        control={control}
-        name="state_id"
-        render={({ field: { value, onChange } }) => (
-          <StateSelect
-            testId="create-work-item-state-select"
-            // an empty state shows the project's default state, as the legacy dropdown did
-            value={value || getProjectDefaultStateId(projectId)}
-            onChange={(stateId) => {
-              onChange(stateId);
-              handleFormChange();
-            }}
-            projectId={projectId ?? undefined}
-            variant="pill-md"
-            tabIndex={getIndex("state_id")}
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="priority"
-        render={({ field: { value, onChange } }) => (
-          <PrioritySelect
-            testId="create-work-item-priority-select"
-            value={value}
-            onChange={(priority) => {
-              onChange(priority);
-              handleFormChange();
-            }}
-            variant="pill-md"
-            tabIndex={getIndex("priority")}
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="assignee_ids"
-        render={({ field: { value, onChange } }) => (
-          <MemberSelect
-            testId="create-work-item-assignee-select"
-            projectId={projectId ?? undefined}
-            value={value}
-            onChange={(assigneeIds) => {
-              onChange(assigneeIds);
-              handleFormChange();
-            }}
-            placeholder={t("assignees")}
-            multiple
-            variant={value?.length ? "avatar-group-md" : "pill-md"}
-            tabIndex={getIndex("assignee_ids")}
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="label_ids"
-        render={({ field: { value, onChange } }) => (
-          <LabelSelect
-            testId="create-work-item-label-select"
-            projectId={projectId ?? undefined}
-            value={value ?? []}
-            onChange={(labelIds) => {
-              onChange(labelIds);
-              handleFormChange();
-            }}
-            variant="pill-md"
-            placeholder={t("labels")}
-            tabIndex={getIndex("label_ids")}
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="start_date"
-        render={({ field: { value, onChange } }) => (
-          <DateSelect
-            value={getDate(value) ?? null}
-            onChange={(date) => {
-              onChange(date ? renderFormattedPayloadDate(date) : null);
-              handleFormChange();
-            }}
-            maxDate={maxDate ?? undefined}
-            placeholder={t("start_date")}
-            icon={<CalendarOutline />}
-            weekStartsOn={userProfile?.start_of_the_week}
-            clearable
-            tabIndex={getIndex("start_date")}
-            variant="pill-md"
-            testId="create-work-item-start-date-select"
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="target_date"
-        render={({ field: { value, onChange } }) => (
-          <DateSelect
-            value={getDate(value) ?? null}
-            onChange={(date) => {
-              onChange(date ? renderFormattedPayloadDate(date) : null);
-              handleFormChange();
-            }}
-            minDate={minDate ?? undefined}
-            placeholder={t("due_date")}
-            icon={<CalendarOutline />}
-            weekStartsOn={userProfile?.start_of_the_week}
-            clearable
-            tabIndex={getIndex("target_date")}
-            variant="pill-md"
-            testId="create-work-item-due-date-select"
-          />
-        )}
-      />
-      {projectDetails?.cycle_view && projectId && (
-        <Controller
-          control={control}
-          name="cycle_id"
-          render={({ field: { value, onChange } }) => (
-            <CycleSelect
-              projectId={projectId}
-              onChange={(cycleId) => {
-                onChange(cycleId);
-                handleFormChange();
-              }}
-              placeholder={t("cycle.label", { count: 1 })}
-              value={value ?? null}
-              variant="pill-md"
-              clearable
-              tabIndex={getIndex("cycle_id")}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* 附件：复用详情页组件（软依赖 issueId） */}
+        <IssueAttachmentActionButton
+          workspaceSlug={workspaceSlug}
+          projectId={projectId ?? ""}
+          issueId={id}
+          issueServiceType={EIssueServiceType.ISSUES}
+          disabled={!projectId}
+          onDeferredAsset={({ id: assetId, name, size }) => {
+            setAttachments((prev) => [...prev, { id: assetId, name, size }]);
+            onAssetUpload?.(assetId);
+          }}
+          customButton={
+            <IssueDetailWidgetButton
+              title={t("common.attach")}
+              icon={<Paperclip className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />}
+              disabled={!projectId}
             />
-          )}
+          }
         />
-      )}
-      {projectDetails?.module_view && workspaceSlug && projectId && (
+
+        {/* 链接：复用详情页组件（软依赖 issueId） */}
+        <IssueLinksActionButton
+          issueServiceType={EIssueServiceType.ISSUES}
+          disabled={!projectId}
+          onDeferredLink={(data: Partial<TIssueLink>) => {
+            const url = (data.url ?? "").trim();
+            if (!url) return;
+            commitLinks([...links, { title: (data.title ?? "").trim() || url, url }]);
+          }}
+          customButton={
+            <IssueDetailWidgetButton
+              title={t("issue.add.link")}
+              icon={<LinkIcon className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />}
+              disabled={!projectId}
+            />
+          }
+        />
+
+        {/* 负责人 */}
         <Controller
           control={control}
-          name="module_ids"
+          name="assignee_ids"
           render={({ field: { value, onChange } }) => (
-            <ModuleSelect
-              multiple
-              projectId={projectId}
+            <MemberSelect
               value={value ?? []}
-              onChange={(moduleIds) => {
-                onChange(moduleIds);
+              projectId={projectId ?? undefined}
+              onChange={(assigneeIds: string[]) => {
+                onChange(assigneeIds);
                 handleFormChange();
               }}
-              placeholder={t("modules")}
-              variant="pill-md"
-              tabIndex={getIndex("module_ids")}
+              placeholder={t("assignees")}
+              multiple
+              variant={value?.length ? "avatar-group-sm" : "pill-sm"}
+              tabIndex={getIndex("assignee_ids")}
             />
           )}
         />
-      )}
-      {projectId && areEstimateEnabledByProjectId(projectId) && (
+
+        {/* 标签 */}
         <Controller
           control={control}
-          name="estimate_point"
+          name="label_ids"
           render={({ field: { value, onChange } }) => (
-            <EstimateSelect
-              value={value || undefined}
-              onChange={(estimatePoint) => {
-                onChange(estimatePoint);
-                handleFormChange();
-              }}
-              projectId={projectId}
-              variant="pill-md"
-              placeholder={t("estimate")}
-              tabIndex={getIndex("estimate_point")}
-            />
+            <div className="h-7">
+              <LabelSelect
+                value={value ?? []}
+                onChange={(labelIds: string[]) => {
+                  onChange(labelIds);
+                  handleFormChange();
+                }}
+                projectId={projectId}
+                variant="pill-sm"
+                tabIndex={getIndex("label_ids")}
+                data-testid="issue-form-label-select"
+              />
+            </div>
           )}
         />
-      )}
-      {parentId ? (
-        <Menu>
-          <MenuTrigger
-            tabIndex={getIndex("parent_id")}
-            render={
-              // `PillChrome` renders its own `<button type="button">`, which becomes the menu trigger.
-              <PillChrome size="sm" variant="outline">
-                {selectedParentIssue?.project_id && (
-                  <IssueIdentifier
-                    projectId={selectedParentIssue.project_id}
-                    issueTypeId={selectedParentIssue.type_id}
-                    projectIdentifier={selectedParentIssue?.project__identifier}
-                    issueSequenceId={selectedParentIssue.sequence_id}
-                    size="xs"
-                  />
-                )}
-              </PillChrome>
-            }
+      </div>
+
+      {/* 分组回显：编辑态原样复用详情页折叠区；新建态用同款视觉渲染草稿 */}
+      {id ? (
+        <>
+          <LinksCollapsible
+            workspaceSlug={workspaceSlug}
+            projectId={projectId ?? ""}
+            issueId={id}
+            issueServiceType={EIssueServiceType.ISSUES}
           />
-          <MenuContent side="bottom" align="start">
-            <MenuItem label={t("change_parent_issue")} onClick={() => setParentIssueListModalOpen(true)} />
-            <Controller
-              control={control}
-              name="parent_id"
-              render={({ field: { onChange } }) => (
-                <MenuItem
-                  label={t("remove_parent_issue")}
-                  onClick={() => {
-                    onChange(null);
-                    handleFormChange();
-                  }}
-                />
-              )}
-            />
-          </MenuContent>
-        </Menu>
+          <AttachmentsCollapsible
+            workspaceSlug={workspaceSlug}
+            projectId={projectId ?? ""}
+            issueId={id}
+            issueServiceType={EIssueServiceType.ISSUES}
+          />
+        </>
       ) : (
-        <Pill
-          size="sm"
-          variant="outline"
-          startIcon={<PropelIcon icon={<ParentOutline className="size-3.5" />} />}
-          onClick={() => setParentIssueListModalOpen(true)}
-          label={t("add_parent")}
-        />
+        <>
+          {links.length > 0 && (
+            <Collapsible
+              isOpen={linksOpen}
+              onToggle={() => setLinksOpen((v) => !v)}
+              buttonClassName="w-full"
+              title={
+                <CollapsibleButton
+                  isOpen={linksOpen}
+                  title={t("common.links")}
+                  indicatorElement={<span className="text-14 !leading-3 text-tertiary">{links.length}</span>}
+                  actionItemElement={<IssueLinksActionButton issueServiceType={EIssueServiceType.ISSUES} disabled={!projectId} onDeferredLink={(data: Partial<TIssueLink>) => { const url = (data.url ?? "").trim(); if (!url) return; commitLinks([...links, { title: (data.title ?? "").trim() || url, url }]); }} />}
+                />
+              }
+            >
+              <div className="flex flex-col gap-2 pt-4">
+                {links.map((link) => (
+                  <IssueLinkItem
+                    key={link.url}
+                    link={{ id: link.url, url: link.url, title: link.title }}
+                    onRemove={(id) => commitLinks(links.filter((l) => l.url !== id))}
+                    linkOperations={{ create: async () => {}, update: async () => {}, remove: async () => {} }}
+                    isNotAllowed={false}
+                    issueServiceType={EIssueServiceType.ISSUES}
+                  />
+                ))}
+              </div>
+            </Collapsible>
+          )}
+
+          {attachments.length > 0 && (
+            <Collapsible
+              isOpen={attachmentsOpen}
+              onToggle={() => setAttachmentsOpen((v) => !v)}
+              buttonClassName="w-full"
+              title={
+                <CollapsibleButton
+                  isOpen={attachmentsOpen}
+                  title={t("common.attachments")}
+                  indicatorElement={<span className="text-14 !leading-3 text-tertiary">{attachments.length}</span>}
+                  actionItemElement={<IssueAttachmentActionButton workspaceSlug={workspaceSlug} projectId={projectId ?? ""} issueServiceType={EIssueServiceType.ISSUES} disabled={!projectId} onDeferredAsset={({ id: assetId, name, size }) => { setAttachments((prev) => [...prev, { id: assetId, name, size }]); onAssetUpload?.(assetId); }} />}
+                />
+              }
+            >
+              <div className="flex flex-col">
+                {attachments.map((a) => (
+                  <div key={a.id} className="flex h-9 items-center justify-between gap-3 border-b border-subtle pl-9 pr-2 last:border-b-0 hover:bg-surface-2">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-placeholder" strokeWidth={2} />
+                      <span className="truncate text-13 font-medium text-secondary">{a.name}</span>
+                      {a.size != null && <span className="flex-shrink-0 text-11 text-placeholder">{(a.size / 1024).toFixed(1)} KB</span>}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-placeholder hover:text-danger-primary"
+                      aria-label={t("common.actions.delete")}
+                      onClick={() => {
+                        setAttachments((prev) => prev.filter((x) => x.id !== a.id));
+                        onAssetRemove?.(a.id);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </Collapsible>
+          )}
+        </>
       )}
-      <Controller
-        control={control}
-        name="parent_id"
-        render={({ field: { onChange } }) => (
-          <ParentIssuesListModal
-            isOpen={parentIssueListModalOpen}
-            handleClose={() => setParentIssueListModalOpen(false)}
-            onChange={(issue) => {
-              onChange(issue.id);
-              handleFormChange();
-              setSelectedParentIssue(issue);
-            }}
-            projectId={projectId ?? undefined}
-            issueId={isDraft ? undefined : id}
-          />
-        )}
-      />
     </div>
   );
 });

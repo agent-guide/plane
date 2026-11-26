@@ -11,7 +11,7 @@ import { useTranslation } from "@plane/i18n";
 import { CopyOutline, DeleteOutline, EditOutline, LinkOutline, MoreHorizontalOutline } from "@makeplane/propel/icons";
 import { setToast } from "@plane/blocks/toast";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
-import type { TIssueServiceType } from "@plane/types";
+import type { TIssueServiceType, TIssueLink } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
 // ui
 import { Icon } from "@makeplane/propel/components/icon";

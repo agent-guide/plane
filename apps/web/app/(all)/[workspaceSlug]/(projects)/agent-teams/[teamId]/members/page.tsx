@@ -14,10 +14,10 @@ import { useNavigate, useParams } from "react-router";
 import Link from "next/link";
 import { useTranslation } from "@plane/i18n";
 import { Bot, Power, User, UserMinus } from "lucide-react";
-import { Button as PropelButton } from "@plane/propel/button";
-import { EmptyStateDetailed } from "@plane/propel/empty-state";
-import { Breadcrumbs, ContentWrapper, Header, Table } from "@plane/ui";
-import type { TTableColumn } from "@plane/ui";
+import { Button as PropelButton } from "@/core/ui-compat/button";
+import { EmptyStateDetailed } from "@/plane-compat/empty-state";
+import { Breadcrumbs, ContentWrapper, Header, Table } from "@/core/ui-compat";
+import type { TTableColumn } from "@/core/ui-compat";
 // components
 import { AppHeader } from "@/components/core/app-header";
 import { PageHead } from "@/components/core/page-title";

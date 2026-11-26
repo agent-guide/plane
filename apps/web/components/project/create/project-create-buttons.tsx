@@ -20,11 +20,13 @@ type Props = {
   isMobile?: boolean;
   /** Id of the form to submit when the action row is rendered outside it. */
   formId?: string;
+  /** 团队绑定提交中禁用（Agent Teams extension：建卡即绑团队） */
+  disabled?: boolean;
 };
 
 function ProjectCreateButtons(props: Props) {
   const { t } = useTranslation();
-  const { handleClose, isMobile = false, formId } = props;
+  const { handleClose, isMobile = false, formId, disabled = false } = props;
   const {
     formState: { isSubmitting },
   } = useFormContext<IProject>();
@@ -47,6 +49,7 @@ function ProjectCreateButtons(props: Props) {
         stretch="auto"
         type="submit"
         form={formId}
+        disabled={disabled}
         label={isSubmitting ? t("creating") : t("create_project")}
         loading={isSubmitting}
         tabIndex={getIndex("submit")}

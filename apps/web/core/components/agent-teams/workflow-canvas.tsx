@@ -34,8 +34,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import type { WorkflowGraph, WorkflowGraphNode } from "@/services/agent-teams/workflow.service";
 import { FormSelect } from "./form-select";
-import { Button } from "@plane/propel/button";
-import { Checkbox, CustomMenu, Input, TextArea } from "@plane/ui";
+import { Button } from "@/core/ui-compat/button";
+import { Checkbox, CustomMenu, Input, TextArea } from "@/core/ui-compat";
 import { MousePointerClick, Plus } from "lucide-react";
 // 面板小节标签/提示样式（其余控件均为 @plane/ui 组件）。
 const FIELD_LABEL_CLASS = "block text-12 font-normal text-secondary";

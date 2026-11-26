@@ -25,7 +25,7 @@ import {
   DialogMain,
   DialogTitle,
 } from "@makeplane/propel/components/dialog";
-import { setToast } from "@plane/blocks/toast";
+import { setToast , TOAST_TYPE } from "@/plane-compat/toast";
 import type { TIssue, TWorkspaceDraftIssue } from "@plane/types";
 // hooks
 import { Switch } from "@makeplane/propel/components/switch";
@@ -402,10 +402,8 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 <IssueParentTag
                   control={control}
                   selectedParentIssue={selectedParentIssue}
+                  setSelectedParentIssue={setSelectedParentIssue}
                   handleFormChange={handleFormChange}
-                  onAssetUpload={onAssetUpload}
-                  onAssetRemove={onAssetRemove}
-                  onLinksChange={onLinksChange}
                 />
               )}
             </DialogHeader>
@@ -446,13 +444,10 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 id={data?.id}
                 projectId={projectId}
                 workspaceSlug={workspaceSlug?.toString()}
-                selectedParentIssue={selectedParentIssue}
-                startDate={watch("start_date")}
-                targetDate={watch("target_date")}
-                parentId={watch("parent_id")}
-                isDraft={isDraft}
                 handleFormChange={handleFormChange}
-                setSelectedParentIssue={setSelectedParentIssue}
+                onAssetUpload={onAssetUpload}
+                onAssetRemove={onAssetRemove}
+                onLinksChange={onLinksChange}
               />
             </div>
           </DialogMain>

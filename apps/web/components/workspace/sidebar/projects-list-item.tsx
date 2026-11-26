@@ -39,6 +39,9 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/comp
 import { DropIndicator } from "@plane/blocks/common";
 import { cn } from "@plane/utils";
 // components
+import { DEFAULT_TAB_KEY, getTabUrl } from "@/components/navigation/tab-navigation-utils";
+import { useTabPreferences } from "@/components/navigation/use-tab-preferences";
+import { GitBranch } from "lucide-react";
 import { LeaveProjectModal } from "@/components/project/leave-project-modal";
 import { PublishProjectModal } from "@/components/project/publish-project/modal";
 // hooks
@@ -47,9 +50,11 @@ import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useProjectNavigationPreferences } from "@/hooks/use-navigation-preferences";
-import { GitBranch } from "lucide-react";
+import { usePlatformOS } from "@/hooks/use-platform-os";
 // local imports
+import { HIGHLIGHT_CLASS, highlightIssueOnDrop } from "../../issues/issue-layouts/utils";
 import { ProjectNavigation } from "./project-navigation";
+import { useNavigationItems } from "@/components/navigation/use-navigation-items";
 
 type Props = {
   projectId: string;
@@ -82,10 +87,20 @@ const PROJECT_WORKFLOW_NAV_ITEM = (workspaceSlug: string, projectId: string) => 
 ];
 
 export const SidebarProjectsListItem = observer(function SidebarProjectsListItem(props: Props) {
-  const { projectId, handleCopyText, disableDrag, disableDrop, isLastChild, handleOnProjectDrop } = props;
+  const {
+    projectId,
+    handleCopyText,
+    disableDrag,
+    disableDrop,
+    isLastChild,
+    handleOnProjectDrop,
+    projectListType,
+    renderInExtendedSidebar = false,
+  } = props;
   // store hooks
   const { t } = useTranslation();
   const { getPartialProjectById } = useProject();
+  const { isMobile } = usePlatformOS();
   const { allowPermissions } = useUserPermissions();
   const { getIsProjectListOpen, toggleProjectListOpen } = useCommandPalette();
   const { preferences: projectPreferences } = useProjectNavigationPreferences();
@@ -96,18 +111,15 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
   const [leaveProjectModalOpen, setLeaveProjectModal] = useState(false);
   const [publishModalOpen, setPublishModal] = useState(false);
   const [isMenuActive, setIsMenuActive] = useState(false);
-  // store 里未初始化的项目为 undefined，统一收敛为布尔值
-  const isProjectListOpen = !!getIsProjectListOpen(projectId);
+  const [isDragging, setIsDragging] = useState(false);
+  const isProjectListOpen = getIsProjectListOpen(projectId);
+  const [instruction, setInstruction] = useState<"DRAG_OVER" | "DRAG_BELOW" | undefined>(undefined);
   // refs
   const projectRef = useRef<HTMLDivElement | null>(null);
   const dragHandleRef = useRef<HTMLButtonElement | null>(null);
   // router
   const { workspaceSlug, projectId: URLProjectId } = useParams();
   const router = useRouter();
-  const pathname = usePathname();
-  // 归一化尾斜杠：compat 的 useRouter/Link 会给所有导航补尾斜杠，
-  // 而 href 构建为无尾斜杠，直接 === 会恒 false（与团队侧栏同一处理）。
-  const path = pathname.replace(/\/+$/, "");
   // derived values
   const project = getPartialProjectById(projectId);
   const previewProjectRef = useRef(project);
@@ -115,6 +127,22 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
   useLayoutEffect(() => {
     previewProjectRef.current = project;
   }, [project, project?.name, project?.logo_props]);
+
+  // Get available navigation items for this project
+  const navigationItems = useNavigationItems({
+    workspaceSlug: workspaceSlug.toString(),
+    projectId,
+    project,
+    allowPermissions,
+  });
+  const availableTabKeys = navigationItems.map((item) => item.key);
+
+  // Get preferences from hook
+  const { tabPreferences } = useTabPreferences(workspaceSlug.toString(), projectId);
+  const defaultTabKey = tabPreferences.defaultTab;
+  // Validate that the default tab is available
+  const validatedDefaultTabKey = availableTabKeys.includes(defaultTabKey) ? defaultTabKey : DEFAULT_TAB_KEY;
+  const defaultTabUrl = project ? getTabUrl(workspaceSlug.toString(), project.id, validatedDefaultTabKey) : "";
 
   // toggle project list open
   const setIsProjectListOpen = useCallback(
@@ -140,6 +168,104 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
   };
 
   useEffect(() => {
+    const element = projectRef.current;
+    const dragHandleElement = dragHandleRef.current;
+
+    if (!element) return;
+
+    return combine(
+      draggable({
+        element,
+        canDrag: () => !disableDrag,
+        dragHandle: dragHandleElement ?? undefined,
+        getInitialData: () => ({ id: projectId, dragInstanceId: "PROJECTS" }),
+        onDragStart: () => {
+          setIsDragging(true);
+        },
+        onDrop: () => {
+          setIsDragging(false);
+        },
+        onGenerateDragPreview: ({ nativeSetDragImage }) => {
+          // Add a custom drag image
+          setCustomNativeDragPreview({
+            getOffset: pointerOutsideOfPreview({ x: "0px", y: "0px" }),
+            render: ({ container }) => {
+              const root = createRoot(container);
+              const previewProject = previewProjectRef.current;
+              flushSync(() => {
+                root.render(
+                  <div className="flex items-center rounded-sm bg-surface-1 p-1 pr-2 text-body-xs-regular">
+                    <div className="grid size-4 flex-shrink-0 place-items-center">
+                      {previewProject && <Logo logo={previewProject.logo_props} />}
+                    </div>
+                    <p className="truncate text-secondary">{previewProject?.name}</p>
+                  </div>
+                );
+              });
+              return () => root.unmount();
+            },
+            nativeSetDragImage,
+          });
+        },
+      }),
+      dropTargetForElements({
+        element,
+        canDrop: ({ source }) =>
+          !disableDrop && source?.data?.id !== projectId && source?.data?.dragInstanceId === "PROJECTS",
+        // oxlint-disable-next-line no-shadow
+        getData: ({ input, element }) => {
+          const data = { id: projectId };
+
+          // attach instruction for last in list
+          return attachInstruction(data, {
+            input,
+            element,
+            currentLevel: 0,
+            indentPerLevel: 0,
+            mode: isLastChild ? "last-in-group" : "standard",
+          });
+        },
+        onDrag: ({ self }) => {
+          const extractedInstruction = extractInstruction(self?.data)?.type;
+          // check if the highlight is to be shown above or below
+          setInstruction(
+            extractedInstruction
+              ? extractedInstruction === "reorder-below" && isLastChild
+                ? "DRAG_BELOW"
+                : "DRAG_OVER"
+              : undefined
+          );
+        },
+        onDragLeave: () => {
+          setInstruction(undefined);
+        },
+        onDrop: ({ self, source }) => {
+          setInstruction(undefined);
+          const extractedInstruction = extractInstruction(self?.data)?.type;
+          const currentInstruction = extractedInstruction
+            ? extractedInstruction === "reorder-below" && isLastChild
+              ? "DRAG_BELOW"
+              : "DRAG_OVER"
+            : undefined;
+          if (!currentInstruction) return;
+
+          const sourceId = source?.data?.id as string | undefined;
+          const destinationId = self?.data?.id as string | undefined;
+
+          handleOnProjectDrop?.(sourceId, destinationId, currentInstruction === "DRAG_BELOW");
+
+          highlightIssueOnDrop(`sidebar-${sourceId}-${projectListType}`);
+        },
+      })
+    );
+    // oxlint-disable-next-line eslint-plugin-react-hooks/exhaustive-deps
+  }, [projectId, isLastChild, projectListType, handleOnProjectDrop]);
+
+  useEffect(() => {
+    if (isMenuActive) toggleAnySidebarDropdown(true);
+    else toggleAnySidebarDropdown(false);
+  }, [isMenuActive, toggleAnySidebarDropdown]);
+
   useOutsideClickDetector(projectRef, () => projectRef?.current?.classList?.remove(HIGHLIGHT_CLASS));
 
   useEffect(() => {
@@ -171,9 +297,6 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
   if (!project) return null;
 
   const isAccordionMode = projectPreferences.navigationMode === "ACCORDION";
-  // 项目名点击 = 打开项目概览页（与团队名点击打开团队详情一致）；
-  // 展开/收起只由行尾箭头负责，两种导航模式下行为统一。
-  const overviewUrl = `/${workspaceSlug}/projects/${project.id}/overview`;
 
   const handleItemClick = () => {
     if (projectPreferences.navigationMode === "ACCORDION") {
@@ -184,13 +307,12 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
       if (window.innerWidth < 768) toggleSidebar(true);
     }
     // close the extended sidebar if it is open
-    if (isExtendedProjectSidebarOpened) toggleExtendedProjectSidebar(false);
+    if (isExtendedProjectSidebarOpened && !isAccordionMode) {
+      toggleExtendedProjectSidebar(false);
+    }
   };
 
-  // 手风琴模式下子项各自高亮，仅概览页（无子项）时高亮项目行；
-  // 标签页模式下停留在该项目任意页面都高亮。
-  const shouldHighlightProject =
-    URLProjectId === project?.id && (projectPreferences.navigationMode !== "ACCORDION" || path === overviewUrl);
+  const shouldHighlightProject = URLProjectId === project?.id && projectPreferences.navigationMode !== "ACCORDION";
 
   return (
     <>

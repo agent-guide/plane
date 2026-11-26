@@ -73,7 +73,7 @@ export const TrackFileRestorationPlugin = (editor: Editor, restoreHandler: TFile
           const nodeFileSetDetails = NODE_FILE_MAP[nodeType];
           // 无 fileSetName 的节点（如附件）不走恢复集合语义，跳过
           if (!nodeFileSetDetails?.fileSetName) return;
-          const extensionFileSetStorage = editor.storage[nodeType]?.[nodeFileSetDetails.fileSetName];
+          const extensionFileSetStorage = ((editor.storage as unknown as Record<string, any>)[nodeType])?.[nodeFileSetDetails.fileSetName];
           const wasDeleted = extensionFileSetStorage?.get(src);
           if (!nodeFileSetDetails || !src) return;
           if (wasDeleted === undefined) {

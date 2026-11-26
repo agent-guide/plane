@@ -22,10 +22,10 @@ import { attachInstruction, extractInstruction } from "@atlaskit/pragmatic-drag-
 import { Transition } from "@headlessui/react";
 import { createRoot } from "react-dom/client";
 import scrollIntoView from "smooth-scroll-into-view-if-needed";
-import { ChevronRightIcon } from "@plane/propel/icons";
-import { IconButton } from "@plane/propel/icon-button";
+import { ChevronRightIcon } from "@/plane-compat/icons";
+import { IconButton } from "@/plane-compat/icon-button";
 import { useTranslation } from "@plane/i18n";
-import { DragHandle, DropIndicator } from "@plane/ui";
+import { DragHandle, DropIndicator } from "@/core/ui-compat";
 import { cn } from "@plane/utils";
 // components
 import { SidebarSubmenu } from "@/components/sidebar/sidebar-submenu";
@@ -226,7 +226,7 @@ export function SidebarDraggableRow({
             <IconButton
               variant="ghost"
               size="sm"
-              icon={ChevronRightIcon}
+              icon={<ChevronRightIcon />}
               onClick={() => setOpen(!isOpen)}
               className="text-placeholder"
               iconClassName={cn("transition-transform", { "rotate-90": isOpen })}

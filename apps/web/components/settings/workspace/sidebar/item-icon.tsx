@@ -12,6 +12,7 @@ import {
   MembersOutline,
   WebhooksOutline,
 } from "@makeplane/propel/icons";
+import { Plug } from "lucide-react";
 // plane imports
 import type { ISvgIcons } from "@plane/blocks/icons";
 import type { TWorkspaceSettingsTabs } from "@plane/types";
@@ -21,5 +22,6 @@ export const WORKSPACE_SETTINGS_ICONS: Record<TWorkspaceSettingsTabs, IconGlyph 
   members: MembersOutline,
   export: ExportOutline,
   "billing-and-plans": BillingsOutline,
+  connections: Plug,
   webhooks: WebhooksOutline,
 };

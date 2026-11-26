@@ -16,13 +16,13 @@ import { useParams } from "react-router";
 import { TeamStatusIcon } from "@/components/agent-teams/team-status";
 import { useTranslation } from "@plane/i18n";
 import { controlStateLabel } from "@/services/agent-teams/state-view";
-import { Button as PropelButton } from "@plane/propel/button";
-import { EmptyStateDetailed } from "@plane/propel/empty-state";
-import { ContentWrapper, ERowVariant, Table } from "@plane/ui";
-import type { TTableColumn } from "@plane/ui";
+import { Button as PropelButton } from "@/core/ui-compat/button";
+import { EmptyStateDetailed } from "@/plane-compat/empty-state";
+import { ContentWrapper, ERowVariant, Table } from "@/core/ui-compat";
+import type { TTableColumn } from "@/core/ui-compat";
 import { calculateTimeAgo } from "@plane/utils";
 // icons
-import { StateGroupIcon } from "@plane/propel/icons";
+import { StateGroupIcon } from "@plane/blocks/icons";
 import type { TStateGroups as StateGroup } from "@plane/types";
 import { Archive, Power, Settings, User } from "lucide-react";
 // components

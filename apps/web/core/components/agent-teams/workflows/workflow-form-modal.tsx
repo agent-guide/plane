@@ -9,8 +9,8 @@
  * 引擎连接字段已退役（终局 env 承载，引擎连接页删除方案）。
  */
 import { useTranslation } from "@plane/i18n";
-import { Button as PropelButton } from "@plane/propel/button";
-import { EModalPosition, EModalWidth, Input, ModalCore, TextArea } from "@plane/ui";
+import { Button as PropelButton } from "@/core/ui-compat/button";
+import { EModalPosition, EModalWidth, Input, ModalCore, TextArea } from "@/core/ui-compat";
 import type { OrchestrationWorkflow } from "@/services/agent-teams/orchestration.service";
 
 export type WorkflowForm = {
