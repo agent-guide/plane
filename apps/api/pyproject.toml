@@ -79,6 +79,18 @@ dependencies = [
     "drf-spectacular==0.29.0",
     # html sanitizer
     "nh3==0.2.18",
+    # —— 以下为 fork 依赖（上游 base.txt 已删，合并自旧 requirements）——
+    # PG 原生任务队列（编排域命令消费：SKIP LOCKED 认领 + 心跳租约 + stalled 回收）
+    "procrastinate[django]==3.11.0",
+    # 会话贴回卡片：员工 markdown 产出（含表格）转评论 HTML
+    "markdown==3.8",
+    # 附件解析（文档类定向轻量库）
+    "pypdf==7.0.1",
+    "python-docx==1.2.0",
+    "python-pptx==1.0.2",
+    "olefile==0.47",
+    # 文档解析单一权威源（编排域注入与 doc-mcp 共用；本地路径包）
+    "document-parsing",
 ]
 
 [dependency-groups]
@@ -122,3 +134,6 @@ required-version = "==0.12.21"
 package = false
 # A plain `uv sync` sets up everything needed to develop and run the tests.
 default-groups = ["dev", "test"]
+
+[tool.uv.sources]
+document-parsing = { path = "../../packages/document-parsing", editable = true }
