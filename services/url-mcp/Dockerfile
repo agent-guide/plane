@@ -3,8 +3,10 @@
 #   podman build -f services/url-mcp/Dockerfile -t plane-url-mcp:vN .
 FROM node:20-alpine AS build
 WORKDIR /src
+# npm 走国内镜像源（境外 registry 在构建网络下不稳）
 COPY package.json package-lock.json* ./
-RUN npm ci --silent || npm install --silent
+RUN npm config set registry https://registry.npmmirror.com \
+    && (npm ci --silent || npm install --silent)
 COPY . .
 RUN npm run build
 
