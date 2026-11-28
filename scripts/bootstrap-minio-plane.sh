@@ -14,7 +14,7 @@ ALIAS="${MC_ALIAS:-local}"
 
 # ── 资源清单（纯声明：应存在什么。改资源只动这里，执行器零改动）──────
 MANIFEST_USER="plane"                                  # Plane api 的 S3 账号（AK）
-MANIFEST_BUCKET="uploads"                              # Plane env AWS_S3_BUCKET_NAME 同名
+MANIFEST_BUCKET="plane-uploads"                              # Plane env AWS_S3_BUCKET_NAME 同名
 MANIFEST_POLICY="plane-uploads-only"                   # 策略名（内部标签，无外部引用）
 # 策略内容：仅本桶全动作（对齐代码实证——settings/storage.py 等全部消费点
 # 只用 AWS_S3_BUCKET_NAME 单桶，读写删/预签名全有 → s3:*；不给任何 admin 权限）
