@@ -141,6 +141,17 @@ for f in "$QUADLET_SRC"/*.container; do
   name="$(basename "$f")"
   sed "s/:v1$/:$COMMIT/" "$f" > "$QUADLET_DST/$name"
 done
+# 目录镜像：仓库已删除的 quadlet 在服务器同步停用+清理（防残留单元复活——
+# 11-28 airflow-worker 实证：仓库删了服务器还在，崩溃循环单元永生）
+for _dst in "$QUADLET_DST"/*.container; do
+  [ -e "$_dst" ] || continue
+  _name="$(basename "$_dst")"
+  [ -f "$QUADLET_SRC/$_name" ] || {
+    systemctl --user disable --now "${_name%.container}.service" >/dev/null 2>&1 || true
+    rm -f "$_dst"
+    ok "已清理仓库移除的单元：$_name"
+  }
+done
 ok "quadlet ×$(ls "$QUADLET_SRC" | wc -l | tr -d ' ') 已就位（镜像 tag=$COMMIT）"
 systemctl --user daemon-reload
 
