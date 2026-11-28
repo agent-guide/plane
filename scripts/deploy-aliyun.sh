@@ -33,15 +33,25 @@ COMMIT="$(git rev-parse --short HEAD)"
 echo "$COMMIT" > "$REPO_DIR/DEPLOYED"
 ok "部署版本 $COMMIT（DEPLOYED 已留档）"
 
-# ── [2] 前置校验（fail-closed：缺什么立刻停，不带病部署）────────────
-step 2 "前置校验"
-[ -f "$ENV_DIR/api.env" ] || fail "缺 $ENV_DIR/api.env（先拷 scripts/env/aliyun-api.env.example 并填好）"
+# ── [2] 前置初始化与校验（fail-closed：缺什么立刻停，不带病部署）────
+step 2 "前置初始化与校验"
+# env 文件：缺失则从模板落地（已存在不动——外置资产不随部署覆盖）
+if [ ! -f "$ENV_DIR/api.env" ]; then
+  mkdir -p "$ENV_DIR"
+  cp "$REPO_DIR/scripts/env/aliyun-api.env.example" "$ENV_DIR/api.env"
+  ok "env 已从模板落地（$ENV_DIR/api.env）"
+fi
+# minio Plane 侧资源：幂等引导（桶/账号/策略——已建自动跳过）
+bash "$REPO_DIR/scripts/bootstrap-minio-plane.sh" || fail "minio 资源初始化失败"
+# secret：缺哪些列出来（交互类不自动补——人工凭据必须人输，见 bootstrap 脚本）
+_MISSING_S=""
 for s in plane-pg-pass plane-minio-secret plane-secret-key plane-live-secret \
          plane-internal-token plane-tenant-token plane-airflow-db-pass \
          plane-airflow-user plane-airflow-pass; do
-  podman secret inspect "$s" >/dev/null 2>&1 || fail "缺 secret $s（先跑 scripts/bootstrap-plane-secrets.sh）"
+  podman secret inspect "$s" >/dev/null 2>&1 || _MISSING_S="$_MISSING_S $s"
 done
-ok "env + 9 枚 secret 齐备"
+[ -z "$_MISSING_S" ] || fail "缺 secret：$_MISSING_S（跑 scripts/bootstrap-plane-secrets.sh 交互输入，已建自动跳过）"
+ok "env + minio 资源 + 9 枚 secret 齐备"
 
 # ── [3] 构建五镜像（tag=commit，版本可追溯）─────────────────────────
 step 3 "构建镜像（tag=$COMMIT）"
