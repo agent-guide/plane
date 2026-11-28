@@ -17,8 +17,9 @@ RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debia
 WORKDIR /repo/services/doc-mcp
 COPY packages/document-parsing /repo/packages/document-parsing
 COPY services/doc-mcp/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir --only-binary :all: Pillow==12.2.0 || true \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
+      --only-binary :all: Pillow==12.2.0 || true \
+    && pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
 
 COPY services/doc-mcp /repo/services/doc-mcp
 ENV PORT=8625
