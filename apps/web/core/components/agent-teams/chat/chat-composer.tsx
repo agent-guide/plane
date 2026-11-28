@@ -9,8 +9,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "@plane/i18n";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Button } from "@plane/propel/button";
+import { TOAST_TYPE, setToast } from "@/plane-compat/toast";
+import { Button } from "@/core/ui-compat/button";
 import { Paperclip, Send } from "lucide-react";
 
 import { AttachmentInput, type AttachmentFile } from "@/components/attachments/attachment-input";

@@ -21,9 +21,9 @@ import { createPortal } from "react-dom";
 // i18n
 import { useTranslation } from "@plane/i18n";
 // plane imports
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Button } from "@plane/propel/button";
-import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
+import { TOAST_TYPE, setToast } from "@/plane-compat/toast";
+import { Button } from "@/core/ui-compat/button";
+import { EModalPosition, EModalWidth, ModalCore } from "@/core/ui-compat";
 import { cn } from "@plane/utils";
 // icons
 import { Check, Copy, Download, FileBox, RefreshCw, X } from "lucide-react";

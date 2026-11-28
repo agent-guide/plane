@@ -7,7 +7,7 @@
  * 日历/甘特）的统一识别与本地化提示；文案复用既有 unbound 键。
  */
 import { translate } from "@plane/i18n";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import { TOAST_TYPE, setToast } from "@/plane-compat/toast";
 
 export function isProjectNotBoundError(error: unknown): boolean {
   const err = error as { response?: { data?: { code?: string } }; message?: string };

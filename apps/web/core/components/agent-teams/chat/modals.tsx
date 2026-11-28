@@ -12,8 +12,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Combobox } from "@headlessui/react";
 import { useTranslation } from "@plane/i18n";
-import { EModalWidth, Loader, ModalCore } from "@plane/ui";
-import { SearchIcon } from "@plane/propel/icons";
+import { EModalWidth, Loader, ModalCore } from "@/core/ui-compat";
+import { SearchIcon } from "@/plane-compat/icons";
 import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
 
 import { listTeamShareableIssues, type ShareableIssue } from "@/services/agent-teams/orchestration.service";

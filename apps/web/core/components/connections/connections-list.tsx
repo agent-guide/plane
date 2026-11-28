@@ -11,8 +11,8 @@ import { observer } from "mobx-react";
 import useSWR from "swr";
 import { useTranslation } from "@plane/i18n";
 import { CircleDot, MoreHorizontal, Pencil, Plug, RefreshCw, Trash2 } from "lucide-react";
-import { CustomMenu, EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
-import { Button } from "@plane/propel/button";
+import { CustomMenu, EModalPosition, EModalWidth, ModalCore } from "@/core/ui-compat";
+import { Button } from "@/core/ui-compat/button";
 import {
   connectionsService,
   type ExternalConnection,

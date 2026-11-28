@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "@plane/i18n";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import { TOAST_TYPE, setToast } from "@/plane-compat/toast";
 
 import { ChatComposer, type PendingAttachment } from "./chat-composer";
 import { MessageBubble, StreamingBubble } from "./message-bubble";

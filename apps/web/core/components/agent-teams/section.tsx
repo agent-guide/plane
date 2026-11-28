@@ -8,8 +8,8 @@
  * into its own component so both stay visually identical by construction.
  */
 import type React from "react";
-import { EmptyStateCompact } from "@plane/propel/empty-state";
-import type { CompactAssetType } from "@plane/propel/empty-state";
+import { EmptyStateCompact } from "@/plane-compat/empty-state";
+import type { CompactAssetType } from "@/plane-compat/empty-state";
 
 /** Quiet section label — the content below is the protagonist. */
 export function Section({

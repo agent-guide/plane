@@ -10,8 +10,8 @@
 import { useState } from "react";
 import { observer } from "mobx-react";
 import { useTranslation } from "@plane/i18n";
-import { Button } from "@plane/propel/button";
-import { EModalPosition, EModalWidth, Input, ModalCore } from "@plane/ui";
+import { Button } from "@/core/ui-compat/button";
+import { EModalPosition, EModalWidth, Input, ModalCore } from "@/core/ui-compat";
 import { connectionsService, type TConnectionType } from "@/services/agent-teams/connections.service";
 
 type TForm = {

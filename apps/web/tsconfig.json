@@ -2,10 +2,9 @@
   "compilerOptions": {
     "rootDirs": [".", "./.react-router/types"],
     "paths": {
-      "@/*": ["./core/*"],
-      "@/app/*": ["./app/*"],
-      "@/helpers/*": ["./helpers/*"],
-      "@/styles/*": ["./styles/*"],
+      // 双树兼容：上游 v1.5 把 core/* 平移到根；我们的扩展代码仍在 core/ 下，
+      // 解析顺序先根（上游新实现优先）后 core（我们的扩展与魔改）。
+      "@/*": ["./*", "./core/*"],
       "package.json": ["./package.json"]
     },
     "strictNullChecks": true,

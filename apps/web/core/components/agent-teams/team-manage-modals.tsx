@@ -9,9 +9,9 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "@plane/i18n";
-import { Button as PropelButton } from "@plane/propel/button";
-import { EModalPosition, EModalWidth, Input, ModalCore, TextArea } from "@plane/ui";
-import { CustomSelect } from "@plane/ui";
+import { Button as PropelButton } from "@/core/ui-compat/button";
+import { EModalPosition, EModalWidth, Input, ModalCore, TextArea } from "@/core/ui-compat";
+import { CustomSelect } from "@/core/ui-compat";
 // services
 // 数据源切换（阶段 2′）：加成员候选改走编排域（agent=agwmngr 目录代理、
 // human=Plane 工作区成员），不再依赖 experts-backend 专家/租户目录

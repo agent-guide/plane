@@ -10,8 +10,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import { useRouter } from "next/navigation";
 // plane imports
-import { Button } from "@plane/propel/button";
-import { EmptyStateDetailed, type ActionButton } from "@plane/propel/empty-state";
+import { Button } from "@/core/ui-compat/button";
+import { EmptyStateDetailed, type ActionButton } from "@/plane-compat/empty-state";
 import { useTranslation } from "@plane/i18n";
 import {
   Breadcrumbs,
@@ -22,7 +22,7 @@ import {
   Input,
   ModalCore,
   TextArea,
-} from "@plane/ui";
+} from "@/core/ui-compat";
 // icons
 import { Bot, ChevronRight, ListTodo, Search, User, Users } from "lucide-react";
 // components

@@ -14,8 +14,8 @@
  */
 import type { ReactNode } from "react";
 import { useTranslation } from "@plane/i18n";
-import { Button } from "@plane/propel/button";
-import { TextArea } from "@plane/ui";
+import { Button } from "@/core/ui-compat/button";
+import { TextArea } from "@/core/ui-compat";
 
 export interface ApprovalAnswerPayload {
   freeText: boolean;

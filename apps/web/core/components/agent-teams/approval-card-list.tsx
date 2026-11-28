@@ -14,7 +14,7 @@ import { observer } from "mobx-react";
 // i18n
 import { useTranslation } from "@plane/i18n";
 // plane imports
-import { Row } from "@plane/ui";
+import { Row } from "@/core/ui-compat";
 import { cn, renderFormattedDate, renderFormattedTime } from "@plane/utils";
 // icons
 import { Bot } from "lucide-react";

@@ -8,7 +8,7 @@
  */
 import { useCallback, useState } from "react";
 import { useTranslation } from "@plane/i18n";
-import { Button } from "@plane/propel/button";
+import { Button } from "@/core/ui-compat/button";
 import { MessageSquarePlus } from "lucide-react";
 
 import { MarkdownPreview } from "@/components/agent-teams/markdown-preview";

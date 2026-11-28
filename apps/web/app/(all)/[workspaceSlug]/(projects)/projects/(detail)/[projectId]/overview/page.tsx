@@ -18,15 +18,15 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 // plane imports
 import { useTranslation } from "@plane/i18n";
-import { setToast, TOAST_TYPE } from "@plane/propel/toast";
+import { setToast, TOAST_TYPE } from "@/plane-compat/toast";
 import { EIconSize } from "@plane/constants";
-import { StateGroupIcon } from "@plane/propel/icons";
+import { StateGroupIcon } from "@plane/blocks/icons";
 import type { TStateGroups } from "@plane/types";
 import { controlStateLabel } from "@/services/agent-teams/state-view";
 import { EIssuesStoreType } from "@plane/types";
-import { ContentWrapper, ERowVariant, Table } from "@plane/ui";
-import type { TTableColumn } from "@plane/ui";
-import { Logo } from "@plane/propel/emoji-icon-picker";
+import { ContentWrapper, ERowVariant, Table } from "@/core/ui-compat";
+import type { TTableColumn } from "@/core/ui-compat";
+import { Logo } from "@/plane-compat/emoji-icon-picker";
 import { Lock, Plus, RefreshCw, Workflow } from "lucide-react";
 // components
 import { EmptyRow, Section } from "@/components/agent-teams/section";
