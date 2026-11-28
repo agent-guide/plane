@@ -1,0 +1,18 @@
+# plane worker（Procrastinate 消费，全局单实例）——同 api 镜像不同命令
+[Container]
+Image=localhost/plane-api:v1
+ContainerName=plane-worker
+Network=agw-net
+EnvironmentFile=/opt/plane/env/api.env
+Exec=python procrastinate_worker.py
+Secret=plane-pg-pass,type=env,target=POSTGRES_PASSWORD
+Secret=plane-minio-secret,type=env,target=AWS_SECRET_ACCESS_KEY
+Secret=plane-secret-key,type=env,target=SECRET_KEY
+Secret=plane-live-secret,type=env,target=LIVE_SERVER_SECRET_KEY
+Secret=plane-internal-token,type=env,target=ORCHESTRATION_INTERNAL_TOKEN
+Secret=plane-tenant-token,type=env,target=AGWMNGR_TENANT_TOKEN
+
+[Service]
+Restart=always
+# 单实例纪律：失败重启走退避，绝不并发孵化
+RestartSec=10

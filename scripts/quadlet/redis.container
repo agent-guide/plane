@@ -1,0 +1,8 @@
+# redis（Plane 实时消息+缓存）——仅容器网，不映射宿主机
+[Container]
+Image=docker.io/library/redis:7-alpine
+ContainerName=plane-redis
+Network=agw-net
+
+[Service]
+Restart=always

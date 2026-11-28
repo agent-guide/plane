@@ -1,0 +1,16 @@
+# airflow scheduler（调度进程——测试服实证独立进程，含 dag-processor 职责）
+[Container]
+Image=docker.io/apache/airflow:3.3.2-python3.11
+ContainerName=airflow-scheduler
+Network=agw-net
+User=root
+Environment=AIRFLOW__CORE__EXECUTOR=LocalExecutor
+Environment=AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+Environment=AIRFLOW__CORE__LOAD_EXAMPLES=False
+Environment=AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD=python -c "import os;print('postgresql+psycopg://airflow:'+open('/run/secrets/plane-airflow-db-pass').read().strip()+'@pg:5432/airflow')"
+Volume=/opt/plane/airflow-dags:/opt/airflow/dags:Z
+Exec=airflow scheduler
+Secret=plane-airflow-db-pass
+
+[Service]
+Restart=always

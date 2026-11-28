@@ -119,6 +119,10 @@ scripts/*
 !scripts/bootstrap-doc-parser.sh
 !scripts/bootstrap-platform-tools.sh
 !scripts/bind-platform-tools.sh
+!scripts/bootstrap-minio-plane.sh
+!scripts/bootstrap-plane-secrets.sh
+!scripts/deploy-aliyun.sh
+!scripts/quadlet/
 !scripts/env/
 !scripts/local/
 !scripts/systemd/

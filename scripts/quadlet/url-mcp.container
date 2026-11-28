@@ -1,0 +1,9 @@
+# url-mcp（链接读取 MCP，:8624）
+[Container]
+Image=localhost/plane-url-mcp:v1
+ContainerName=url-mcp
+Network=agw-net
+PublishPort=127.0.0.1:8624:8624
+
+[Service]
+Restart=always

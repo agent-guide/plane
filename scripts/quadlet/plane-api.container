@@ -1,0 +1,18 @@
+# plane api（Django runserver :8000 → 本机 18101）—— quadlet 声明式容器定义
+# 设计 docs/v2/aliyun-plane-stack-deploy-plan.md §四/§五
+[Container]
+Image=localhost/plane-api:v1
+ContainerName=plane-api
+Network=agw-net
+PublishPort=127.0.0.1:18101:8000
+EnvironmentFile=/opt/plane/env/api.env
+# 凭据以环境变量注入（podman secret，type=env——应用代码零改动）
+Secret=plane-pg-pass,type=env,target=POSTGRES_PASSWORD
+Secret=plane-minio-secret,type=env,target=AWS_SECRET_ACCESS_KEY
+Secret=plane-secret-key,type=env,target=SECRET_KEY
+Secret=plane-live-secret,type=env,target=LIVE_SERVER_SECRET_KEY
+Secret=plane-internal-token,type=env,target=ORCHESTRATION_INTERNAL_TOKEN
+Secret=plane-tenant-token,type=env,target=AGWMNGR_TENANT_TOKEN
+
+[Service]
+Restart=always

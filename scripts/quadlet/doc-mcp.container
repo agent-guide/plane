@@ -1,0 +1,9 @@
+# doc-mcp（文档解析 MCP，:8625）
+[Container]
+Image=localhost/plane-doc-mcp:v1
+ContainerName=doc-mcp
+Network=agw-net
+PublishPort=127.0.0.1:8625:8625
+
+[Service]
+Restart=always

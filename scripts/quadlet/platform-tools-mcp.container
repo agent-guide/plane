@@ -1,0 +1,10 @@
+# platform-tools-mcp（平台内置工具链——连 plane api 内部 token）
+[Container]
+Image=localhost/plane-platform-tools:v1
+ContainerName=platform-tools-mcp
+Network=agw-net
+Environment=PLANE_INTERNAL_BASE=http://plane-api:8000
+Secret=plane-internal-token,type=env,target=ORCHESTRATION_INTERNAL_TOKEN
+
+[Service]
+Restart=always

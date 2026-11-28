@@ -1,0 +1,9 @@
+# plane web（nginx 静态 SPA + 同源反代）——公网唯一入口 19100
+[Container]
+Image=localhost/plane-web:v1
+ContainerName=plane-web
+Network=agw-net
+PublishPort=19100:80
+
+[Service]
+Restart=always
