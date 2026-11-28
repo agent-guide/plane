@@ -20,6 +20,10 @@ QUADLET_DST="${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd"
 DAG_DIR="/opt/plane/airflow-dags"
 
 ok()   { echo "  ✔ $1"; }
+# su/login 进入的 shell 可能缺用户总线变量（systemctl --user 依赖）——
+# linger 已启用时 /run/user/<uid>/bus 存在，只是 env 没指过去（11-28 实证）
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
 fail() { echo "  ✘ $1"; exit 1; }
 step() { echo ""; echo "== [${1:-?}] ${2:-} =="; }
 
