@@ -61,6 +61,31 @@ podman pull --quiet docker.io/apache/airflow:3.3.2-python3.11 >/dev/null 2>&1 ||
 podman pull --quiet docker.io/library/redis:7-alpine >/dev/null 2>&1 || true
 ok "五自建镜像 + 两官方镜像就绪"
 
+# ── [3.5] 数据安全：迁移前快照 + 两个幂等迁移（失败即止）────────────
+step "3.5" "数据迁移（先备份）"
+BACKUP_DIR="/opt/plane/backups"
+mkdir -p "$BACKUP_DIR"
+STAMP="$(date +%Y%m%d-%H%M%S)-$COMMIT"
+# plane 库快照（保留最近 10 份；迁移失败可由此回滚）
+podman exec pg pg_dump -U plane plane > "$BACKUP_DIR/plane-$STAMP.sql"   || fail "pg_dump 失败——不带备份不做迁移"
+ls -t "$BACKUP_DIR"/plane-*.sql | tail -n +11 | xargs -r rm -f
+ok "plane 库已快照（plane-$STAMP.sql，保留最近 10 份）"
+# Django 结构迁移（幂等：无变更 no-op；失败即止）
+podman run --rm --network agw-net \
+  -v "$ENV_DIR/api.env:/app/apps/api/.env:ro,Z" \
+  --secret plane-pg-pass,type=env,target=POSTGRES_PASSWORD \
+  --secret plane-secret-key,type=env,target=SECRET_KEY \
+  "localhost/plane-api:$COMMIT" python manage.py migrate \
+  || fail "Django migrate 失败（可从 $BACKUP_DIR 快照回滚）"
+ok "Django migrate 完成"
+# Airflow 元数据迁移（首次初始化 + 升级同一条命令）
+podman run --rm --network agw-net \
+  -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD="python -c \"import os;print('postgresql+psycopg://airflow:'+open('/run/secrets/plane-airflow-db-pass').read().strip()+'@pg:5432/airflow')\"" \
+  --secret plane-airflow-db-pass \
+  --entrypoint airflow docker.io/apache/airflow:3.3.2-python3.11 db migrate \
+  || fail "airflow db migrate 失败"
+ok "airflow db migrate 完成"
+
 # ── [4] quadlet 就位 + 按依赖顺序启动 ───────────────────────────────
 step 4 "容器就位与启动"
 mkdir -p "$QUADLET_DST" "$DAG_DIR"
