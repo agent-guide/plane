@@ -5,7 +5,7 @@
 FROM python:3.12-slim AS runtime
 
 # uv：锁定依赖安装（pyproject + uv.lock 可复现构建）
-COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /usr/local/bin/uv
 
 WORKDIR /app
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
