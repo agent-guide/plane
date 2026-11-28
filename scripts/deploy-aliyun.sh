@@ -103,7 +103,7 @@ unset AFPASS
 ok "airflow 库+账号就绪"
 # Airflow 元数据迁移（首次初始化 + 升级同一条命令）
 podman run --rm --network agw-net \
-  -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD="python -c \"import os;print('postgresql+psycopg://airflow:'+open('/run/secrets/plane-airflow-db-pass').read().strip()+'@pg:5432/airflow')\"" \
+  -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD="python -c \"import sys;sys.stdout.write('postgresql+psycopg://airflow:'+open('/run/secrets/plane-airflow-db-pass').read().strip()+'@pg:5432/airflow')\"" \
   --secret plane-airflow-db-pass \
   --entrypoint airflow docker.io/apache/airflow:3.3.2-python3.11 db migrate \
   || fail "airflow db migrate 失败"

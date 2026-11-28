@@ -7,7 +7,7 @@ User=root
 Environment=AIRFLOW__CORE__EXECUTOR=LocalExecutor
 Environment=AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
 Environment=AIRFLOW__CORE__LOAD_EXAMPLES=False
-Environment=AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD=python -c "import os;print('postgresql+psycopg://airflow:'+open('/run/secrets/plane-airflow-db-pass').read().strip()+'@pg:5432/airflow')"
+Environment=AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD=python -c "import sys;sys.stdout.write('postgresql+psycopg://airflow:'+open('/run/secrets/plane-airflow-db-pass').read().strip()+'@pg:5432/airflow')"
 Volume=/opt/plane/airflow-dags:/opt/airflow/dags:Z
 Exec=airflow task
 Secret=plane-airflow-db-pass
