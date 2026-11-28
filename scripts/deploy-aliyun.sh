@@ -90,7 +90,10 @@ podman run --rm --network agw-net \
   || fail "Django migrate 失败（可从 $BACKUP_DIR 快照回滚）"
 ok "Django migrate 完成"
 # Airflow 前置：pg 建 airflow 库+账号（幂等；密码=secret plane-airflow-db-pass）
-AFPASS="$(podman secret inspect plane-airflow-db-pass --format '{{.SecretData}}' | base64 -d)"
+# 读 secret 的可靠姿势：借一次性容器 cat 文件（inspect --format SecretData
+# 在部分 podman 版本返回空——2026-11-28 实证建出过空密码账号）
+AFPASS="$(podman run --rm --secret plane-airflow-db-pass,type=mount docker.io/library/alpine cat /run/secrets/plane-airflow-db-pass)"
+[ -n "$AFPASS" ] || fail "plane-airflow-db-pass 读取为空"
 podman exec pg psql -U postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='airflow') THEN CREATE ROLE airflow LOGIN PASSWORD '${AFPASS}'; ELSE ALTER ROLE airflow PASSWORD '${AFPASS}'; END IF; END \$\$;" \
   || fail "airflow 账号创建失败"
 podman exec pg psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='airflow'" | grep -q 1 \
