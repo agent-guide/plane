@@ -7,8 +7,10 @@
 #   podman build -f services/doc-mcp/Dockerfile -t plane-doc-mcp:vN .
 FROM python:3.12-slim
 
-# libreoffice（headless）：doc/ppt 高质量解析引擎（deploy-v2.sh §doc-mcp 同款依赖）
-RUN apt-get update \
+# libreoffice（headless）：doc/ppt 高质量解析引擎（deploy-v2.sh §doc-mcp 同款依赖）。
+# apt 换国内源（deb.debian.org 国际链路龟速——与 docker.io/PyPI/npm 同病，2026-11-28）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y --no-install-recommends libreoffice-writer libreoffice-impress \
     && rm -rf /var/lib/apt/lists/*
 
