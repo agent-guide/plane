@@ -4,8 +4,11 @@
 #   podman build -f apps/api/Dockerfile -t plane-api:vN .
 FROM python:3.12-slim AS runtime
 
-# uv：锁定依赖安装（pyproject + uv.lock 可复现构建）
-COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /usr/local/bin/uv
+# uv：锁定依赖安装（pyproject + uv.lock 可复现构建）。
+# 从 PyPI 装而非 ghcr.io——境外镜像仓国内拉取不稳，PyPI 走国内源稳；
+# 版本由 pyproject required-version 钉死（0.12.21）
+ARG PYPI_MIRROR=https://mirrors.aliyun.com/pypi/simple/
+RUN pip install --no-cache-dir -i "$PYPI_MIRROR" uv==0.12.21
 
 WORKDIR /app
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
@@ -17,11 +20,11 @@ ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
 # （deploy-v2.sh L111 实证坑：解析包未就位 → 依赖安装必失败）
 COPY packages/document-parsing /app/packages/document-parsing
 COPY apps/api/pyproject.toml apps/api/uv.lock /app/apps/api/
-RUN cd /app/apps/api && uv sync --frozen --no-install-project --no-dev
+RUN cd /app/apps/api && UV_DEFAULT_INDEX="$PYPI_MIRROR" uv sync --frozen --no-install-project --no-dev
 
 # 应用代码层
 COPY apps/api /app/apps/api
-RUN cd /app/apps/api && uv sync --frozen --no-install-project --no-dev
+RUN cd /app/apps/api && UV_DEFAULT_INDEX="$PYPI_MIRROR" uv sync --frozen --no-install-project --no-dev
 
 WORKDIR /app/apps/api
 ENV PATH="/app/apps/api/.venv/bin:$PATH"
