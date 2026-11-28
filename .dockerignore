@@ -67,3 +67,7 @@ temp/
 build/
 node_modules/
 README.md
+
+# MCP 构建产物需进构建上下文（镜像纯拷贝模式，2026-11-28）
+!services/url-mcp/dist/
+!services/platform-tools-mcp/dist/
