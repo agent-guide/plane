@@ -25,6 +25,7 @@ RUN cd apps/web && \
     VITE_API_BASE_URL="" \
     VITE_WEB_BASE_URL="$PUBLIC_BASE_URL" \
     VITE_ADMIN_BASE_URL="$PUBLIC_BASE_URL" \
+    VITE_ADMIN_BASE_PATH=/god-mode \
     VITE_SPACE_BASE_URL="$PUBLIC_BASE_URL" \
     VITE_LIVE_BASE_URL="$PUBLIC_BASE_URL" \
     VITE_RUNTIME_CONSOLE_BASE_URL="" \
@@ -35,8 +36,15 @@ RUN if grep -rl "localhost:8001" apps/web/build/client/assets/*.js; then \
         echo "FAIL: 前端产物残留 localhost:8001 直连地址"; exit 1; \
     fi
 
+# god-mode（apps/admin 实例管理端）：同仓独立 app，构建后以 /god-mode/ 子路径
+# 并入 web 容器（对齐测试服 nginx 静态子路径形态）——首启 Get started 引导目的地
+RUN cd apps/admin \
+    && VITE_ADMIN_BASE_PATH=/god-mode \
+       npx react-router build
+
 # ── 运行时：nginx 静态托管 + 同源反代 ──────────────────────────────
 FROM nginx:1.27-alpine
 COPY apps/web/nginx.container.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/web/build/client /usr/share/nginx/html
+COPY --from=build /repo/apps/admin/build/client /usr/share/nginx/html/god-mode
 EXPOSE 80
