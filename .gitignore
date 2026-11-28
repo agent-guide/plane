@@ -121,6 +121,7 @@ scripts/*
 !scripts/bind-platform-tools.sh
 !scripts/bootstrap-minio-plane.sh
 !scripts/bootstrap-plane-secrets.sh
+!scripts/bootstrap-agwmngr-tenant.sh
 !scripts/deploy-aliyun.sh
 !scripts/quadlet/
 !scripts/env/
