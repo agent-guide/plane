@@ -138,3 +138,4 @@ packages/i18n/src/types/keys.generated.ts
 PRODUCT.md
 DESIGN.md
 .impeccable/
+# impeccable 设计契约文件（公开仓防误提交——设计文档只在本地/私有仓）

@@ -1,5 +1,6 @@
 @import "@plane/tailwind-config/index.css";
 @import "@plane/editor/styles";
+@import "./theme-uikit.css";
 @import "./power-k.css";
 @import "./emoji.css";
 @plugin "@tailwindcss/typography";

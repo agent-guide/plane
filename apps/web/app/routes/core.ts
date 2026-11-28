@@ -406,4 +406,7 @@ export const coreRoutes: RouteConfigEntry[] = [
 
   // Account settings redirects
   route(":workspaceSlug/settings/account/*", "routes/redirects/core/workspace-account-settings.tsx"),
-] satisfies RouteConfig;
+
+  // Design System Specimen（dev 验收面，无鉴权壳）
+  route("design-system", "./routes/(all)/design-system/page.tsx"),
+] satisfies RouteConfig

@@ -18,9 +18,12 @@ export type TButtonVariant =
   | "link-neutral"
   | "secondary"
   | "error-fill"
-  | "error-outline";
+  | "error-outline"
+  | "tertiary"
+  | "ghost"
+  | "link";
 
-export type TButtonSizes = "sm" | "md" | "lg" | "xl";
+export type TButtonSizes = "sm" | "md" | "base" | "lg" | "xl";
 
 export interface IButtonStyling {
   [key: string]: {
@@ -33,12 +36,14 @@ export interface IButtonStyling {
 
 enum buttonSizeStyling {
   sm = `px-3 py-1.5 font-medium text-11 rounded-sm flex items-center gap-1.5 whitespace-nowrap transition-all justify-center`,
+  base = `px-4 py-2 font-medium text-13 rounded-sm flex items-center gap-1.5 whitespace-nowrap transition-all justify-center`,
   md = `px-4 py-1.5 font-medium text-13 rounded-sm flex items-center gap-1.5 whitespace-nowrap transition-all justify-center`,
   lg = `px-5 py-2 font-medium text-13 rounded-sm flex items-center gap-1.5 whitespace-nowrap transition-all justify-center`,
   xl = `px-5 py-3.5 font-medium text-13 rounded-sm flex items-center gap-1.5 whitespace-nowrap transition-all justify-center`,
 }
 
 enum buttonIconStyling {
+  base = "h-3.5 w-3.5 flex justify-center items-center overflow-hidden my-0.5 flex-shrink-0",
   sm = "h-3 w-3 flex justify-center items-center overflow-hidden my-0.5 flex-shrink-0",
   md = "h-3.5 w-3.5 flex justify-center items-center overflow-hidden my-0.5 flex-shrink-0",
   lg = "h-4 w-4 flex justify-center items-center overflow-hidden my-0.5 flex-shrink-0",
@@ -129,6 +134,25 @@ export const buttonStyling: IButtonStyling = {
     hover: `hover:bg-red-50 hover:border-danger-subtle`,
     pressed: `focus:text-danger-primary`,
     disabled: `cursor-not-allowed !bg-layer-1 !text-placeholder`,
+  },
+  /* —— ui-refresh 品类变体（2026-11-24 定案，2026-11-28 随主题层迁移补入）—— */
+  tertiary: {
+    default: `text-secondary bg-layer-2`,
+    hover: `hover:bg-layer-3`,
+    pressed: `focus:text-primary focus:bg-layer-3`,
+    disabled: `cursor-not-allowed !bg-layer-1 !text-placeholder`,
+  },
+  ghost: {
+    default: `text-secondary bg-transparent`,
+    hover: `hover:bg-layer-1`,
+    pressed: `focus:text-primary focus:bg-layer-1`,
+    disabled: `cursor-not-allowed !text-placeholder`,
+  },
+  link: {
+    default: `text-accent-primary bg-transparent underline-offset-4 hover:underline px-0`,
+    hover: `hover:text-accent-secondary`,
+    pressed: `focus:text-accent-secondary`,
+    disabled: `cursor-not-allowed !text-placeholder`,
   },
 };
 

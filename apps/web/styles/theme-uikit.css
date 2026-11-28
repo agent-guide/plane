@@ -1,0 +1,170 @@
+/**
+ * Copyright © 2026 agent-guide contributors.
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * 品类标准主题（视觉方向 2026-11-22 定案，唯一主题层）。
+ * 2026-11-28 迁移到上游 v1.5.1 基线：token 词表与 @makeplane/propel 同源
+ * （--txt-*/--bg-*/--border-*/--shadow-* 名全部健在），token 块原值沿用；
+ * 旧基线的元素补丁（侧边栏 .bg-layer-transparent-active 行、.text-13）依赖
+ * 旧组件 DOM，新基线组件已由 Propel 重写，暂不迁移——待视觉验收后按新
+ * DOM（ListItem/aria-current）另行适配。CJK 字体栈为本层新增价值点
+ * （propel 基线只有 Inter + system-ui，无显式中文回退）。
+ *
+ * 工艺底线：Linear + Height/Todoist 高档；对齐参考 ByeWind Dashboard UI-Kit。
+ * 对齐点：冷灰画布 / 文字 #1C1C1C + 40% 黑 / 黑色 CTA / 激活图标黑白反色 /
+ * 状态色马卡龙系 / 圆角 8-12px / 菜单 36px·r12。
+ *
+ * 暗色安全：token 补丁全部限定明色作用域——[data-theme*=light] 或无
+ * data-theme（SSR 首帧）。
+ */
+
+@layer base {
+  html[data-theme*="light"],
+  html[data-theme*="light"] :host,
+  html:not([data-theme]),
+  html:not([data-theme]) :host {
+    /* ==================== 基础色板（冷灰，黑主色） ==================== */
+    --neutral-white: oklch(1 0 0);
+    --neutral-100: oklch(0.985);
+    --neutral-200: oklch(0.975);            /* 画布（白画布口径，11-22 定） */
+    --neutral-300: oklch(0.96);
+    --neutral-400: oklch(0.94);
+    --neutral-500: oklch(0.92);
+    --neutral-600: oklch(0.90);
+    --neutral-700: oklch(0.87);
+    --neutral-800: oklch(0.62);
+    --neutral-900: oklch(0.55);             /* ≈ 40% 黑档 */
+    --neutral-1000: oklch(0.45);
+    --neutral-1100: oklch(0.35);
+    --neutral-1200: oklch(0.16);            /* 1c1c1c 正文 */
+    --neutral-black: oklch(0 0 0);
+
+    /* ==================== 画布 & 表面 ==================== */
+    --bg-canvas: var(--neutral-200);
+    --bg-surface-1: var(--neutral-white);
+    --bg-surface-2: var(--neutral-100);
+    --bg-surface-3: var(--neutral-300);
+
+    /* ==================== 层叠（rgba 黑阶梯） ==================== */
+    --bg-layer-1: rgb(0 0 0 / 3%);
+    --bg-layer-2: rgb(0 0 0 / 5%);
+    --bg-layer-3: rgb(0 0 0 / 12%);
+    --bg-layer-1-hover: rgb(0 0 0 / 4%);
+    --bg-layer-2-hover: rgb(0 0 0 / 8%);
+    --bg-layer-3-hover: rgb(0 0 0 / 12%);
+    --bg-layer-1-active: rgb(0 0 0 / 8%);
+    --bg-layer-2-active: rgb(0 0 0 / 12%);
+    --bg-layer-3-active: rgb(0 0 0 / 16%);
+
+    /* ============ 激活/选中：无彩底，rgba 黑阶梯（激活靠图标反色表达） ============ */
+    --bg-layer-transparent: rgb(0 0 0 / 0%);
+    --bg-layer-transparent-hover: rgb(0 0 0 / 4%);
+    --bg-layer-transparent-active: rgb(0 0 0 / 8%);
+    --bg-layer-transparent-selected: rgb(0 0 0 / 8%);
+
+    /* ==================== 文字（spec：正文 #1C1C1C / 辅助 40% 黑 / 弱辅助 20% 黑） ==================== */
+    --txt-primary: var(--neutral-1200);
+    /* 锐化灰阶（11-22 第二轮）：糊的根源是全页中间灰——四级拉开且次级
+       加深到 0.42（Linear 档），页面有「黑得坚决」的锚点才显高清 */
+    --txt-secondary: oklch(0.42 0 0);       /* 次级：说明文字、元信息 */
+    --txt-tertiary: oklch(0.58 0 0);        /* 弱级：占位、时间戳 */
+    --txt-placeholder: oklch(0.66 0 0);     /* ≈ rgba(0,0,0,.2) */
+    --txt-disabled: oklch(0.70 0 0);
+
+    /* ==================== 边框 ==================== */
+    --border-subtle: rgb(0 0 0 / 8%);
+    --border-subtle-1: rgb(0 0 0 / 13%);
+    --border-strong: rgb(0 0 0 / 24%);
+    --border-strong-1: rgb(0 0 0 / 30%);
+
+    /* ==================== 主色（黑 CTA） ==================== */
+    --bg-accent-primary: oklch(0.16 0 0);            /* #1C1C1C */
+    --bg-accent-primary-hover: oklch(0.09 0 0);      /* hover 压向墨色（技能包 DNA：86% 主色+14% 墨，11-22 第二次修正：提亮方向对黑底无效） */
+    --bg-accent-primary-active: oklch(0.10 0 0);
+    --bg-accent-subtle: oklch(0.955 0.014 250);      /* #E6F1FD */
+    --bg-accent-subtle-hover: oklch(0.94 0.018 250);
+
+    --txt-accent-primary: oklch(0.45 0.13 255);      /* 链接用深蓝，非黑 */
+    --txt-accent-primary-hover: oklch(0.40 0.13 255);
+    --txt-on-color: oklch(1 0 0);
+
+    --ring-color: rgb(0 0 0 / 25%);
+
+    /* ============ 状态色系 → ByeWind 马卡龙 ============ */
+    /* 蓝（#A0BCE8 系） */
+    --blue-100: oklch(0.955 0.014 250);              /* #E6F1FD 淡蓝底 */
+    --blue-200: oklch(0.90 0.04 250);               /* #CBE0F7 */
+    --blue-700: oklch(0.50 0.11 250);               /* #3373C9 */
+    --blue-800: oklch(0.45 0.12 250);
+    --blue-900: oklch(0.40 0.12 250);
+
+    /* 绿（#71DD8C 系） */
+    --green-100: oklch(0.955 0.045 150);             /* #E3F8E9 */
+    --green-200: oklch(0.92 0.07 150);              /* #C9F2D4 */
+    --green-300: oklch(0.88 0.10 150);
+    --green-700: oklch(0.55 0.13 152);              /* #2E9E52 */
+    --green-800: oklch(0.50 0.13 152);
+    --green-900: oklch(0.45 0.12 152);
+
+    /* 橙/琥珀（暖点缀） */
+    --amber-100: oklch(0.965 0.03 80);               /* #FFF4E0 */
+    --amber-200: oklch(0.94 0.05 80);
+    --amber-600: oklch(0.65 0.13 70);
+    --amber-700: oklch(0.60 0.13 70);
+    --amber-800: oklch(0.55 0.12 70);
+
+    /* 红（危险，收敛饱和度） */
+    --red-100: oklch(0.96 0.02 20);                  /* #FDE8E8 */
+    --red-200: oklch(0.93 0.03 20);
+    --red-400: oklch(0.65 0.17 22);
+    --red-700: oklch(0.55 0.18 22);
+    --red-800: oklch(0.50 0.18 22);
+
+    /* 紫（#B899EB 系） */
+    --purple-100: oklch(0.955 0.025 300);            /* #EDEEFC 淡紫底 */
+    --purple-200: oklch(0.92 0.04 300);
+    --purple-700: oklch(0.55 0.10 300);
+    --purple-800: oklch(0.50 0.10 300);
+
+    /* 青（#33D1FF / #6BE6D3 系） */
+    --cyan-100: oklch(0.96 0.03 215);                /* 淡青底 */
+    --cyan-200: oklch(0.93 0.05 215);
+    --cyan-700: oklch(0.60 0.11 215);
+    --cyan-800: oklch(0.55 0.11 215);
+
+    /* ==================== 阴影（11-22 深度系统重建：多层软景深） ====================
+     * 曾全部清零成平面 = 「糊/没质感」的直接原因。高级感来自景深层次：
+     * 每档都是「贴地细影 + 扩散柔影」双层复合（参考 Kit 的 26px 大软影手法）。
+     * raised：卡片的浮起层次（越高级越浮越高）
+     * overlay：弹层/下拉的环境影 */
+    --shadow-raised-100: 0 1px 2px rgb(0 0 0 / 4%), 0 2px 8px rgb(0 0 0 / 3%);
+    --shadow-raised-200: 0 1px 3px rgb(0 0 0 / 5%), 0 4px 14px rgb(0 0 0 / 5%);
+    --shadow-raised-300: 0 2px 4px rgb(0 0 0 / 6%), 0 8px 22px rgb(0 0 0 / 7%);
+    --shadow-overlay-100: 0 0 0 0.5px rgb(0 0 0 / 8%), 0 4px 16px rgb(0 0 0 / 10%), 0 12px 32px rgb(0 0 0 / 6%);
+    --shadow-overlay-200: 0 0 0 0.5px rgb(0 0 0 / 10%), 0 8px 26px rgb(0 0 0 / 14%), 0 20px 48px rgb(0 0 0 / 8%);
+
+    /* ==================== 字体栈（11-22 字体混排修复） =====================
+     * --font-body 上游定义为 "Inter Variable", ui-sans-serif, system-ui——
+     * Inter 没有 CJK 字形，所有汉字静默回退系统字体（Mac 苹方/Win 雅黑），
+     * 与 Inter 拉丁字形（几何、紧字距）同句混排 = 字形不协调（「糊」的
+     * 元凶之一）。显式声明中文字体，保证跨平台一致且优先级可控。 */
+    --font-body:
+      "Inter Variable", "PingFang SC", "Hiragino Sans GB",
+      "Microsoft YaHei", "Noto Sans SC", ui-sans-serif, system-ui,
+      sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+      "Noto Color Emoji";
+
+    /* ==================== 字重（spec 理论两档；密度型界面保留 medium） ==================== */
+    --font-weight-light: 400;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;   /* ByeWind 无此档，但高密度列表需要它做层级，实测保留 */
+    --font-weight-semibold: 600;
+    --font-weight-bold: 600;
+    --font-weight-heavy: 600;
+
+    /* ============ 菜单行几何（ByeWind 严格规格） ============ */
+    --nav-item-h: 36px;
+    --nav-item-gap: 4px;
+    --nav-item-r: 12px;
+  }
+}
