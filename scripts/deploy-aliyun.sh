@@ -48,11 +48,23 @@ ok "部署版本 $COMMIT（DEPLOYED 已留档）"
 # ── [2] 前置初始化与校验（fail-closed：缺什么立刻停，不带病部署）────
 step 2 "前置初始化与校验"
 # env 文件：缺失则从模板落地（已存在不动——外置资产不随部署覆盖）
-if [ ! -f "$ENV_DIR/api.env" ]; then
-  mkdir -p "$ENV_DIR"
-  cp "$REPO_DIR/scripts/env/aliyun-api.env.example" "$ENV_DIR/api.env"
-  ok "env 已从模板落地（$ENV_DIR/api.env）"
-fi
+for _e in api:aliyun-api.env.example airflow:airflow.env.example; do
+  _name="${_e%%:*}"; _tpl="${_e##*:}"
+  if [ ! -f "$ENV_DIR/$_name.env" ]; then
+    mkdir -p "$ENV_DIR"
+    cp "$REPO_DIR/scripts/env/$_tpl" "$ENV_DIR/$_name.env"
+    ok "env 已从模板落地（$ENV_DIR/$_name.env）"
+  fi
+done
+# airflow SimpleAuthManager 用户文件：从 secret 生成（含密码，600 不进 git/镜像）
+AFU="$(podman run --rm --secret plane-airflow-user,type=mount docker.io/library/alpine cat /run/secrets/plane-airflow-user)"
+AFP="$(podman run --rm --secret plane-airflow-pass,type=mount docker.io/library/alpine cat /run/secrets/plane-airflow-pass)"
+[ -n "$AFU" ] && [ -n "$AFP" ] || fail "airflow 管理凭据 secret 读取为空"
+printf '%s:%s:Admin
+' "$AFU" "$AFP" > /opt/plane/airflow-users.cfg
+chmod 600 /opt/plane/airflow-users.cfg
+unset AFU AFP
+ok "airflow users.cfg 已生成（600）"
 # minio Plane 侧资源：幂等引导（桶/账号/策略——已建自动跳过）
 bash "$REPO_DIR/scripts/bootstrap-minio-plane.sh" || fail "minio 资源初始化失败"
 # secret：缺哪些列出来（交互类不自动补——人工凭据必须人输，见 bootstrap 脚本）

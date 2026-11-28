@@ -8,13 +8,7 @@ Network=agw-net
 PublishPort=127.0.0.1:18090:8080
 User=root
 Exec=airflow api-server
-Environment=AIRFLOW__CORE__EXECUTOR=LocalExecutor
-Environment=AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
-Environment=AIRFLOW__CORE__LOAD_EXAMPLES=False
-Environment=AIRFLOW__AUTH_MANAGER=airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
-# 密码类凭据经 _CMD 从 secret 文件读（Airflow 标准姿势，不落环境变量明文）
-Environment=AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD=python -c "import sys;sys.stdout.write('postgresql+psycopg://airflow:'+open('/run/secrets/plane-airflow-db-pass').read().strip()+'@pg:5432/airflow')"
-Environment=AIRFLOW__AUTH_MANAGER__SIMPLE_AUTH_MANAGER__USERS_CONFIG_FILE=/opt/airflow/simple_auth_manager/users.cfg
+EnvironmentFile=/opt/plane/env/airflow.env
 Volume=/opt/plane/airflow-dags:/opt/airflow/dags:Z
 Volume=/opt/plane/airflow-users.cfg:/opt/airflow/simple_auth_manager/users.cfg:ro,Z
 Secret=plane-airflow-db-pass
