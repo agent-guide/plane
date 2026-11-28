@@ -113,6 +113,18 @@ podman run --rm --network agw-net \
   "localhost/plane-api:$COMMIT" python manage.py migrate \
   || fail "Django migrate 失败（可从 $BACKUP_DIR 快照回滚）"
 ok "Django migrate 完成"
+# 实例注册（幂等）：首个 Instance 行由此创建——官方镜像启动流程自带此步，
+# 自建镜像缺它则 god-mode 白屏（is_activated:false 水合崩，11-28 实证）。
+# 末尾 metrics 投递在无 celery 时可能报错，行已建即算成功，以 API 复核为准。
+podman run --rm --network agw-net \
+  --env-file "$ENV_DIR/api.env" \
+  --secret plane-pg-pass,type=env,target=POSTGRES_PASSWORD \
+  --secret plane-secret-key,type=env,target=SECRET_KEY \
+  "localhost/plane-api:$COMMIT" python manage.py register_instance \
+  | tail -1 || true
+_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18101/api/instances/)
+[ "$_CODE" = "200" ] || fail "实例注册后 /api/instances/ 仍异常（HTTP $_CODE）"
+ok "实例已注册"
 # Airflow 前置：pg 建 airflow 库+账号（幂等；密码=secret plane-airflow-db-pass）
 # 读 secret 的可靠姿势：借一次性容器 cat 文件（inspect --format SecretData
 # 在部分 podman 版本返回空——2026-11-28 实证建出过空密码账号）
