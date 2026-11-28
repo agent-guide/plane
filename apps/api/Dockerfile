@@ -27,7 +27,7 @@ COPY apps/api /app/apps/api
 RUN cd /app/apps/api && UV_DEFAULT_INDEX="$PYPI_MIRROR" uv sync --frozen --no-install-project --no-dev
 
 WORKDIR /app/apps/api
-ENV PATH="/app/apps/api/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH"
 # DJANGO_SETTINGS_MODULE 不设：manage.py 默认即 plane.settings.production，
 # 与测试服运行态一致（deploy-v2.sh L121 注释口径——不额外设）
 
