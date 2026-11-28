@@ -149,8 +149,9 @@ start_unit() {  # $1=单元名
   systemctl --user restart "$1" || fail "$1 启动失败（journalctl --user -u $1 -n 30）"
 }
 # 顺序：redis → api(migrate 内含首启) → worker → web → airflow → MCP
+# LocalExecutor 下 scheduler 内部自孵化任务子进程（测试服 ps 实证），无独立 worker
 for u in redis plane-api plane-worker plane-web \
-         airflow-api airflow-scheduler airflow-worker \
+         airflow-api airflow-scheduler \
          url-mcp doc-mcp platform-tools-mcp; do
   start_unit "$u"; echo "  ✔ $u 已启动"
 done
