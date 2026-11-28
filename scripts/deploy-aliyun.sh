@@ -10,6 +10,10 @@
 # 纪律与 deploy-v2.sh 同源：幂等可重放、fail-fast 探活中止、
 # 镜像 tag=commit 短 hash（版本可追溯可回滚）、DEPLOYED 留档。
 set -euo pipefail
+# 自更新守卫（哈希判据）：脚本随仓库部署、[1] 检出可能更新自身，而 bash
+# 已把旧版读进内存——"打新版号跑旧代码"。启动记自身哈希，[1] 后不一致则
+# exec 换新版重跑（REEXEC 标记防循环；exec 保留环境）。
+SELF_HASH_START="$(sha256sum "$0" | cut -d' ' -f1)"
 
 BRANCH="${BRANCH:-feature/orchestration-plane}"
 TARGET="${1:-}"
@@ -35,10 +39,8 @@ git fetch --all --prune 2>&1 | tail -1 || fail "git fetch 失败（网络）"
 git checkout -q "${TARGET:-origin/$BRANCH}" || fail "checkout ${TARGET:-$BRANCH} 失败"
 COMMIT="$(git rev-parse --short HEAD)"
 echo "$COMMIT" > "$REPO_DIR/DEPLOYED"
-# 自更新守卫：[1] 检出的新代码可能更新了本脚本，而当前进程仍在跑旧版
-# （bash 不热加载——tag 打新版号、行为是旧代码的竞态，11-28 实证）。
-# 首轮执行若脚本已变，exec 用新版重来一次（REEXEC 标记防循环）。
-if [ "${REEXEC:-}" != "done" ] && ! git diff --quiet HEAD -- scripts/deploy-aliyun.sh 2>/dev/null; then
+if [ "${REEXEC:-}" != "done" ] && [ "$(sha256sum "$REPO_DIR/scripts/deploy-aliyun.sh" | cut -d' ' -f1)" != "$SELF_HASH_START" ]; then
+  echo "  ↻ 脚本已更新（本仓库部署自身），换新版重跑"
   REEXEC=done exec bash "$REPO_DIR/scripts/deploy-aliyun.sh" "$@"
 fi
 ok "部署版本 $COMMIT（DEPLOYED 已留档）"
