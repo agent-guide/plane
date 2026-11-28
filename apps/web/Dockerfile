@@ -4,7 +4,7 @@
 #   podman build -f apps/web/Dockerfile \
 #     --build-arg PUBLIC_BASE_URL=http://8.130.36.59:19100 \
 #     -t plane-web:vN .
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 
 WORKDIR /repo
 # 依赖层（先装后拷源，缓存命中）
