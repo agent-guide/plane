@@ -1,11 +1,17 @@
-# platform-tools-mcp 镜像（平台内置工具链）。
-# 同 url-mcp 模式：构建产物 dist/index.mjs 入库（本机构建、服务器零构建零 npm）；
-# 运行时零外部依赖（仅 devDeps，--packages-external 产物自包含）。
-# 更新产物：本目录 npm install && npm run build && git add dist/
+# platform-tools-mcp 镜像（平台内置工具链）——多阶段：容器内构建 → node 运行时。
+# 对齐部署架构（服务器构建）；npm 国内源用 --registry 参数式（勿 config set，
+# 构建环境 HOME 不可写会静默失败——2026-11-28 实证）。
 #   podman build -f services/platform-tools-mcp/Dockerfile -t plane-platform-tools:vN .
+FROM node:20-alpine AS build
+WORKDIR /src
+COPY package.json package-lock.json* ./
+RUN npm install --registry=https://registry.npmmirror.com --no-audit --no-fund
+COPY . .
+RUN npm run build
+
 FROM node:20-alpine
 WORKDIR /svc
 ENV NODE_ENV=production
-COPY services/platform-tools-mcp/dist ./dist
-COPY services/platform-tools-mcp/package.json ./
+COPY --from=build /src/dist ./dist
+COPY package.json ./
 CMD ["node", "dist/index.mjs"]
