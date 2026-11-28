@@ -82,9 +82,10 @@ ls -t "$BACKUP_DIR"/plane-*.sql | tail -n +11 | xargs -r rm -f
 ok "plane 库已快照（plane-$STAMP.sql，保留最近 10 份）"
 # Django 结构迁移（幂等：无变更 no-op；失败即止）
 podman run --rm --network agw-net \
-  -v "$ENV_DIR/api.env:/app/apps/api/.env:ro,Z" \
+  --env-file "$ENV_DIR/api.env" \
   --secret plane-pg-pass,type=env,target=POSTGRES_PASSWORD \
   --secret plane-secret-key,type=env,target=SECRET_KEY \
+  --secret plane-internal-token,type=env,target=ORCHESTRATION_INTERNAL_TOKEN \
   "localhost/plane-api:$COMMIT" python manage.py migrate \
   || fail "Django migrate 失败（可从 $BACKUP_DIR 快照回滚）"
 ok "Django migrate 完成"
