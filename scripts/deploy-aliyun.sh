@@ -89,6 +89,15 @@ podman run --rm --network agw-net \
   "localhost/plane-api:$COMMIT" python manage.py migrate \
   || fail "Django migrate 失败（可从 $BACKUP_DIR 快照回滚）"
 ok "Django migrate 完成"
+# Airflow 前置：pg 建 airflow 库+账号（幂等；密码=secret plane-airflow-db-pass）
+AFPASS="$(podman secret inspect plane-airflow-db-pass --format '{{.SecretData}}' | base64 -d)"
+podman exec pg psql -U postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='airflow') THEN CREATE ROLE airflow LOGIN PASSWORD '${AFPASS}'; ELSE ALTER ROLE airflow PASSWORD '${AFPASS}'; END IF; END \$\$;" \
+  || fail "airflow 账号创建失败"
+podman exec pg psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='airflow'" | grep -q 1 \
+  || podman exec pg psql -U postgres -c "CREATE DATABASE airflow OWNER airflow;" \
+  || fail "airflow 库创建失败"
+unset AFPASS
+ok "airflow 库+账号就绪"
 # Airflow 元数据迁移（首次初始化 + 升级同一条命令）
 podman run --rm --network agw-net \
   -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD="python -c \"import os;print('postgresql+psycopg://airflow:'+open('/run/secrets/plane-airflow-db-pass').read().strip()+'@pg:5432/airflow')\"" \
