@@ -35,6 +35,12 @@ git fetch --all --prune 2>&1 | tail -1 || fail "git fetch 失败（网络）"
 git checkout -q "${TARGET:-origin/$BRANCH}" || fail "checkout ${TARGET:-$BRANCH} 失败"
 COMMIT="$(git rev-parse --short HEAD)"
 echo "$COMMIT" > "$REPO_DIR/DEPLOYED"
+# 自更新守卫：[1] 检出的新代码可能更新了本脚本，而当前进程仍在跑旧版
+# （bash 不热加载——tag 打新版号、行为是旧代码的竞态，11-28 实证）。
+# 首轮执行若脚本已变，exec 用新版重来一次（REEXEC 标记防循环）。
+if [ "${REEXEC:-}" != "done" ] && ! git diff --quiet HEAD -- scripts/deploy-aliyun.sh 2>/dev/null; then
+  REEXEC=done exec bash "$REPO_DIR/scripts/deploy-aliyun.sh" "$@"
+fi
 ok "部署版本 $COMMIT（DEPLOYED 已留档）"
 
 # ── [2] 前置初始化与校验（fail-closed：缺什么立刻停，不带病部署）────
