@@ -11,12 +11,15 @@ WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY packages ./packages
 COPY apps/web/package.json ./apps/web/
+COPY apps/admin/package.json ./apps/admin/
 RUN corepack enable && pnpm install --frozen-lockfile
 
 # 源码层 + 构建（packages/* 先 turbo build——web 按 dist 消费 @plane/*，
 # 旧 dist 致功能丢失为测试服 11-21 实证）
 COPY apps/web ./apps/web
 RUN npx turbo run build --filter='@plane/*'
+
+COPY apps/admin ./apps/admin
 
 # 公网地址构建期烧入（dual-deploy-plan §3.2）：同源相对路径 + 公网入口。
 # VITE 五地址与 deploy-v2.sh L35-41 一致；空值键保持空串
