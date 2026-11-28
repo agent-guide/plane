@@ -120,11 +120,12 @@ podman run --rm --network agw-net \
   --env-file "$ENV_DIR/api.env" \
   --secret plane-pg-pass,type=env,target=POSTGRES_PASSWORD \
   --secret plane-secret-key,type=env,target=SECRET_KEY \
-  "localhost/plane-api:$COMMIT" python manage.py register_instance \
+  "localhost/plane-api:$COMMIT" python manage.py register_instance "deploy-$(hostname)-$COMMIT" \
   | tail -1 || true
-_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18101/api/instances/)
-[ "$_CODE" = "200" ] || fail "实例注册后 /api/instances/ 仍异常（HTTP $_CODE）"
-ok "实例已注册"
+# 校验断言 is_activated:true（仅查 HTTP 200 不成立——未注册同样 200，11-28 实证）
+curl -s http://127.0.0.1:18101/api/instances/ | grep -q '"is_activated": *true' \
+  || fail "实例未注册成功（API 仍返回 is_activated:false）"
+ok "实例已注册（API 复核 is_activated:true）"
 # Airflow 前置：pg 建 airflow 库+账号（幂等；密码=secret plane-airflow-db-pass）
 # 读 secret 的可靠姿势：借一次性容器 cat 文件（inspect --format SecretData
 # 在部分 podman 版本返回空——2026-11-28 实证建出过空密码账号）
