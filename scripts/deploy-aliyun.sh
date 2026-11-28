@@ -164,7 +164,7 @@ probe() { # $1=描述 $2=命令
 probe "redis PONG"       "podman exec plane-redis redis-cli ping | grep -q PONG"
 probe "plane api 18101"  "curl -sf -o /dev/null http://127.0.0.1:18101/api/instances/"
 probe "plane-web 19100"  "curl -sf -o /dev/null http://127.0.0.1:19100/"
-probe "airflow 18090"    "curl -sf -o /dev/null http://127.0.0.1:18090/health"
+probe "airflow 18090"    "curl -sf -o /dev/null http://127.0.0.1:18090/api/v2/monitor/health"
 probe "url-mcp 8624"     "curl -sf http://127.0.0.1:8624/health | grep -q url_reader"
 probe "doc-mcp 8625"     "curl -sf http://127.0.0.1:8625/health | grep -q parse_document"
 ok "探活全过"
